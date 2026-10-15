@@ -35,8 +35,8 @@ def _load_bill():
 
 
 def _validate(ticker: str, name: str, precision: int, supply_units: int) -> int:
-    if not (1 <= len(ticker) <= 8 and ticker.isalnum()):
-        raise ValueError("ticker must be 1-8 alphanumeric characters")
+    if not (1 <= len(ticker) <= 8 and ticker.isalnum() and ticker == ticker.upper()):
+        raise ValueError("ticker must be 1-8 uppercase alphanumeric characters (rgb-lib rule)")
     if not 1 <= len(name) <= 64:
         raise ValueError("name must be 1-64 characters")
     if not 0 <= precision <= 18:
@@ -52,7 +52,7 @@ def _validate(ticker: str, name: str, precision: int, supply_units: int) -> int:
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--ticker", default="tUSDT")
+    parser.add_argument("--ticker", default="TUSDT")
     parser.add_argument("--name", default="PowerEdge Test USD")
     parser.add_argument("--precision", type=int, default=6)
     parser.add_argument("--supply", type=int, default=1_000_000, help="whole units")
@@ -80,10 +80,12 @@ def main() -> int:
         LOG.error("confirmation did not match; nothing issued")
         return 1
 
-    backend = RgbLibBackend.open(settings)
+    # rgb-lib 0.3.0b7: NIA issuance is offline; it allocates to a colored UTXO already in
+    # the wallet DB (run `create-utxos` and a sync first). No indexer calls, no rate limits.
+    backend = RgbLibBackend.load_offline(settings)
     try:
         asset = backend._wallet.issue_asset_nia(
-            backend._online, args.ticker, args.name, args.precision, [base_supply]
+            args.ticker, args.name, args.precision, [base_supply]
         )
     finally:
         backend.close()

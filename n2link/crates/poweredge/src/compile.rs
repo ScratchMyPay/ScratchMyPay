@@ -115,11 +115,13 @@ fn bind_slots(template: &Template, intent: &WorkflowIntent, ctx: &BindContext) -
                 bound.insert(name.clone(), Value::String(text.trim().to_owned()));
             }
             SlotKind::Ticker => {
-                let ticker = expect_text(name, value)?;
-                if !ctx.assets.contains_key(ticker) {
+                // RGB tickers are uppercase (rgb-lib rule); people write "tUSDT". Deterministic
+                // normalization, then an exact match against what the wallet actually holds.
+                let ticker = expect_text(name, value)?.trim().to_ascii_uppercase();
+                if !ctx.assets.contains_key(&ticker) {
                     return Err(Error::param(name, format!("asset `{ticker}` is not held by the payer wallet")));
                 }
-                bound.insert(name.clone(), Value::String(ticker.to_owned()));
+                bound.insert(name.clone(), Value::String(ticker));
             }
             SlotKind::DecimalAmount => {
                 let unit = spec.unit_slot.as_deref().unwrap_or_default();

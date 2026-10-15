@@ -1,0 +1,11 @@
+{
+  "asset_id": "rgb:I7olLl3y-c49Ha7C-v82SFEj-BU33dvn-4mGtCIL-MNRyWm8",
+  "schema": "NIA",
+  "ticker": "TUSDT",
+  "name": "PowerEdge Test USD",
+  "precision": 6,
+  "issued_supply_base_units": 1000000000000,
+  "network": "mutinynet",
+  "issued_at": "2026-10-15T17:05:19.061869+00:00",
+  "plan_id": "a91845ac-be5b-4cce-a617-977c675fef5a"
+}

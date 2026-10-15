@@ -24,7 +24,7 @@ fn ctx() -> BindContext {
             ("payer_wallet_url".into(), "http://127.0.0.1:8711".into()),
             ("recipient_wallet_url".into(), "http://127.0.0.1:8712".into()),
         ]),
-        assets: BTreeMap::from([("tUSDT".into(), AssetInfo { precision: 6 })]),
+        assets: BTreeMap::from([("TUSDT".into(), AssetInfo { precision: 6 })]),
     }
 }
 
@@ -81,6 +81,8 @@ fn hero_binds_amount_with_wallet_precision_and_resolves_references() {
     let flow = compile(&registry(), &hero(), &ctx()).unwrap();
     assert_eq!(flow.bound["amount"], json!("25"));
     assert_eq!(flow.bound["amount_base_units"], json!(25_000_000u64));
+    // "tUSDT" as typed by a person resolves to the wallet's uppercase RGB ticker.
+    assert_eq!(flow.bound["asset_ticker"], json!("TUSDT"));
 
     let plan = node(&flow.nodes, "rgb-plan");
     assert_eq!(plan["amountBaseUnits"], json!(25_000_000u64));
