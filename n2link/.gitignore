@@ -1,0 +1,58 @@
+/target
+/vendor
+/log
+__pycache__
+/.pytest_cache
+/.venv
+
+# Static files - generated from build script
+/static
+/flows.json
+/flows.json.prev
+/flows_cred.json
+/flows_cred.json.prev
+/flows_cred.json.lock
+/flows_cred.json.txn
+/fleet.json
+/audit.log
+/build-out
+/history.sqlite3
+/history.sqlite3-wal
+/history.sqlite3-shm
+/history.db
+/history.db-wal
+/history.db-shm
+
+# Scratch directory the context-storage specs create and remove
+/tests/resources/context
+
+# Palimnex runtime state, memory packs and key files
+.palimnex/
+*.pmem
+*.key
+
+# Local AI-agent state that is not part of the product
+/.claude/
+/.grok/
+/.agents/skills/rust-skills/
+/skills-lock.json
+
+# Operator-created credential recovery material belongs outside the checkout
+/credential-backups/
+/credential-exports/
+
+# Local overlay: admin passwords, extra context stores, and machine-specific policy.
+# Starter copies live in src/defaults.rs and adoption fixtures.
+/n2linkd.dev.toml
+
+# Client-only page toolchain (Vite). The lockfile stays.
+/crates/web/client/node_modules
+/crates/web/client/dist
+.env
+*.env
+!.env.example
+
+# Raw website captures (browser bars visible). Publish the cropped copies that
+# scripts/site-media.sh writes to site/media/ instead.
+/assets/videos/
+/assets/imagecaptures/

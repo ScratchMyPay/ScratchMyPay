@@ -1,0 +1,502 @@
+
+name: CICD
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+      - 'dev-*'
+    paths:
+      - '.github/workflows/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'crates/**'
+      - 'node-plugins/**'
+      - '3rd-party/node-red/**'
+      - '*.rs'
+      - '*.toml'
+      - '*.ini'
+      - '*.lock'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'crates/**'
+      - 'node-plugins/**'
+      - '3rd-party/node-red/**'
+      - '*.rs'
+      - '*.toml'
+      - '*.ini'
+      - '*.lock'
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  RUSTFLAGS: ${{ (github.ref == 'refs/heads/master' || github.base_ref == 'master') && '-Dwarnings' || '' }}
+
+jobs:
+  fmt-and-check:
+    name: Format and Syntax Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: x86_64-unknown-linux-gnu
+          components: rustfmt
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Cargo metadata (fail fast on dependency errors)
+        run: cargo metadata --locked --format-version=1
+      - name: Check code formatting
+        run: cargo fmt --check
+      - name: Cargo check (syntax only)
+        run: cargo check --workspace
+      - name: Cargo check (minimal feature sets)
+        run: |
+          cargo check -p n2link-core --no-default-features --features core
+          cargo check -p n2link-core --no-default-features --features core,js
+          cargo check -p n2link-core --no-default-features --features core,jsonata
+          cargo check -p n2link-core --no-default-features --features core,nodes_ai_text
+          cargo check -p n2link-core --no-default-features --features core,nodes_ai_agent
+          cargo check -p n2link-core --features nodes_wasm
+          if cargo tree -p n2link-app -e normal -i wasmi >/dev/null 2>&1; then echo 'wasmi must not be in the default graph' >&2; exit 1; fi
+
+  build-and-test-windows:
+    name: Build and Test on Windows
+    needs: fmt-and-check
+    runs-on: windows-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        target: [x86_64-pc-windows-msvc, x86_64-pc-windows-gnu]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r ./tests/requirements.txt
+
+      - name: Ensure package-lock.json exists
+        shell: bash
+        run: |
+          (cd 3rd-party/node-red && if [ ! -f package-lock.json ]; then npm install --package-lock-only; fi)
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 3rd-party/node-red/package-lock.json
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: 3rd-party/node-red/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('3rd-party/node-red/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Setup msys2 toolchains
+        if: endsWith(matrix.target, '-gnu')
+        uses: msys2/setup-msys2@v2
+        with:
+          release: false
+          install: mingw-w64-x86_64-gcc mingw-w64-i686-gcc
+
+      - name: Prepare env for windows
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        run: |
+          # Add symlinks to the target-specific GNU sysroots for Clang
+          New-Item -Path "C:\Program Files\LLVM\x86_64-w64-mingw32" -ItemType SymbolicLink -Value "C:\msys64\mingw64\x86_64-w64-mingw32"
+          # Add path to GCC executables to PATH (only mingw64 for 64-bit)
+          echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Configure CC_<target> environment variable (only 64-bit)
+          echo "CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          components: llvm-tools-preview
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --profile ci --workspace --target ${{ matrix.target }} --features full
+
+      - name: Run Rust tests
+        run: cargo test --workspace --no-fail-fast --features full --target ${{ matrix.target }} --profile ci
+
+      - name: Run agent feature tests
+        run: cargo test -p n2link-core --all-features --lib --no-fail-fast --target ${{ matrix.target }} --profile ci
+
+      - name: Run WASM plugin tests
+        run: cargo test -p n2link-core --features nodes_wasm --lib --no-fail-fast --target ${{ matrix.target }} --profile ci
+
+  build-and-test-linux:
+    name: Build and Test on Linux (x86-64)
+    needs: [fmt-and-check, clippy]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r ./tests/requirements.txt
+
+      - name: Ensure package-lock.json exists
+        shell: bash
+        run: |
+          (cd 3rd-party/node-red && if [ ! -f package-lock.json ]; then npm install --package-lock-only; fi)
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 3rd-party/node-red/package-lock.json
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: 3rd-party/node-red/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('3rd-party/node-red/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          components: llvm-tools-preview
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --profile ci --workspace --target ${{ matrix.target }} --features full
+        env:
+          PYTHON_SYS_EXECUTABLE: ${{ env.PYTHON_SYS_EXECUTABLE }}
+
+      - name: Run Rust tests
+        run: cargo test --workspace --no-fail-fast --features full --target ${{ matrix.target }} --profile ci
+
+      - name: Run agent feature tests
+        run: cargo test -p n2link-core --all-features --lib --no-fail-fast --target ${{ matrix.target }} --profile ci
+
+      - name: Run WASM plugin tests
+        run: cargo test -p n2link-core --features nodes_wasm --lib --no-fail-fast --target ${{ matrix.target }} --profile ci
+
+      - name: Run Python tests
+        env:
+          N2LINK_BUILD_TARGET: ${{ matrix.target }}
+          N2LINK_BUILD_PROFILE: ci
+        run: pytest ./tests -v
+
+  # Deferred: QEMU user-mode on ubuntu-latest still needs a working host path and
+  # sysroot. Native Raspberry Pi 5 aarch64 is the ARM runtime evidence
+  # (docs/ISSUES.md). Restore `schedule || workflow_dispatch` when picking this up.
+  build-and-test-on-arm-linux:
+    name: Build and Test on ARM Linux
+    needs: fmt-and-check
+    runs-on: ubuntu-latest
+    if: false
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf, armv7-unknown-linux-gnueabi]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          components: llvm-tools-preview
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r ./tests/requirements.txt
+
+      - name: Ensure package-lock.json exists
+        shell: bash
+        run: |
+          (cd 3rd-party/node-red && if [ ! -f package-lock.json ]; then npm install --package-lock-only; fi)
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 3rd-party/node-red/package-lock.json
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: 3rd-party/node-red/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('3rd-party/node-red/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+
+      - name: Install QEMU and the target sysroot
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+          case "${{ matrix.target }}" in
+            aarch64-unknown-linux-gnu)
+              sudo apt-get install -y gcc-aarch64-linux-gnu libc-dev-arm64-cross
+              ;;
+            armv7-unknown-linux-gnueabihf)
+              sudo apt-get install -y gcc-arm-linux-gnueabihf libc-dev-armhf-cross
+              ;;
+            armv7-unknown-linux-gnueabi)
+              sudo apt-get install -y gcc-arm-linux-gnueabi libc-dev-armel-cross
+              ;;
+          esac
+
+      - name: Setup cross-compilation tools for ARM 64
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo "N2LINK_TOOLCHAIN_TRIPLE=aarch64-linux-gnu" >> $GITHUB_ENV
+          echo "N2LINK_QEMU_CMD=qemu-aarch64-static" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+
+      - name: Setup cross-compilation tools for ARM 32 (gnueabihf)
+        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
+        run: |
+          echo "N2LINK_TOOLCHAIN_TRIPLE=arm-linux-gnueabihf" >> $GITHUB_ENV
+          echo "N2LINK_QEMU_CMD=qemu-arm-static" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+
+      - name: Setup cross-compilation tools for ARM 32 (gnueabi)
+        if: matrix.target == 'armv7-unknown-linux-gnueabi'
+        run: |
+          echo "N2LINK_TOOLCHAIN_TRIPLE=arm-linux-gnueabi" >> $GITHUB_ENV
+          echo "N2LINK_QEMU_CMD=qemu-arm-static" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Cross build
+        run: cross build --workspace --profile ci --target ${{ matrix.target }} --features full --exclude n2link-pymod
+
+      - name: Cross build tests without running
+        run: cross test --workspace --profile ci --target ${{ matrix.target }} --features full --exclude n2link-pymod --no-run --message-format=json | tee ./target/${{ matrix.target }}/ci/cargo-build-test.json
+
+      - name: Run unit tests in QEMU ARM
+        run: python3 ./scripts/cross-unittest.py ${{ env.N2LINK_QEMU_CMD }}  ${{ env.N2LINK_TOOLCHAIN_TRIPLE }} ./target/${{ matrix.target }}/ci/cargo-build-test.json
+        env:
+          N2LINK_TOOLCHAIN_TRIPLE: ${{ env.N2LINK_TOOLCHAIN_TRIPLE }}
+          N2LINK_QEMU_CMD: ${{ env.N2LINK_QEMU_CMD }}
+
+  clippy:
+    name: Clippy
+    needs: fmt-and-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: x86_64-unknown-linux-gnu
+          components: clippy
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Clippy
+        run: cargo clippy --all-features --tests --all
+
+  wasm-plugins:
+    name: WASM plugins (guest SDK, examples, end to end)
+    needs: fmt-and-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: x86_64-unknown-linux-gnu,wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Example plugins are formatted and lint-clean
+        run: |
+          for example in crates/wasm-guest/examples/*/; do
+            cargo fmt --check --manifest-path "$example/Cargo.toml"
+            cargo clippy --manifest-path "$example/Cargo.toml" --target wasm32-unknown-unknown -- -D warnings
+          done
+          cargo clippy -p n2link-wasm-guest --target wasm32-unknown-unknown -- -D warnings
+      - name: Plugin host tests (core and web, nodes_wasm)
+        # Only the plugin handler tests run for web here: the editor-HTML catalog test needs the
+        # app's ui_static build, which the Linux job provides and this job does not.
+        run: |
+          cargo test -p n2link-core --features nodes_wasm --lib
+          cargo test -p n2link-web --features nodes_wasm --lib wasm_plugins
+      - name: Build the example plugins and install them end to end
+        run: scripts/wasm-examples.sh --e2e
+
+  nightly-build-and-release:
+    name: Nightly Build & Release (Windows)
+    needs: fmt-and-check
+    if: |
+      github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: x86_64-pc-windows-msvc
+          override: true
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build (release)
+        run: cargo build --release --workspace --target x86_64-pc-windows-msvc
+
+      - name: Run Rust tests (release)
+        run: cargo test --release --workspace --target x86_64-pc-windows-msvc
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r ./tests/requirements.txt
+
+      - name: Package nightly build
+        run: python ./scripts/dist-pack.py --branch dev --mode release --target x86_64-pc-windows-msvc
+
+      - name: Get git commit date
+        id: date
+        run: |
+          git fetch --unshallow || true
+          echo "date=$(git log -1 --format=%cd --date=format:%Y%m%d%H%M)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly-${{ steps.date.outputs.date }}
+          name: Nightly Build ${{ steps.date.outputs.date }}
+          body: |
+            Automated nightly build for dev branch.
+            Built on: ${{ steps.date.outputs.date }}
+          files: build-out/n2linkd-dist-x86_64-pc-windows-msvc-nightly-*.zip
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete old nightly releases (keep 10 builds)
+        uses: dev-drprasad/delete-older-releases@v0.3.3
+        with:
+          keep_latest: 10
+          delete_tags: true
+          delete_prerelease_only: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

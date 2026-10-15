@@ -1,0 +1,832 @@
+use crate::handlers::WebState;
+use std::sync::Arc;
+// use crate::handlers::utils::get_static_dir;
+use axum::{
+    Extension,
+    extract::{Path, Query},
+    http::{HeaderMap, StatusCode},
+    response::{Html, IntoResponse, Json},
+};
+use serde_json::Value;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Clone)]
+struct NodeInfo {
+    name: String,
+    module: String,
+    version: String,
+    local: bool,
+    user: bool,
+    types: Vec<String>,
+}
+type GroupedNodes = HashMap<String, NodeInfo>;
+
+// nodes/plugins related handler
+// ...existing code...
+
+/// Get all nodes
+pub async fn get_nodes(
+    Extension(state): Extension<Arc<WebState>>,
+    headers: HeaderMap,
+) -> Result<axum::response::Response, StatusCode> {
+    // Check Accept header to determine response format
+    let accept_header = headers.get("accept").and_then(|h| h.to_str().ok()).unwrap_or("application/json");
+
+    let registry_guard = state.registry.read().await;
+    let Some(registry) = registry_guard.as_ref() else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    let allowed: HashSet<String> = registry.all().values().map(|meta| meta.type_().to_string()).collect();
+
+    if accept_header.contains("text/html") {
+        #[allow(unused_mut)]
+        let mut html_content = generate_nodes_html(&state.static_dir, &allowed).await;
+        #[cfg(feature = "nodes_wasm")]
+        if let Some(plugins) = registry.wasm() {
+            html_content.push_str(&crate::handlers::wasm_plugins::editor_html(plugins));
+        }
+        Ok(Html(html_content).into_response())
+    } else {
+        let mut grouped_nodes: GroupedNodes = GroupedNodes::new();
+
+        for meta_node in registry.all().values() {
+            let entry = grouped_nodes.entry(meta_node.red_id().to_string()).or_insert_with(|| NodeInfo {
+                name: meta_node.red_name().to_string(),
+                module: meta_node.module().to_string(),
+                version: meta_node.version().to_string(),
+                local: meta_node.local(),
+                user: meta_node.user(),
+                types: Vec::new(),
+            });
+            entry.types.push(meta_node.type_().to_string());
+        }
+
+        #[allow(unused_mut)]
+        let mut flat_nodes: Vec<_> = grouped_nodes
+            .into_iter()
+            .map(|(red_id, node_info)| {
+                serde_json::json!({
+                    "id": red_id,
+                    "name": node_info.name,
+                    "types": node_info.types,
+                    "enabled": true,
+                    "local": node_info.local,
+                    "user": node_info.user,
+                    "module": node_info.module,
+                    "version": node_info.version
+                })
+            })
+            .collect();
+
+        #[cfg(feature = "nodes_wasm")]
+        if let Some(plugins) = registry.wasm() {
+            flat_nodes.extend(crate::handlers::wasm_plugins::node_sets(plugins));
+        }
+        Ok(Json(serde_json::Value::Array(flat_nodes)).into_response())
+    }
+}
+
+/// Editor definitions whose `registerType` names are all in the live registry.
+async fn generate_nodes_html(static_dir: &std::path::Path, allowed: &HashSet<String>) -> String {
+    let node_red_nodes_dir = static_dir.join("nodes");
+
+    if !node_red_nodes_dir.exists() {
+        return get_fallback_nodes_html(allowed);
+    }
+
+    let mut html_content = String::new();
+
+    let core_dir = node_red_nodes_dir.join("core");
+    if core_dir.exists() {
+        process_node_directory_runtime(&core_dir, allowed, &mut html_content).await;
+    }
+
+    let examples_dir = node_red_nodes_dir.join("examples");
+    if examples_dir.exists() {
+        process_node_directory_runtime(&examples_dir, allowed, &mut html_content).await;
+    }
+
+    append_bundled_editor("modbus", "modbus-editor/82-modbus.html", allowed, &mut html_content);
+    append_bundled_editor("scan", "scan-editor/80-scan.html", allowed, &mut html_content);
+    append_bundled_editor("ai-provider", "ai-editor/90-ai-provider.html", allowed, &mut html_content);
+    append_bundled_editor("ai-chat", "ai-editor/91-ai-chat.html", allowed, &mut html_content);
+    append_bundled_editor("ai-split", "ai-editor/96-ai-split.html", allowed, &mut html_content);
+    append_bundled_editor("ai-structured", "ai-editor/97-ai-structured.html", allowed, &mut html_content);
+    append_bundled_editor("ai-embed", "ai-editor/98-ai-embed.html", allowed, &mut html_content);
+    append_bundled_editor("ai-agent", "ai-editor/99-ai-agent.html", allowed, &mut html_content);
+    append_bundled_editor("postgres-config", "db-editor/92-postgres-config.html", allowed, &mut html_content);
+    append_bundled_editor("postgres", "db-editor/93-postgres.html", allowed, &mut html_content);
+    append_bundled_editor("redis-config", "db-editor/94-redis-config.html", allowed, &mut html_content);
+    append_bundled_editor("redis", "db-editor/95-redis.html", allowed, &mut html_content);
+
+    if html_content.is_empty() {
+        return get_fallback_nodes_html(allowed);
+    }
+
+    html_content
+}
+
+fn append_bundled_editor(kind: &str, relative: &str, allowed: &HashSet<String>, html_content: &mut String) {
+    if !allowed.contains(kind) || register_types_in(html_content).iter().any(|name| name == kind) {
+        return;
+    }
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+    let Ok(file_content) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    extract_node_html_content_runtime(&file_content, &path, allowed, html_content);
+}
+
+/// Recursively process node directory at runtime
+async fn process_node_directory_runtime(dir: &std::path::Path, allowed: &HashSet<String>, html_content: &mut String) {
+    use std::future::Future;
+    use std::pin::Pin;
+
+    fn process_dir_recursive<'a>(
+        dir: &'a std::path::Path,
+        allowed: &'a HashSet<String>,
+        html_content: &'a mut String,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            if let Ok(entries) = tokio::fs::read_dir(dir).await {
+                let mut entries = entries;
+                while let Ok(Some(entry)) = entries.next_entry().await {
+                    let path = entry.path();
+
+                    if path.is_dir() {
+                        if path.file_name().and_then(|s| s.to_str()) == Some("lib") {
+                            continue;
+                        }
+                        process_dir_recursive(&path, allowed, html_content).await;
+                    } else if path.extension().and_then(|s| s.to_str()) == Some("html")
+                        && let Ok(file_content) = tokio::fs::read_to_string(&path).await
+                    {
+                        extract_node_html_content_runtime(&file_content, &path, allowed, html_content);
+                    }
+                }
+            }
+        })
+    }
+
+    process_dir_recursive(dir, allowed, html_content).await;
+}
+
+fn register_types_in(html: &str) -> Vec<String> {
+    let mut types = Vec::new();
+    let needle = "RED.nodes.registerType(";
+    let mut rest = html;
+    while let Some(pos) = rest.find(needle) {
+        let after = rest[pos + needle.len()..].trim_start();
+        let quote = after.chars().next();
+        if quote == Some('\'') || quote == Some('"') {
+            let q = quote.unwrap();
+            if let Some(end) = after[1..].find(q) {
+                types.push(after[1..1 + end].to_string());
+            }
+        }
+        rest = &rest[pos + needle.len()..];
+    }
+    types
+}
+
+fn extract_node_html_content_runtime(
+    file_content: &str,
+    file_path: &std::path::Path,
+    allowed: &HashSet<String>,
+    output: &mut String,
+) {
+    let types = register_types_in(file_content);
+    if types.is_empty() || types.iter().any(|kind| !allowed.contains(kind)) {
+        return;
+    }
+    let module_name = extract_module_name_runtime(file_path);
+    output.push_str(&format!("<!-- --- [red-module:{module_name}] --- -->\n"));
+    output.push_str(file_content);
+    if !file_content.ends_with('\n') {
+        output.push('\n');
+    }
+}
+
+/// Extract module name from file path at runtime
+fn extract_module_name_runtime(file_path: &std::path::Path) -> String {
+    if let Some(file_name) = file_path.file_name().and_then(|f| f.to_str()) {
+        // Remove .html extension
+        let name_without_ext = file_name.trim_end_matches(".html");
+
+        // For all Node-RED core nodes, use "node-red/nodename" pattern
+        // Extract node name part (remove numeric prefix)
+        let node_name = if let Some(pos) = name_without_ext.find('-') {
+            // Remove numeric prefix, e.g. "20-inject" -> "inject"
+            &name_without_ext[pos + 1..]
+        } else {
+            // No prefix, use directly (e.g. "view", "rbe")
+            name_without_ext
+        };
+
+        // Always use node-red/ prefix for core nodes
+        format!("node-red/{node_name}")
+    } else {
+        "unknown".to_string()
+    }
+}
+
+/// Get fallback node HTML config
+fn get_fallback_nodes_html(allowed: &HashSet<String>) -> String {
+    if !["inject", "debug", "function"].iter().all(|kind| allowed.contains(*kind)) {
+        return String::new();
+    }
+    r#"<script type="text/javascript">
+// Node-RED node configurations (fallback)
+(function() {
+    // Inject node
+    RED.nodes.registerType('inject',{
+        category: 'common',
+        color: '#a6bbcf',
+        defaults: {
+            name: {value:""},
+            topic: {value:""},
+            payload: {value:"", type:"msg"},
+            payloadType: {value:"date"},
+            repeat: {value:""},
+            crontab: {value:""},
+            once: {value:false}
+        },
+        inputs:0,
+        outputs:1,
+        icon: "inject.svg",
+        label: function() {
+            return this.name||this.topic||"inject";
+        }
+    });
+
+    // Debug node
+    RED.nodes.registerType('debug',{
+        category: 'common',
+        color: '#87a980',
+        defaults: {
+            name: {value:""},
+            active: {value:true},
+            console: {value:"false"},
+            complete: {value:"false", required:true}
+        },
+        inputs:1,
+        outputs:0,
+        icon: "debug.svg",
+        label: function() {
+            return this.name||"debug";
+        }
+    });
+
+    // Function node
+    RED.nodes.registerType('function',{
+        category: 'function',
+        color: '#fdd0a2',
+        defaults: {
+            name: {value:""},
+            func: {value:"return msg;"},
+            outputs: {value:1},
+            noerr: {value:0,required:true}
+        },
+        inputs:1,
+        outputs:1,
+        icon: "function.svg",
+        label: function() {
+            return this.name||"function";
+        }
+    });
+})();
+</script>"#
+        .to_string()
+}
+
+/// Get node module info
+pub async fn get_node_module(
+    Extension(state): Extension<Arc<WebState>>,
+    Path(module_name): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let registry_guard = state.registry.read().await;
+    if let Some(registry) = registry_guard.as_ref() {
+        // Lookup module info from registry
+        for meta_node in registry.all().values() {
+            if meta_node.module() == module_name {
+                let module_info = serde_json::json!({
+                    "name": meta_node.module(),
+                    "version": meta_node.version(),
+                    "enabled": true,
+                    "local": meta_node.local(),
+                    "user": meta_node.user()
+                });
+                return Ok(Json(module_info));
+            }
+        }
+    }
+
+    Err(StatusCode::NOT_FOUND)
+}
+
+/// Install node module
+pub async fn install_node_module(
+    Extension(_state): Extension<Arc<WebState>>,
+    Json(_payload): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    // Node module installation is now managed by registry, just return unimplemented status here
+    Err(StatusCode::NOT_IMPLEMENTED)
+}
+
+/// Enable/disable node module
+pub async fn toggle_node_module(
+    Extension(_state): Extension<Arc<WebState>>,
+    Path(_module_name): Path<String>,
+    Json(_payload): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    // Node module enable/disable is now managed by registry, just return unimplemented status here
+    Err(StatusCode::NOT_IMPLEMENTED)
+}
+
+/// Uninstall node module
+pub async fn uninstall_node_module(
+    Extension(_state): Extension<Arc<WebState>>,
+    Path(_module_name): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    // Node module uninstall is now managed by registry, just return unimplemented status here
+    Err(StatusCode::NOT_IMPLEMENTED)
+}
+
+/// Get node message directory
+pub async fn get_node_messages(
+    Extension(state): Extension<Arc<WebState>>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, StatusCode> {
+    let lang = params.get("lng").unwrap_or(&"en-US".to_string()).clone();
+
+    log::info!("Getting node messages for language: {lang}");
+
+    // Use static_dir from WebState
+    let static_dir = &state.static_dir;
+
+    // Try to load the locale file from the new structure
+    let locale_path = static_dir.join("locales").join(&lang).join("messages.json");
+
+    match tokio::fs::read_to_string(&locale_path).await {
+        Ok(content) => match serde_json::from_str::<Value>(&content) {
+            Ok(json) => Ok(Json(json)),
+            Err(_) => {
+                log::warn!("Invalid JSON in locale file: {}", locale_path.display());
+                get_fallback_node_messages(&state, &lang).await
+            }
+        },
+        Err(_) => {
+            log::warn!("Locale file not found: {}", locale_path.display());
+            // If the specific locale isn't found, try fallback strategies
+            get_fallback_node_messages(&state, &lang).await
+        }
+    }
+}
+
+/// Get node set info
+pub async fn get_node_set(
+    Extension(state): Extension<Arc<WebState>>,
+    Path((module_name, set_name)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    let registry_guard = state.registry.read().await;
+    let Some(registry) = registry_guard.as_ref() else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    // Flow nodes register as `node-red/{set}`. Global nodes register as `{type}/{set}`
+    // (`tls-config/tls`), so the first module match is not this set.
+    let wanted = format!("{module_name}/{set_name}");
+    let mut nodes = Vec::new();
+    for meta_node in registry.all().values() {
+        if meta_node.red_id() == wanted {
+            nodes.push(meta_node.type_());
+        }
+    }
+    if nodes.is_empty() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let node_set = serde_json::json!({
+        "id": wanted,
+        "module": module_name,
+        "set": set_name,
+        "enabled": true,
+        "nodes": nodes
+    });
+    Ok(Json(node_set))
+}
+
+/// Enable/disable node set
+pub async fn toggle_node_set(
+    Extension(_state): Extension<Arc<WebState>>,
+    Path((_module_name, _set_name)): Path<(String, String)>,
+    Json(_payload): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    // Node set enable/disable is now managed by registry, just return unimplemented status here
+    Err(StatusCode::NOT_IMPLEMENTED)
+}
+
+/// Get node set messages
+pub async fn get_node_set_messages(
+    Extension(state): Extension<Arc<WebState>>,
+    Path((module_name, set_name)): Path<(String, String)>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, StatusCode> {
+    let lang = params.get("lng").unwrap_or(&"en-US".to_string()).clone();
+
+    log::info!("Getting node set messages for {module_name}/{set_name} in language: {lang}");
+
+    // Use static_dir from WebState
+    let static_dir = &state.static_dir;
+
+    // Try to load the locale file from the new structure
+    let locale_path = static_dir.join("locales").join(&lang).join("messages.json");
+
+    match tokio::fs::read_to_string(&locale_path).await {
+        Ok(content) => match serde_json::from_str::<Value>(&content) {
+            Ok(full_locale) => {
+                // Look for the specific namespace in the locale data
+                // Try different namespace formats: module_name, set_name, or the combination
+                let formatted_slash = format!("{module_name}/{set_name}");
+                let formatted_underscore = format!("{module_name}_{set_name}");
+                let possible_keys = vec![&module_name, &set_name, &formatted_slash, &formatted_underscore];
+
+                for key in possible_keys {
+                    if let Some(namespace_data) = full_locale.get(key) {
+                        return Ok(Json(namespace_data.clone()));
+                    }
+                }
+
+                // If no specific namespace found, return empty object
+                Ok(Json(serde_json::json!({})))
+            }
+            Err(_) => {
+                log::warn!("Invalid JSON in locale file: {}", locale_path.display());
+                get_fallback_node_set_messages(&state, &module_name, &set_name, &lang).await
+            }
+        },
+        Err(_) => {
+            log::warn!("Locale file not found: {}", locale_path.display());
+            // If the specific locale isn't found, try fallback strategies
+            get_fallback_node_set_messages(&state, &module_name, &set_name, &lang).await
+        }
+    }
+}
+
+/// Get fallback node messages with fallback strategies
+async fn get_fallback_node_messages(state: &WebState, requested_lang: &str) -> Result<Json<Value>, StatusCode> {
+    let static_dir = &state.static_dir;
+
+    // Strategy 1: Try primary language (e.g., 'en' for 'en-US')
+    if requested_lang.contains('-') {
+        let primary_lang = requested_lang.split('-').next().unwrap();
+        let primary_path = static_dir.join("locales").join(primary_lang).join("messages.json");
+
+        if let Ok(content) = tokio::fs::read_to_string(&primary_path).await
+            && let Ok(json) = serde_json::from_str::<Value>(&content)
+        {
+            return Ok(Json(json));
+        }
+    }
+
+    // Strategy 2: Try en-US as ultimate fallback
+    if requested_lang != "en-US" {
+        let en_us_path = static_dir.join("locales/en-US/messages.json");
+        if let Ok(content) = tokio::fs::read_to_string(&en_us_path).await
+            && let Ok(json) = serde_json::from_str::<Value>(&content)
+        {
+            return Ok(Json(json));
+        }
+    }
+
+    // Strategy 3: Return hardcoded fallback
+    Ok(Json(get_hardcoded_fallback_node_messages()))
+}
+
+/// Get fallback node set messages with fallback strategies  
+async fn get_fallback_node_set_messages(
+    state: &WebState,
+    module_name: &str,
+    set_name: &str,
+    requested_lang: &str,
+) -> Result<Json<Value>, StatusCode> {
+    let static_dir = &state.static_dir;
+
+    // Strategy 1: Try primary language (e.g., 'en' for 'en-US')
+    if requested_lang.contains('-') {
+        let primary_lang = requested_lang.split('-').next().unwrap();
+        let primary_path = static_dir.join("locales").join(primary_lang).join("messages.json");
+
+        if let Ok(content) = tokio::fs::read_to_string(&primary_path).await
+            && let Ok(full_locale) = serde_json::from_str::<Value>(&content)
+        {
+            // Look for the specific namespace in the locale data
+            let formatted_slash = format!("{module_name}/{set_name}");
+            let formatted_underscore = format!("{module_name}_{set_name}");
+            let possible_keys = vec![module_name, set_name, &formatted_slash, &formatted_underscore];
+
+            for key in possible_keys {
+                if let Some(namespace_data) = full_locale.get(key) {
+                    return Ok(Json(namespace_data.clone()));
+                }
+            }
+        }
+    }
+
+    // Strategy 2: Try en-US as ultimate fallback
+    if requested_lang != "en-US" {
+        let en_us_path = static_dir.join("locales/en-US/messages.json");
+        if let Ok(content) = tokio::fs::read_to_string(&en_us_path).await
+            && let Ok(full_locale) = serde_json::from_str::<Value>(&content)
+        {
+            let formatted_slash = format!("{module_name}/{set_name}");
+            let formatted_underscore = format!("{module_name}_{set_name}");
+            let possible_keys = vec![module_name, set_name, &formatted_slash, &formatted_underscore];
+
+            for key in possible_keys {
+                if let Some(namespace_data) = full_locale.get(key) {
+                    return Ok(Json(namespace_data.clone()));
+                }
+            }
+        }
+    }
+
+    // Strategy 3: Return hardcoded fallback
+    Ok(Json(get_hardcoded_fallback_node_set_messages(module_name, set_name)))
+}
+
+/// Get hardcoded fallback node messages for when files aren't available
+fn get_hardcoded_fallback_node_messages() -> Value {
+    serde_json::json!({
+        "node-red": {
+            "common": {
+                "label": {
+                    "name": "Name",
+                    "input": "Input",
+                    "output": "Output",
+                    "payload": "Payload",
+                    "topic": "Topic"
+                },
+                "status": {
+                    "connected": "connected",
+                    "disconnected": "disconnected"
+                }
+            },
+            "inject": {
+                "inject": "inject",
+                "label": {
+                    "repeat": "repeat",
+                    "payload": "payload",
+                    "topic": "topic"
+                }
+            },
+            "debug": {
+                "output": "output",
+                "label": {
+                    "name": "name"
+                }
+            }
+        }
+    })
+}
+
+/// Get hardcoded fallback node set messages
+fn get_hardcoded_fallback_node_set_messages(module_name: &str, set_name: &str) -> Value {
+    serde_json::json!({
+        format!("{}/{}", module_name, set_name): {
+            "help": "Help text for this node set",
+            "label": "Node Set Label",
+            "description": "Node set description"
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::create_all_routes;
+    use axum::body::Body;
+    use axum::http::Request;
+    use n2link_core::runtime::registry::RegistryBuilder;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn a_node_set_lists_the_types_for_that_red_id() {
+        let state = WebState::new();
+        let registry = RegistryBuilder::new().with_builtins().build().expect("registry");
+        state.set_registry(registry).await;
+        let router = create_all_routes(&state).layer(Extension(state));
+
+        let response = router
+            .clone()
+            .oneshot(Request::builder().uri("/nodes/node-red/validate").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["nodes"], serde_json::json!(["validate"]));
+
+        let response = router
+            .clone()
+            .oneshot(Request::builder().uri("/nodes/node-red/inject").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        let nodes = body["nodes"].as_array().unwrap();
+        assert!(nodes.iter().any(|node| node == "inject"));
+        assert!(nodes.iter().all(|node| node != "tls-config"));
+
+        let response = router
+            .clone()
+            .oneshot(Request::builder().uri("/nodes/node-red/not-a-set").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        for missing in ["html", "global-config"] {
+            let response = router
+                .clone()
+                .oneshot(Request::builder().uri(format!("/nodes/node-red/{missing}")).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{missing}");
+        }
+        #[cfg(not(feature = "nodes_modbus"))]
+        {
+            let response = router
+                .clone()
+                .oneshot(Request::builder().uri("/nodes/node-red/modbus").body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+        #[cfg(not(feature = "runtime_scan"))]
+        {
+            let response = router
+                .clone()
+                .oneshot(Request::builder().uri("/nodes/node-red/scan").body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+        #[cfg(feature = "nodes_modbus")]
+        {
+            let response = router
+                .clone()
+                .oneshot(Request::builder().uri("/nodes/node-red/modbus").body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+        #[cfg(feature = "runtime_scan")]
+        {
+            let response = router
+                .clone()
+                .oneshot(Request::builder().uri("/nodes/node-red/scan").body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+    }
+
+    #[tokio::test]
+    async fn html_register_types_are_in_the_json_catalog() {
+        let state = WebState::new();
+        let registry = RegistryBuilder::new().with_builtins().build().expect("registry");
+        state.set_registry(registry).await;
+        let router = create_all_routes(&state).layer(Extension(state));
+
+        let json_response =
+            router.clone().oneshot(Request::builder().uri("/nodes").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(json_response.status(), StatusCode::OK);
+        let json_bytes = axum::body::to_bytes(json_response.into_body(), usize::MAX).await.unwrap();
+        let catalog: Value = serde_json::from_slice(&json_bytes).unwrap();
+        let mut json_types = HashSet::new();
+        for set in catalog.as_array().unwrap() {
+            for kind in set["types"].as_array().unwrap() {
+                json_types.insert(kind.as_str().unwrap().to_string());
+            }
+        }
+        assert!(!json_types.contains("html"));
+        assert!(!json_types.contains("global-config"));
+        #[cfg(not(feature = "nodes_modbus"))]
+        assert!(!json_types.contains("modbus"));
+        #[cfg(not(feature = "runtime_scan"))]
+        assert!(!json_types.contains("scan"));
+        #[cfg(feature = "nodes_modbus")]
+        assert!(json_types.contains("modbus"));
+        #[cfg(feature = "runtime_scan")]
+        assert!(json_types.contains("scan"));
+        #[cfg(not(feature = "nodes_ai"))]
+        {
+            assert!(!json_types.contains("ai-provider"));
+            assert!(!json_types.contains("ai-chat"));
+        }
+        #[cfg(feature = "nodes_ai")]
+        {
+            assert!(json_types.contains("ai-provider"));
+            assert!(json_types.contains("ai-chat"));
+        }
+        #[cfg(feature = "nodes_ai_text")]
+        {
+            assert!(json_types.contains("ai-split"));
+            assert!(json_types.contains("ai-structured"));
+        }
+        #[cfg(not(feature = "nodes_ai_text"))]
+        {
+            assert!(!json_types.contains("ai-split"));
+            assert!(!json_types.contains("ai-structured"));
+        }
+        #[cfg(feature = "nodes_ai_embeddings")]
+        assert!(json_types.contains("ai-embed"));
+        #[cfg(not(feature = "nodes_ai_embeddings"))]
+        assert!(!json_types.contains("ai-embed"));
+        #[cfg(feature = "nodes_ai_agent")]
+        assert!(json_types.contains("ai-agent"));
+        #[cfg(not(feature = "nodes_ai_agent"))]
+        assert!(!json_types.contains("ai-agent"));
+        #[cfg(not(feature = "nodes_postgres"))]
+        {
+            assert!(!json_types.contains("postgres"));
+            assert!(!json_types.contains("postgres-config"));
+        }
+        #[cfg(feature = "nodes_postgres")]
+        {
+            assert!(json_types.contains("postgres"));
+            assert!(json_types.contains("postgres-config"));
+        }
+        #[cfg(not(feature = "nodes_redis"))]
+        {
+            assert!(!json_types.contains("redis"));
+            assert!(!json_types.contains("redis-config"));
+        }
+        #[cfg(feature = "nodes_redis")]
+        {
+            assert!(json_types.contains("redis"));
+            assert!(json_types.contains("redis-config"));
+        }
+
+        let html_response = router
+            .oneshot(Request::builder().uri("/nodes").header("accept", "text/html").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(html_response.status(), StatusCode::OK);
+        let html_bytes = axum::body::to_bytes(html_response.into_body(), usize::MAX).await.unwrap();
+        let html = String::from_utf8(html_bytes.to_vec()).unwrap();
+        let html_types = register_types_in(&html);
+        assert!(!html_types.is_empty(), "editor HTML had no registerType calls");
+        for kind in &html_types {
+            assert!(json_types.contains(kind), "HTML registerType({kind:?}) is not in /nodes JSON");
+        }
+        assert!(!html_types.iter().any(|kind| kind == "html"));
+        assert!(!html_types.iter().any(|kind| kind == "global-config"));
+        #[cfg(not(feature = "nodes_modbus"))]
+        assert!(!html_types.iter().any(|kind| kind == "modbus"));
+        #[cfg(not(feature = "runtime_scan"))]
+        assert!(!html_types.iter().any(|kind| kind == "scan"));
+        #[cfg(feature = "nodes_modbus")]
+        assert!(html_types.iter().any(|kind| kind == "modbus"));
+        #[cfg(feature = "runtime_scan")]
+        assert!(html_types.iter().any(|kind| kind == "scan"));
+        #[cfg(not(feature = "nodes_ai"))]
+        {
+            assert!(!html_types.iter().any(|kind| kind == "ai-provider"));
+            assert!(!html_types.iter().any(|kind| kind == "ai-chat"));
+        }
+        #[cfg(feature = "nodes_ai")]
+        {
+            assert!(html_types.iter().any(|kind| kind == "ai-provider"));
+            assert!(html_types.iter().any(|kind| kind == "ai-chat"));
+        }
+        #[cfg(feature = "nodes_ai_text")]
+        {
+            assert!(html_types.iter().any(|kind| kind == "ai-split"));
+            assert!(html_types.iter().any(|kind| kind == "ai-structured"));
+        }
+        #[cfg(feature = "nodes_ai_embeddings")]
+        assert!(html_types.iter().any(|kind| kind == "ai-embed"));
+        #[cfg(feature = "nodes_ai_agent")]
+        assert!(html_types.iter().any(|kind| kind == "ai-agent"));
+        #[cfg(not(feature = "nodes_postgres"))]
+        {
+            assert!(!html_types.iter().any(|kind| kind == "postgres"));
+            assert!(!html_types.iter().any(|kind| kind == "postgres-config"));
+        }
+        #[cfg(feature = "nodes_postgres")]
+        {
+            assert!(html_types.iter().any(|kind| kind == "postgres"));
+            assert!(html_types.iter().any(|kind| kind == "postgres-config"));
+        }
+        #[cfg(not(feature = "nodes_redis"))]
+        {
+            assert!(!html_types.iter().any(|kind| kind == "redis"));
+            assert!(!html_types.iter().any(|kind| kind == "redis-config"));
+        }
+        #[cfg(feature = "nodes_redis")]
+        {
+            assert!(html_types.iter().any(|kind| kind == "redis"));
+            assert!(html_types.iter().any(|kind| kind == "redis-config"));
+        }
+    }
+}

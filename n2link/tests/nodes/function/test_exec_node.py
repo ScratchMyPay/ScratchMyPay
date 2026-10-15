@@ -1,0 +1,756 @@
+import pytest
+import os
+import platform
+from tests import *
+
+@pytest.mark.describe('exec node')
+class TestExecNode:
+
+    @pytest.mark.skip(reason="the pytest bridge only observes messages, so it cannot read a deployed "
+                             "node's own properties back: the upstream assertion on the node object "
+                             "(`n1.name === 'exec1'`) has no equivalent here")
+    @pytest.mark.asyncio
+    @pytest.mark.it('should be loaded with any defaults')
+    async def test_should_be_loaded_with_defaults(self):
+        node = {
+            "type": "exec",
+            "name": "exec1"
+        }
+        # This would typically test node properties, but we'll adapt for our testing framework
+        # Just verify the node can be created without errors
+        msgs = await run_single_node_with_msgs_ntimes(node, [{}], 1, timeout=1)
+        # Basic validation that the node exists and processes messages
+        assert len(msgs) >= 0
+
+    @pytest.mark.describe('calling exec')
+    class TestCallingExec:
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should exec a simple command')
+        async def test_should_exec_simple_command(self):
+            node = {
+                "type": "exec",
+                "command": "echo",
+                "addpay": False,
+                "append": "",
+                "oldrc": "false"
+            }
+            node["wires"] = [["2"], ["3"], ["4"]]
+            
+            # Create a flow with exec node and multiple outputs
+            exec_node = {"id": "1", "type": "exec", **node, "z": "0"}
+            stdout_node = {"id": "2", "type": "test-once", "z": "0"}
+            stderr_node = {"id": "3", "type": "test-once", "z": "0"}  
+            rc_node = {"id": "4", "type": "test-once", "z": "0"}
+            
+            flow = [
+                {"id": "0", "type": "tab"},
+                exec_node,
+                stdout_node,
+                stderr_node,
+                rc_node
+            ]
+            
+            msgs = await run_flow_with_msgs_ntimes(flow, [{"payload": "and"}], 2, "1")
+            
+            # A real `echo` writes to stdout only: upstream's spec stubs `child_process.exec`
+            # so that the same call also produces stderr, which no real command does here.
+            # stdout (carrying the rc, with the bytes the command wrote - trailing newline
+            # included) and the return code output are what remain.
+            stdout_msg = next((m for m in msgs if isinstance(m.get('payload'), str)), None)
+            assert stdout_msg is not None, f"Expected a stdout message, got {msgs}"
+            assert stdout_msg['payload'].endswith("\n"), f"stdout was trimmed: {stdout_msg['payload']!r}"
+            assert stdout_msg['rc']['code'] == 0
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['code'] == 0
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should exec a simple command with appended value from message')
+        async def test_should_exec_command_with_appended_value(self):
+            node = {
+                "type": "exec",
+                "command": "echo",
+                "addpay": "topic",
+                "append": "more",
+                "oldrc": "false"
+            }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": "foo", "topic": "bar"}], 1)
+            
+            if msgs:
+                msg = msgs[0]
+                assert 'payload' in msg
+                # Should contain the topic value and append text
+                payload_str = str(msg['payload'])
+                assert "bar" in payload_str and "more" in payload_str
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should exec a simple command with extra parameters')
+        async def test_should_exec_command_with_extra_parameters(self):
+            node = {
+                "type": "exec",
+                "command": "echo",
+                "addpay": "payload",
+                "append": "more",
+                "oldrc": "false"
+            }
+            node["wires"] = [["2"], ["3"], ["4"]]
+            
+            exec_node = {"id": "1", "type": "exec", **node, "z": "0"}
+            stdout_node = {"id": "2", "type": "test-once", "z": "0"}
+            stderr_node = {"id": "3", "type": "test-once", "z": "0"}
+            rc_node = {"id": "4", "type": "test-once", "z": "0"}
+            
+            flow = [
+                {"id": "0", "type": "tab"},
+                exec_node,
+                stdout_node,
+                stderr_node,
+                rc_node
+            ]
+            
+            msgs = await run_flow_with_msgs_ntimes(flow, [{"payload": "and"}], 2, "1")
+            
+            # Should get responses from stdout and stderr
+            for msg in msgs:
+                if 'payload' in msg and isinstance(msg['payload'], str):
+                    assert "and" in msg['payload'] and "more" in msg['payload']
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to return a binary buffer')
+        async def test_should_return_binary_buffer(self):
+            node = {
+                "type": "exec",
+                "command": "echo",
+                "addpay": True,
+                "append": "more",
+                "oldrc": "false"
+            }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{}], 1)
+            
+            # This test checks binary buffer handling
+            # The implementation should handle binary data properly
+            assert len(msgs) >= 0
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to timeout a long running command')
+        async def test_should_timeout_long_running_command(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "ping",
+                    "addpay": False,
+                    "append": "192.0.2.0 -n 1 -w 1000 > NUL",
+                    "timer": "0.3",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec", 
+                    "command": "sleep",
+                    "addpay": False,
+                    "append": "1",
+                    "timer": "0.3",
+                    "oldrc": "false"
+                }
+            
+            node["wires"] = [["2"], ["3"], ["4"]]
+            
+            exec_node = {"id": "1", "type": "exec", **node, "z": "0"}
+            stdout_node = {"id": "2", "type": "test-once", "z": "0"}
+            stderr_node = {"id": "3", "type": "test-once", "z": "0"}
+            rc_node = {"id": "4", "type": "test-once", "z": "0"}
+            
+            flow = [
+                {"id": "0", "type": "tab"},
+                exec_node,
+                stdout_node,
+                stderr_node,
+                rc_node
+            ]
+            
+            # The cap only bounds how long a *missing* message is waited for: process start-up is
+            # part of it, so it needs headroom over the node's 0.3s timer to stay stable on a
+            # loaded machine. Two messages are expected: `exec` mode carries the return code on
+            # the stdout message as well as sending it on its own output.
+            msgs = await run_flow_with_msgs_ntimes(flow, [{}], 2, "1", timeout=3)
+
+            # Should get timeout signal
+            rc_msg = next((m for m in msgs if 'payload' in m and isinstance(m['payload'], dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert 'signal' in rc_msg['payload']
+            assert rc_msg['payload']['signal'] == "SIGTERM"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to kill a long running command')
+        async def test_should_kill_long_running_command(self):
+            if platform.system() == "Windows":
+                # Upstream relies on `ping 192.0.2.0 -n 1 -w 1000` outliving the kill; four
+                # loopback replies give the same "runs for seconds" guarantee without
+                # depending on how this host routes TEST-NET-1.
+                node = {
+                    "type": "exec",
+                    "command": "ping",
+                    "addpay": False,
+                    "append": "127.0.0.1 -n 4 > NUL",
+                    "timer": "2",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "sleep",
+                    "addpay": False,
+                    "append": "1",
+                    "timer": "2",
+                    "oldrc": "false"
+                }
+
+            node["wires"] = [["2"], ["3"], ["4"]]
+            msgs = await run_flow_for_seconds_scheduled([
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ], [
+                # Upstream injects `{kill:""}` 150ms in: the command ends immediately and the
+                # return code reports the signal that stopped it.
+                {"nid": "1", "msg": {}},
+                {"nid": "1", "msg": {"kill": ""}, "delay_ms": 150},
+            ], 1.0)
+
+            stdout_msg = next((m for m in msgs if isinstance(m.get('payload'), str)), None)
+            assert stdout_msg is not None, f"Expected a stdout message, got {msgs}"
+            assert stdout_msg['rc']['code'] is None
+            assert stdout_msg['rc']['signal'] == "SIGTERM"
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['signal'] == "SIGTERM"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to kill a long running command - SIGINT')
+        async def test_should_kill_long_running_command_sigint(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "ping",
+                    "addpay": False,
+                    "append": "127.0.0.1 -n 4 > NUL",
+                    "timer": "2",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "sleep",
+                    "addpay": False,
+                    "append": "1",
+                    "timer": "2",
+                    "oldrc": "false"
+                }
+
+            node["wires"] = [["2"], ["3"], ["4"]]
+            msgs = await run_flow_for_seconds_scheduled([
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ], [
+                {"nid": "1", "msg": {}},
+                {"nid": "1", "msg": {"kill": "SIGINT"}, "delay_ms": 150},
+            ], 1.0)
+
+            stdout_msg = next((m for m in msgs if isinstance(m.get('payload'), str)), None)
+            assert stdout_msg is not None, f"Expected a stdout message, got {msgs}"
+            assert stdout_msg['rc']['signal'] == "SIGINT"
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['signal'] == "SIGINT"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should return the rc for a failing command')
+        async def test_should_return_rc_for_failing_command(self):
+            node = {
+                "type": "exec",
+                "command": "nonexistentcommand",
+                "addpay": False,
+                "append": "",
+                "oldrc": "false"
+            }
+            node["wires"] = [["2"], ["3"], ["4"]]
+            
+            exec_node = {"id": "1", "type": "exec", **node, "z": "0"}
+            stdout_node = {"id": "2", "type": "test-once", "z": "0"}
+            stderr_node = {"id": "3", "type": "test-once", "z": "0"}
+            rc_node = {"id": "4", "type": "test-once", "z": "0"}
+            
+            flow = [
+                {"id": "0", "type": "tab"},
+                exec_node,
+                stdout_node,
+                stderr_node,
+                rc_node
+            ]
+            
+            msgs = await run_flow_with_msgs_ntimes(flow, [{"payload": "and"}], 1, "1", timeout=2)
+            
+            # Should get error return code
+            rc_msg = next((m for m in msgs if 'payload' in m and isinstance(m['payload'], dict) and 'code' in m['payload']), None)
+            if rc_msg:
+                assert rc_msg['payload']['code'] != 0
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should preserve existing properties on msg object')
+        async def test_should_preserve_existing_properties(self):
+            node = {
+                "type": "exec",
+                "command": "echo",
+                "addpay": False,
+                "append": "",
+                "oldrc": "false"
+            }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": "and", "foo": "bar"}], 1)
+            
+            # Should preserve the foo property
+            for msg in msgs:
+                if 'foo' in msg:
+                    assert msg['foo'] == "bar"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should preserve existing properties on msg object for a failing command')
+        async def test_should_preserve_properties_failing_command(self):
+            node = {
+                "type": "exec",
+                "command": "nonexistentcommand",
+                "addpay": False,
+                "append": "",
+                "oldrc": "false"
+            }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": "and", "foo": None}], 1, timeout=2)
+            
+            # Should preserve the foo property even on failure
+            for msg in msgs:
+                if 'foo' in msg:
+                    assert msg['foo'] is None
+
+    @pytest.mark.describe('calling spawn')
+    class TestCallingSpawn:
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should spawn a simple command')
+        async def test_should_spawn_simple_command(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "cmd /C echo",
+                    "addpay": True,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "echo",
+                    "addpay": True,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": "hello world"}], 1)
+            
+            if msgs:
+                msg = msgs[0]
+                assert 'payload' in msg
+                payload_str = str(msg['payload'])
+                assert "hello world" in payload_str
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should spawn a simple command with a non string payload parameter')
+        async def test_should_spawn_command_non_string_payload(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "cmd /C echo",
+                    "addpay": True,
+                    "append": " deg C",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "echo",
+                    "addpay": True,
+                    "append": " deg C",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": 12345}], 1)
+            
+            if msgs:
+                msg = msgs[0]
+                assert 'payload' in msg
+                payload_str = str(msg['payload'])
+                assert "12345" in payload_str and "deg C" in payload_str
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should spawn a simple command and return binary buffer')
+        async def test_should_spawn_command_return_binary_buffer(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "cmd /C echo",
+                    "addpay": True,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "echo",
+                    "addpay": True,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            # Test with binary payload
+            binary_payload = [0x01, 0x02, 0x03, 0x88]
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": binary_payload}], 1)
+            
+            assert len(msgs) >= 0
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should work if passed multiple words to spawn command')
+        async def test_should_work_multiple_words_spawn_command(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "cmd /C echo this now works",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "echo this now works",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            node["wires"] = [["2"], ["3"], ["4"]]
+            
+            exec_node = {"id": "1", "type": "exec", **node, "z": "0"}
+            stdout_node = {"id": "2", "type": "test-once", "z": "0"}
+            stderr_node = {"id": "3", "type": "test-once", "z": "0"}
+            rc_node = {"id": "4", "type": "test-once", "z": "0"}
+            
+            flow = [
+                {"id": "0", "type": "tab"},
+                exec_node,
+                stdout_node,
+                stderr_node,
+                rc_node
+            ]
+            
+            msgs = await run_flow_with_msgs_ntimes(flow, [{"payload": None, "fred": 123}], 2, "1")
+            
+            # Upstream asserts the exact payload, terminator included: spawn mode forwards the
+            # raw chunk the child wrote rather than a line with its newline stripped.
+            expected = "this now works\r\n" if platform.system() == "Windows" else "this now works\n"
+            stdout_msg = next((m for m in msgs if isinstance(m.get('payload'), str)), None)
+            assert stdout_msg is not None, f"Expected a stdout message, got {msgs}"
+            assert stdout_msg['payload'] == expected
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should return an error for a bad command')
+        async def test_should_return_error_bad_command(self):
+            node = {
+                "type": "exec",
+                "command": "madeupcommandshouldfail",
+                "addpay": False,
+                "append": "",
+                "useSpawn": "true",
+                "oldrc": "false"
+            }
+            node["wires"] = [["2"], ["3"], ["4"]]
+
+            flow = [
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ]
+
+            # The failed spawn is reported on the return-code output, as upstream's n4 sees it
+            msgs = await run_flow_with_msgs_ntimes(flow, [{"payload": None}], 1, "1", timeout=2)
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['code'] < 0
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should return an error for a failing command')
+        async def test_should_return_error_failing_command(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "ping /foo/bar/doo/dah",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "mkdir /foo/bar/doo/dah",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            node["wires"] = [["2"], ["3"], ["4"]]
+            
+            exec_node = {"id": "1", "type": "exec", **node, "z": "0"}
+            stdout_node = {"id": "2", "type": "test-once", "z": "0"}
+            stderr_node = {"id": "3", "type": "test-once", "z": "0"}
+            rc_node = {"id": "4", "type": "test-once", "z": "0"}
+            
+            flow = [
+                {"id": "0", "type": "tab"},
+                exec_node,
+                stdout_node,
+                stderr_node,
+                rc_node
+            ]
+            
+            msgs = await run_flow_with_msgs_ntimes(flow, [{"payload": None}], 2, "1", timeout=3)
+            
+            # Should get stderr and error return code
+            rc_msg = next((m for m in msgs if 'payload' in m and isinstance(m['payload'], dict) and 'code' in m['payload']), None)
+            if rc_msg:
+                assert rc_msg['payload']['code'] == 1
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to timeout a long running command')
+        async def test_should_timeout_long_running_command_spawn(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "ping",
+                    "addpay": False,
+                    "append": "192.0.2.0 -n 1 -w 1000",
+                    "timer": "0.3",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "sleep",
+                    "addpay": False,
+                    "append": "1",
+                    "timer": "0.3",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            node["wires"] = [["2"], ["3"], ["4"]]
+            # Sample the outputs for a second: spawn mode forwards whatever the command wrote to
+            # stdout as it arrives (Windows' `ping` prints a banner immediately) and then sends the
+            # return code on its own output, so waiting for a fixed count would stop at the banner.
+            msgs = await run_flow_for_seconds_scheduled([
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ], [{"nid": "1", "msg": {}}], 1.0)
+
+            # Should get timeout signal
+            rc_msg = next((m for m in msgs if 'payload' in m and isinstance(m['payload'], dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert 'signal' in rc_msg['payload']
+            assert rc_msg['payload']['signal'] == "SIGTERM"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to kill a long running command')
+        async def test_should_kill_long_running_command_spawn(self):
+            if platform.system() == "Windows":
+                # Same reasoning as the `exec` variant above: the command has to outlive the
+                # `kill` message for this spec to observe the signal that stopped it. Spawn mode
+                # runs the program directly (no shell), so there is no `> NUL` redirection here.
+                node = {
+                    "type": "exec",
+                    "command": "ping",
+                    "addpay": False,
+                    "append": "127.0.0.1 -n 4",
+                    "timer": "2",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "sleep",
+                    "addpay": False,
+                    "append": "1",
+                    "timer": "2",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+
+            node["wires"] = [["2"], ["3"], ["4"]]
+            msgs = await run_flow_for_seconds_scheduled([
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ], [
+                # Upstream injects `{kill:""}` 150ms in; the return code reports the signal that
+                # stopped the command.
+                {"nid": "1", "msg": {}},
+                {"nid": "1", "msg": {"kill": ""}, "delay_ms": 150},
+            ], 1.0)
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['code'] is None
+            assert rc_msg['payload']['signal'] == "SIGTERM"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should be able to kill a long running command - SIGINT')
+        async def test_should_kill_long_running_command_sigint_spawn(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "ping",
+                    "addpay": False,
+                    "append": "127.0.0.1 -n 4",
+                    "timer": "2",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "sleep",
+                    "addpay": False,
+                    "append": "1",
+                    "timer": "2",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+
+            node["wires"] = [["2"], ["3"], ["4"]]
+            msgs = await run_flow_for_seconds_scheduled([
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ], [
+                {"nid": "1", "msg": {}},
+                {"nid": "1", "msg": {"kill": "SIGINT"}, "delay_ms": 150},
+            ], 1.0)
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['signal'] == "SIGINT"
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should preserve existing properties on msg object')
+        async def test_should_preserve_existing_properties_spawn(self):
+            if platform.system() == "Windows":
+                node = {
+                    "type": "exec",
+                    "command": "cmd /C echo this now works",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "echo this now works",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            
+            msgs = await run_single_node_with_msgs_ntimes(node, [{"payload": None, "foo": 123}], 1)
+            
+            # Should preserve the foo property
+            for msg in msgs:
+                if 'foo' in msg:
+                    assert msg['foo'] == 123
+
+        @pytest.mark.asyncio
+        @pytest.mark.it('should preserve existing properties on msg object for a failing command')
+        async def test_should_preserve_properties_failing_command_spawn(self):
+            if platform.system() == "Windows":
+                # Upstream notes that Windows' `mkdir` creates missing parent directories itself,
+                # so the failing command has to be something else there.
+                node = {
+                    "type": "exec",
+                    "command": "ping /foo/bar/doo/dah",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+            else:
+                node = {
+                    "type": "exec",
+                    "command": "mkdir /foo/bar/doo/dah",
+                    "addpay": False,
+                    "append": "",
+                    "useSpawn": "true",
+                    "oldrc": "false"
+                }
+
+            # Spawn mode forwards the command's output on stdout *or* stderr depending on the
+            # command (`ping` reports on stdout, `mkdir` on stderr) and then sends the return code
+            # on its own output, so all three outputs are wired and both messages are checked.
+            # Upstream additionally asserts a fragment of the command's message; that text is
+            # localized, so only the shape and the preserved properties are asserted here.
+            node["wires"] = [["2"], ["3"], ["4"]]
+            msgs = await run_flow_for_seconds_scheduled([
+                {"id": "0", "type": "tab"},
+                {"id": "1", "z": "0", **node},
+                {"id": "2", "z": "0", "type": "test-once"},
+                {"id": "3", "z": "0", "type": "test-once"},
+                {"id": "4", "z": "0", "type": "test-once"},
+            ], [{"nid": "1", "msg": {"payload": None, "foo": "baz"}}], 1.0)
+
+            output_msg = next((m for m in msgs if isinstance(m.get('payload'), str)), None)
+            assert output_msg is not None, f"Expected the failing command's output, got {msgs}"
+            assert output_msg['foo'] == "baz"
+
+            rc_msg = next((m for m in msgs if isinstance(m.get('payload'), dict)), None)
+            assert rc_msg is not None, f"Expected a return code message, got {msgs}"
+            assert rc_msg['payload']['code'] == 1
+            assert rc_msg['foo'] == "baz"

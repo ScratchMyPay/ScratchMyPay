@@ -1,0 +1,34 @@
+{
+  "project_slug": "n2linkd",
+  "project_id": "edf9ac94-43cb-4c70-a2bb-a0461a0c5de2",
+  "cache_mode": "on",
+  "redis_socket_path": ".palimnex/redis/redis.sock",
+  "durable_ledger_path": ".palimnex/memory.sqlite3",
+  "include_patterns": [
+    ".github/workflows/*.yml",
+    "src/**/*.rs",
+    "tests/**/*",
+    "*.md",
+    "docs/**/*.md",
+    "adoption/**/*.md",
+    "*.rs",
+    "Cargo.toml",
+    "crates/**/Cargo.toml",
+    "crates/**/*.js",
+    "crates/**/*.md",
+    "crates/**/*.rs",
+    "crates/web/client/src/**/*.ts",
+    "crates/web/client/src/**/*.tsx",
+    "crates/web/client/src/**/*.css",
+    "crates/web/client/*.ts",
+    "crates/web/client/*.html",
+    "crates/web/*-editor/**/*.html",
+    "crates/web/public/nodes/**/*.html",
+    "node-plugins/**/*.rs",
+    "scripts/**/*.py",
+    "scripts/**/*.sh"
+  ],
+  "semantic_provider": {
+    "mode": "disabled"
+  }
+}

@@ -1,0 +1,310 @@
+use crate::Result;
+
+/// Creates a default flows.json with an inject->debug flow that sends "Hello, World" every 5 seconds
+pub fn create_default_flows_json() -> serde_json::Value {
+    serde_json::json!([
+    {
+        "id": "adf5c374d9ac0466",
+        "type": "tab",
+        "label": "Flow 1"
+    },
+    {
+        "id": "ded1a8c84fec2323",
+        "type": "inject",
+        "z": "adf5c374d9ac0466",
+        "name": "Inject Hello",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "Hello, n2link!",
+        "payloadType": "date",
+        "x": 410,
+        "y": 280,
+        "wires": [
+            [
+                "dc18e4d63818b44b"
+            ]
+        ]
+    },
+    {
+        "id": "dc18e4d63818b44b",
+        "type": "debug",
+        "z": "adf5c374d9ac0466",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 670,
+        "y": 280,
+        "wires": []
+    }
+    ])
+}
+
+/// Creates a default n2linkd.toml configuration file
+pub fn create_default_config_file(config_dir: &str) -> Result<()> {
+    use std::fs;
+    use std::path::Path;
+
+    // `compat::config_file` returns the legacy edgelinkd.toml when only that one exists.
+    let config_path = n2link_core::compat::config_file(Path::new(config_dir), None);
+
+    // If config file already exists, nothing to do
+    if config_path.exists() {
+        return Ok(());
+    }
+
+    // Create directory if it doesn't exist
+    if !Path::new(config_dir).exists() {
+        fs::create_dir_all(config_dir)?;
+        log::info!("Created config directory: {config_dir}");
+    }
+
+    // Create default config file content
+    let default_config = r#"[runtime]
+
+[runtime.engine]
+
+[runtime.context]
+default = "memory"
+
+[runtime.context.stores]
+memory = { provider = "memory" }
+
+[runtime.flow]
+node_msg_queue_capacity = 16
+# How many messages a node may keep buffered while working on a message sequence; 0 means no limit.
+# This is the equivalent of Node-RED's `nodeMessageBufferMaxLength` settings.js property.
+node_message_buffer_max_length = 0
+# How many messages the TCP nodes may queue while a connection is busy; the oldest is dropped
+# once the queue is full. This is Node-RED's `tcpMsgQueueSize` settings.js property.
+tcp_msg_queue_size = 1000
+
+[runtime.scan]
+# Soft real-time scan. Compiled only with the `runtime_scan` feature, which is off by default.
+# Period in milliseconds. 0 disables the task. A value below 10 is an error at start.
+# The floor is the shortest interval the runtime will schedule, not a latency guarantee.
+period_ms = 0
+
+[ui-host]
+host = "127.0.0.1"
+port = 1888
+
+# Inbound HTTP limits are independent by endpoint class. `enforce` rejects over-budget work;
+# `observe` records the same decision while permitting it; `off` is the per-class compatibility
+# fallback. Forwarded/real client headers are ignored unless the direct peer is listed here as
+# an exact IP address or CIDR. Do not trust a broad network you do not control.
+[api_protection]
+global_max_concurrency = 128
+max_rate_keys = 2048
+trusted_proxies = []
+# Optional: name of an environment variable whose bearer token every `http in` listener requires.
+# webhook_bearer_env = "N2LINK_WEBHOOK_TOKEN"
+
+[api_protection.health]
+mode = "enforce"
+max_body_bytes = 0
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 1200
+max_concurrency = 32
+queue_timeout_ms = 500
+request_timeout_ms = 2000
+max_response_bytes = 65536
+
+[api_protection.editor_admin]
+mode = "enforce"
+max_body_bytes = 4194304
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 600
+max_concurrency = 32
+queue_timeout_ms = 500
+request_timeout_ms = 120000
+max_response_bytes = 8388608
+
+[api_protection.authentication]
+mode = "enforce"
+max_body_bytes = 65536
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 60
+max_concurrency = 8
+queue_timeout_ms = 500
+request_timeout_ms = 15000
+max_response_bytes = 65536
+
+[api_protection.websocket]
+mode = "enforce"
+max_body_bytes = 65536
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 120
+max_concurrency = 32
+queue_timeout_ms = 500
+request_timeout_ms = 10000
+max_response_bytes = 65536
+
+[api_protection.webhook]
+mode = "enforce"
+max_body_bytes = 1048576
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 600
+max_concurrency = 16
+queue_timeout_ms = 500
+request_timeout_ms = 30000
+max_response_bytes = 2097152
+
+[api_protection.copilot]
+mode = "enforce"
+max_body_bytes = 1048576
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 30
+max_concurrency = 2
+queue_timeout_ms = 1000
+request_timeout_ms = 70000
+max_response_bytes = 2097152
+
+[api_protection.fleet]
+mode = "enforce"
+max_body_bytes = 1048576
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 60
+max_concurrency = 4
+queue_timeout_ms = 500
+request_timeout_ms = 60000
+max_response_bytes = 4194304
+
+[api_protection.plugins]
+mode = "enforce"
+max_body_bytes = 1048576
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 6
+max_concurrency = 1
+queue_timeout_ms = 500
+request_timeout_ms = 30000
+max_response_bytes = 65536
+
+[api_protection.static_assets]
+mode = "enforce"
+max_body_bytes = 0
+max_header_bytes = 32768
+max_headers = 128
+requests_per_minute = 1200
+max_concurrency = 64
+queue_timeout_ms = 500
+request_timeout_ms = 30000
+max_response_bytes = 16777216
+
+# Outbound compatibility mode. Move to "observe" to inventory decisions, then add exact
+# allow rules before selecting "enforce". Ambient environment proxy variables are isolated in
+# governed modes; configure a proxy_url and allowlist its origin if a proxy is required.
+[egress]
+mode = "off"
+allow_environment_proxy = false
+# proxy_url = "http://proxy.example.internal:3128"
+connect_timeout_ms = 10000
+request_timeout_ms = 60000
+idle_timeout_ms = 30000
+max_response_bytes = 1048576
+max_redirects = 5
+
+# Example for a local MQTT broker. Credentials remain in flows_cred.json, never here.
+# [[egress.allow]]
+# protocols = ["mqtt"]
+# host = "127.0.0.1"
+# ports = [1883]
+
+# The editor configuration pane is disabled until explicitly enabled. It also requires admin
+# authentication; n2link refuses to start if this is true while login is off.
+[config_editor]
+enabled = false
+
+# Credential sidecars remain plaintext until an explicit `credentials migrate` command. Once
+# migrated, this environment variable takes precedence over the local flows_cred.key keyring.
+# Never place the key value in this file or commit a generated *.key file.
+[credentials]
+key_env = "N2LINK_CREDENTIAL_KEY"
+# key_file = "flows_cred.key"
+
+# Admin login is off until a password, a user list, or an OIDC issuer is set.
+# A whitespace password does not turn it on. viewer can read, deployer can deploy flows, and
+# administrator can change process configuration.
+# An unknown role, or an incomplete OIDC section, stops the process at startup.
+# [admin]
+# password = ""
+# [[admin.users]]
+# username = "operator"
+# Generate with: npx node-red-admin hash-pw
+# password = "change-me"
+# role = "deployer"
+# [[admin.users]]
+# username = "viewer"
+# password = "change-me"
+# role = "viewer"
+# [[admin.users]]
+# username = "administrator"
+# password = "change-me"
+# role = "administrator"
+# [admin.oidc]
+# issuer = "https://idp.example/realms/plant"
+# client_id = "n2linkd"
+# client_secret = "change-me"
+# role_claim = "n2link_role"
+# redirect_url = "http://127.0.0.1:1888/auth/strategy/callback"
+
+# Fleet push is off until enabled. Devices can also live in fleet.json beside flows.json.
+# [fleet]
+# enabled = false
+
+# Flow Copilot structural checks. Disable to use type-only draft validation.
+# [copilot]
+# strict_metadata = true
+
+# Optional WASM plugins. Off even when the binary is built with --features nodes_wasm.
+# [runtime.wasm]
+# enabled = false
+# Plugin store under the home directory; manage it with `n2linkd plugin` while stopped.
+# dir = "plugins"
+# Memory reserved for all plugin nodes of the deployed graph (about 15 default-sized nodes).
+# Boards with spare RAM can raise it, e.g. 65536 on a Raspberry Pi 5.
+# memory_budget_kib = 8192
+
+# Bounded operational history. Compiled into the default app build. Recording stays off until enabled.
+# [history]
+# enabled = false
+# path = "history.sqlite3"
+# queue_capacity = 1024
+# batch_max = 256
+# retention_days = 30
+# max_db_bytes = 16777216
+# shutdown_drain_ms = 2000
+# node_error_interval_ms = 1000
+# migrate = false
+"#;
+
+    fs::write(&config_path, default_config)?;
+    log::info!("Created default config file at: {}", config_path.display());
+
+    Ok(())
+}
