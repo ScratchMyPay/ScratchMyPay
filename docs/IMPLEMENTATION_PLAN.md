@@ -1,5 +1,7 @@
 # IMPLEMENTATION PLAN — RGB2link PowerEdge (Sunday delivery)
 
+> **Status 2026-10-16:** tracks A–D and the first live payouts were completed on Oct 15 (see `IMPLEMENTATION_STATUS.md`). Saturday's hackathon-day plan is in **`SATURDAY_PLAN.md`** (wallets in Rust micro-VMs).
+
 Status: active plan, rev 2, 2026-10-15 18:30 CEST · Base: n2link `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (`0.4.0-rc.1`) · Bill `be3d237`.
 Change from rev 1: organizers approved starting now on a public repo, so there is no "pre-event, no code" phase and no "stop after M1" gate. M1, M2 and the guided UX are built in parallel and all ship Sunday. Safety invariants (`SECURITY.md`) are unchanged: test networks only, human approval bound to plan + flow revision, journal before send, no secrets in git.
 
