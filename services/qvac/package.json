@@ -1,0 +1,13 @@
+{
+  "name": "poweredge-qvac",
+  "private": true,
+  "description": "Local QVAC OpenAI-compatible server for RGB2link PowerEdge (CLI and SDK installed together so model constants resolve).",
+  "license": "Apache-2.0",
+  "scripts": {
+    "serve": "./serve.sh"
+  },
+  "dependencies": {
+    "@qvac/cli": "0.15.0",
+    "@qvac/sdk": "0.21.0"
+  }
+}
