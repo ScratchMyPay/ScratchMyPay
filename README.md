@@ -63,6 +63,16 @@ services/wallet-owner/run.sh recipient &  sleep 30;  services/wallet-owner/run.s
 scripts/run-n2link.sh
 ```
 
+**After the one-time setup above, one command starts (or checks, or stops) everything:**
+
+```bash
+scripts/demo-up.sh          # QVAC + crew wallet + WDK -> organizer wallet -> n2link -> QVAC warm-up (~1 min cold)
+scripts/demo-up.sh status   # health of each service, organizer funds, WDK treasury check for tonight
+scripts/demo-up.sh stop     # stops only the PowerEdge services (matched by port and command)
+```
+
+It waits for each service to be really ready (wallets confirm `mutinynet` and mainnet off; QVAC reports the model loaded), skips services already running, refuses to start if a port is held by something else, and keeps logs in `artifacts/run/logs/` (git-ignored).
+
 Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "PowerEdge payouts"). Everything listens on 127.0.0.1 only.
 
 ### Mocked, simulated or hard-coded (honest list)

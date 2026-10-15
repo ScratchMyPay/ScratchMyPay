@@ -66,6 +66,7 @@ Only what has been run and observed goes here. "Planned" lives in `IMPLEMENTATIO
 | 2026-10-15 | Tests after QR/Copilot work | poweredge 20/20, n2link-web 75/75, core rgb 3/3 (QR), deploy gate 2/2, clippy -D warnings clean | |
 | 2026-10-15 ~22:40 | WDK spike (`docs/WDK_SPIKE.md`) | `wdk-wallet-btc` works on Mutinynet; `wdk-wallet-rgb` cannot join `sbc:` payouts; RGB addon needs Node 22 | commit `cd589d0` |
 | 2026-10-15 ~22:50 | WDK treasury service live (`services/wdk-btc`, :8713) | treasury `tb1q83x7zca8jdeqc6jpdh9d3ykzcs4pzj4jy2q9wc`; live fees normal 1 / fast 4 sat/vB → 1,197 sat per payout (normal); `/check?count=5` → not enough (empty treasury); 401 without token; cost tests 3/3 | |
+| 2026-10-15 ~22:55 | One-command start-up `scripts/demo-up.sh` (up/status/stop) | cold start of all 5 services 59 s (crew wallet 26 s → organizer wallet 27 s; QVAC loads in parallel, warm-up 1 s); 2nd run skips all (4 s); stop frees all ports + GPU; first draft after start 1.5 s QVAC / 3.7 s total with WDK fee | |
 | 2026-10-15 | **Finding:** QVAC amount units inconsistent | hero returned `amount: 25000000` (base units, precision 6), drummer returned `10` (whole units) under the same instruction | see risk R-AMOUNT |
 
 ## Open risks found by testing

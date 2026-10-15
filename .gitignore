@@ -95,3 +95,6 @@ evidence/raw/
 .idea/
 *.swp
 .DS_Store
+
+# demo-up runtime logs and PIDs
+artifacts/run/
