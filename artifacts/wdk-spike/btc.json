@@ -1,0 +1,40 @@
+{
+  "node": "v22.23.3",
+  "startedAt": "2026-10-15T20:14:14.849Z",
+  "tests": [
+    {
+      "name": "BTC: open account (network='testnet', Electrum electrum.mutinynet.com:50002 ssl)",
+      "ok": true,
+      "ms": 43,
+      "value": "opened"
+    },
+    {
+      "name": "BTC: address",
+      "ok": true,
+      "ms": 0,
+      "value": "tb1qjgrkej6v0n55rzfzhhh7m5fskpfhla8plv45qd"
+    },
+    {
+      "name": "BTC: balance from Mutinynet",
+      "ok": true,
+      "ms": 735,
+      "value": "0"
+    },
+    {
+      "name": "BTC: fee rates from Mutinynet",
+      "ok": true,
+      "ms": 332,
+      "value": {
+        "normal": "1",
+        "fast": "2"
+      }
+    },
+    {
+      "name": "BTC: quote a 1,000 sat send (no broadcast)",
+      "ok": false,
+      "ms": 309,
+      "error": "No unspent outputs available."
+    }
+  ],
+  "finishedAt": "2026-10-15T20:14:16.493Z"
+}

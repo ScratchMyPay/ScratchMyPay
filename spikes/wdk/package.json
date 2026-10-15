@@ -1,0 +1,12 @@
+{
+  "name": "poweredge-wdk-spike",
+  "private": true,
+  "type": "module",
+  "description": "Time-boxed spike: can WDK (RGB + BTC) work on Mutinynet alongside the PowerEdge rgb-lib wallets?",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@tetherto/wdk-wallet-btc": "1.0.0-beta.17",
+    "@utexo/rgb-lib-linux-x64": "0.3.0-beta.8",
+    "@utexo/wdk-wallet-rgb": "2.0.0"
+  }
+}

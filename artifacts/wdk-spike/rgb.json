@@ -1,0 +1,58 @@
+indexerUrl https://mutinynet.com/api
+{
+  "node": "v22.23.3",
+  "startedAt": "2026-10-15T20:14:48.988Z",
+  "tests": [
+    {
+      "name": "RGB/signet: open account (network='signet', indexer=Mutinynet Esplora)",
+      "ok": true,
+      "ms": 467,
+      "value": "opened"
+    },
+    {
+      "name": "RGB/signet: address",
+      "ok": true,
+      "ms": 7,
+      "value": "tb1p8vmynrc2n7tdec3m2sy0nek4e80rssuy08wwh5tm95h75ddw8qfqmntmq4"
+    },
+    {
+      "name": "RGB/signet: register + sync against Mutinynet",
+      "ok": false,
+      "ms": 9630,
+      "error": "Failed to establish online connection"
+    },
+    {
+      "name": "RGB/signet: list assets",
+      "ok": true,
+      "ms": 4,
+      "value": {
+        "nia": [],
+        "uda": [],
+        "cfa": [],
+        "ifa": []
+      }
+    },
+    {
+      "name": "RGB/signet: witness invoice (any asset)",
+      "ok": true,
+      "ms": 62,
+      "value": {
+        "invoice": "rgb:~/~/de/sb:wvout:BTLrRWzF-6RB9gX3-TDXPSPV-RfUfCYW-IRzopJB-XGo577n-Yxre3SQ?assignment_name=assetOwner&expiry=1792097299&endpoints=rpcs://proxy.iriswallet.com/0.2/json-rpc",
+        "recipientId": "sb:wvout:BTLrRWzF-6RB9gX3-TDXPSPV-RfUfCYW-IRzopJB-XGo577n-Yxre3SQ"
+      }
+    },
+    {
+      "name": "RGB/signet: decode a PowerEdge (rgb-lib, Mutinynet sbc:) invoice",
+      "ok": false,
+      "ms": 0,
+      "error": "account.decodeRGBInvoice is not a function"
+    },
+    {
+      "name": "RGB/mutinynet: open account (network='mutinynet', indexer=Mutinynet Esplora)",
+      "ok": false,
+      "ms": 29,
+      "error": "Invalid network: mutinynet. Must be one of: mainnet, testnet, testnet4, signet, regtest"
+    }
+  ],
+  "finishedAt": "2026-10-15T20:14:59.228Z"
+}
