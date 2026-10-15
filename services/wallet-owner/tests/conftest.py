@@ -35,6 +35,7 @@ class FakeBackend:
     transfers: list = field(default_factory=list)
     fail_send_after_broadcast: bool = False
     imported: list = field(default_factory=list)
+    btc_sends: list = field(default_factory=list)
     invoice_asset: str | None = ASSET_ID
 
     def spendable_balance(self, asset_id: str) -> int:
@@ -80,6 +81,10 @@ class FakeOps:
 
     def transfers(self, asset_id):
         return list(self.backend.transfers)
+
+    def send_btc(self, address, amount_sat, fee_rate):
+        self.backend.btc_sends.append((address, amount_sat, fee_rate))
+        return "btc" + str(len(self.backend.btc_sends)).rjust(61, "0")
 
     def funds(self):
         alloc = [{"asset_id": ASSET_ID, "settled": True, "amount": self.backend.balance}]

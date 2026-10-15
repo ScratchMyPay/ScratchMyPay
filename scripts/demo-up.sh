@@ -58,7 +58,7 @@ ready_wallet() {  # role port
 ready_recipient() { ready_wallet recipient 8712; }
 ready_payer()     { ready_wallet payer 8711; }
 ready_wdk()       { curl -fsS --max-time 5 http://127.0.0.1:8713/health 2>/dev/null | grep -q '"ok":true'; }
-ready_n2link()    { curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:1888/poweredge-app/api/info 2>/dev/null; }
+ready_n2link()    { curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:1888/poweredge-app/login 2>/dev/null; }
 
 # ------------------------------------------------------------------ start / wait
 launch() {  # name — start detached in its own process group
@@ -140,6 +140,9 @@ report() {
     get http://127.0.0.1:8712/assets "$(token)" 30 | json "'\n'.join('Crew funds:      {:,.2f} {} spendable'.format(a['spendable'] / 10 ** a['precision'], a['ticker']) for a in d['assets']) or 'Crew funds:      none yet'" || warn "could not read crew funds"
   fi
   if ready_wdk; then
+    get "http://127.0.0.1:8713/door/passes" "$(token)" 30 \
+      | json "'Door revenue:    {:,} sats from {} passes ({} active) at {:,} sats each'.format(d['revenueSat'], len(d['passes']) if isinstance(d['passes'], list) else d['passes'], d['activePasses'], d['priceSat'])" \
+      || warn "could not read door revenue"
     get "http://127.0.0.1:8713/check?count=$PAYOUTS_TONIGHT" "$(token)" 30 \
       | json "(lambda c, a: 'WDK treasury:    {:,} sats; {} payouts need {:,} sats -> {}'.format(c['haveSat'], c['payoutsTonight'], c['needSat'], 'OK' if c['enough'] else 'TOP UP (short {:,} sats; fund {})'.format(c['shortSat'], a)))(d['coverage'], d['address'])" \
       || warn "could not read WDK treasury"

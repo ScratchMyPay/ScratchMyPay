@@ -73,6 +73,8 @@ class WalletOps(Protocol):
 
     def funds(self) -> dict[str, Any]: ...
 
+    def send_btc(self, address: str, amount_sat: int, fee_rate: int) -> str: ...
+
 
 @dataclass
 class ServiceConfig:
@@ -184,6 +186,32 @@ class WalletService:
                 "payouts_from_colored_sats": colored_spendable // per_payout,
             },
         }
+
+    # ---- small plain-sats payments (door passes) -------------------------------------
+    SMALL_SATS_MAX = 5_000
+    SMALL_SATS_MIN_INTERVAL = 30.0
+
+    def pay_small_sats(self, *, address: str, amount_sat: int, fee_rate: int, purpose: str) -> dict[str, Any]:
+        """Pay a few test sats (a PowerEdge door pass). Not an RGB transfer and not a payout:
+        capped at SMALL_SATS_MAX, rate-limited, Mutinynet addresses only, journaled as an event."""
+        self._require("payer")
+        address = address.strip()
+        if not (address.startswith("tb1") and 20 <= len(address) <= 90 and address.isalnum()):
+            raise ServiceError("invalid_address", "only a Mutinynet (tb1…) address is accepted")
+        if not 1 <= amount_sat <= self.SMALL_SATS_MAX:
+            raise ServiceError("amount_too_large", f"small payments are capped at {self.SMALL_SATS_MAX} sats")
+        if not 1 <= fee_rate <= 50:
+            raise ServiceError("invalid_request", "fee_rate must be 1..50 sat/vB")
+        with self._lock:
+            last = getattr(self, "_last_small_sats", 0.0)
+            now = self._cfg.clock()
+            if now - last < self.SMALL_SATS_MIN_INTERVAL:
+                raise ServiceError("rate_limited", "one small payment every 30 s", 429)
+            self._last_small_sats = now
+            txid = with_backoff(lambda: self._ops.send_btc(address, amount_sat, fee_rate), sleep=self._cfg.sleep)
+            self._journal.note(f"sats:{txid}", f"paid {amount_sat} sats to {address} ({purpose[:60]})")
+        LOG.info("small sats payment: %s sats to %s txid %s (%s)", amount_sat, address, txid, purpose)
+        return {"txid": txid, "address": address, "amount_sat": amount_sat, "fee_rate": fee_rate, "purpose": purpose}
 
     def _asset_by_ticker(self, ticker: str) -> AssetRow:
         wanted = ticker.strip().upper()

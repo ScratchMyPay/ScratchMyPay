@@ -41,6 +41,13 @@ class PlanRequest(Strict):
     template_digest: str = Field(min_length=64, max_length=64)
 
 
+class SmallSatsRequest(Strict):
+    address: str = Field(min_length=20, max_length=90)
+    amount_sat: int = Field(gt=0, le=5_000)
+    fee_rate: int = Field(default=2, ge=1, le=50)
+    purpose: str = Field(default="door pass", max_length=60)
+
+
 class ApproveRequest(Strict):
     plan_digest: str = Field(min_length=64, max_length=64)
     flow_revision: str = Field(min_length=8, max_length=128)
@@ -85,6 +92,11 @@ def create_app(service: WalletService, token: str) -> FastAPI:
     @app.get("/funds", dependencies=guarded)
     def funds(fee_rate: int = 2) -> dict[str, Any]:
         return service.funds(fee_rate=fee_rate)
+
+    @app.post("/btc/pay-small", dependencies=guarded)
+    def pay_small(body: SmallSatsRequest) -> dict[str, Any]:
+        return service.pay_small_sats(address=body.address, amount_sat=body.amount_sat,
+                                      fee_rate=body.fee_rate, purpose=body.purpose)
 
     @app.post("/invoices", dependencies=guarded)
     def invoice(body: InvoiceRequest) -> dict[str, Any]:

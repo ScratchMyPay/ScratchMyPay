@@ -672,3 +672,162 @@ mod tests {
         assert!(guard_managed_tab(&extra).unwrap_err().contains("another tab"));
     }
 }
+
+// ───────────────────────────── Pay-to-enter door ──────────────────────────────
+//
+// An organizer buys a 24 h pass by paying `POWEREDGE_DOOR_PRICE_SAT` test sats to a fresh
+// address of the Tether WDK treasury (services/wdk-btc owns the door state). Once the WDK
+// service reports the attempt paid, n2link issues the same kind of session token the
+// password login issues, with the deployer role, so the editor and the app open unchanged.
+// Tokens are issued once per attempt and remembered here so polling cannot mint more.
+
+const LOGIN_HTML: &str = include_str!("../../poweredge-app/login.html");
+const PASS_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
+fn door_tokens() -> &'static Mutex<HashMap<u64, String>> {
+    static TOKENS: OnceLock<Mutex<HashMap<u64, String>>> = OnceLock::new();
+    TOKENS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub async fn get_login() -> Html<&'static str> {
+    Html(LOGIN_HTML)
+}
+
+#[allow(clippy::result_large_err)] // axum handlers return the ready-made error Response
+async fn wdk_call(
+    state: &WebState,
+    s: &Settings,
+    method: reqwest::Method,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value, Response> {
+    let url = format!("{}{}", s.wdk_url, path);
+    let client = http_client(state, EgressPurpose::HttpNode, &url).await?;
+    let mut req = client.request(method, &url).bearer_auth(&s.wallet_token).timeout(Duration::from_secs(30));
+    if let Some(body) = body {
+        req = req.json(&body);
+    }
+    let reply = req
+        .send()
+        .await
+        .map_err(|e| fail(StatusCode::BAD_GATEWAY, "door_unavailable", &format!("WDK treasury not reachable: {e}")))?;
+    let status = reply.status();
+    let value: Value = reply.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        let code = value["error"]["code"].as_str().unwrap_or("door_error").to_owned();
+        let message = value["error"]["message"].as_str().unwrap_or("the door refused").to_owned();
+        return Err(fail(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY), &code, &message));
+    }
+    Ok(value)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DoorStart {
+    #[serde(default)]
+    label: String,
+}
+
+/// Start an attempt: a fresh treasury address for one pass.
+pub async fn door_start(Extension(state): Extension<Arc<WebState>>, Json(body): Json<DoorStart>) -> Response {
+    let s = match settings() {
+        Ok(s) => s,
+        Err(message) => return fail(StatusCode::SERVICE_UNAVAILABLE, "not_configured", &message),
+    };
+    let label: String = body.label.chars().filter(|c| !c.is_control()).take(64).collect();
+    match wdk_call(&state, &s, reqwest::Method::POST, "/door/attempts", Some(json!({"label": label}))).await {
+        Ok(mut attempt) => {
+            attempt["loginRequired"] = Value::Bool(state.auth.enabled());
+            Json(attempt).into_response()
+        }
+        Err(response) => response,
+    }
+}
+
+/// Poll an attempt. When it is paid, hand out the session token (once).
+pub async fn door_check(
+    Extension(state): Extension<Arc<WebState>>,
+    axum::extract::Path(id): axum::extract::Path<u64>,
+) -> Response {
+    let s = match settings() {
+        Ok(s) => s,
+        Err(message) => return fail(StatusCode::SERVICE_UNAVAILABLE, "not_configured", &message),
+    };
+    let mut attempt = match wdk_call(&state, &s, reqwest::Method::GET, &format!("/door/attempts/{id}"), None).await {
+        Ok(v) => v,
+        Err(response) => return response,
+    };
+    attempt["loginRequired"] = Value::Bool(state.auth.enabled());
+    let paid = attempt["status"] == "paid" && attempt["pass"]["active"] == true;
+    if paid && state.auth.enabled() {
+        let token = {
+            let mut tokens = door_tokens().lock().expect("door tokens");
+            tokens
+                .entry(id)
+                .or_insert_with(|| {
+                    let who = format!(
+                        "pass:{}",
+                        attempt["address"]
+                            .as_str()
+                            .unwrap_or("?")
+                            .chars()
+                            .rev()
+                            .take(6)
+                            .collect::<String>()
+                            .chars()
+                            .rev()
+                            .collect::<String>()
+                    );
+                    state.auth.issue_with_ttl(&who, super::auth::DEPLOYER_PERMISSIONS, PASS_TTL).token
+                })
+                .clone()
+        };
+        attempt["accessToken"] = Value::String(token);
+        attempt["expiresIn"] = Value::from(PASS_TTL.as_secs());
+    }
+    Json(attempt).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DoorPay {
+    #[serde(rename = "attemptId")]
+    attempt_id: u64,
+}
+
+/// Demo only: pay the door from the organizer wallet (a capped, rate-limited plain-sats send).
+/// In a real deployment the organizer pays from their own wallet; this button exists so the
+/// whole loop runs on one laptop.
+pub async fn door_pay(Extension(state): Extension<Arc<WebState>>, Json(body): Json<DoorPay>) -> Response {
+    let s = match settings() {
+        Ok(s) => s,
+        Err(message) => return fail(StatusCode::SERVICE_UNAVAILABLE, "not_configured", &message),
+    };
+    let attempt =
+        match wdk_call(&state, &s, reqwest::Method::GET, &format!("/door/attempts/{}", body.attempt_id), None).await {
+            Ok(v) => v,
+            Err(response) => return response,
+        };
+    if attempt["status"] != "pending" {
+        return fail(
+            StatusCode::CONFLICT,
+            "attempt_not_pending",
+            "this door attempt is no longer waiting for a payment",
+        );
+    }
+    let (Some(address), Some(amount)) = (attempt["address"].as_str(), attempt["amountSat"].as_u64()) else {
+        return fail(StatusCode::BAD_GATEWAY, "door_error", "the door attempt has no address");
+    };
+    let url = format!("{}/btc/pay-small", s.payer_url);
+    let client = match http_client(&state, EgressPurpose::HttpNode, &url).await {
+        Ok(c) => c,
+        Err(response) => return response,
+    };
+    let payload = json!({"address": address, "amount_sat": amount, "fee_rate": 2, "purpose": format!("door pass #{}", body.attempt_id)});
+    match client.post(&url).bearer_auth(&s.wallet_token).json(&payload).timeout(Duration::from_secs(180)).send().await {
+        Ok(reply) => {
+            let status = StatusCode::from_u16(reply.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let value: Value = reply.json().await.unwrap_or(Value::Null);
+            (status, Json(value)).into_response()
+        }
+        Err(e) => fail(StatusCode::BAD_GATEWAY, "wallet_unavailable", &format!("organizer wallet not reachable: {e}")),
+    }
+}

@@ -337,6 +337,7 @@ const ERRORS = {
     missing_invoice: ["The payment request code is missing.", "Ask the crew member to create one in the “I'm crew / artist” tab."],
     wallet_refused: ["Your wallet refused this payout.", ""],
     wallet_unreachable: ["The wallet service is not running.", "Start it (services/wallet-owner/run.sh) and try again."],
+    pass_required: ["Your pass has expired.", "Pay to enter again."],
     insufficient_balance: ["Not enough funds for this payout.", "Lower the amount or top up the organizer wallet."],
     unknown_asset: ["Your wallet doesn't hold that asset.", "Pay in TUSDT."],
     digest_mismatch: ["The payout changed after you saw it.", "Go back and prepare it again."],
@@ -360,6 +361,7 @@ const ERRORS = {
     missing_invoice: ["Falta el código de solicitud de pago.", "Pide al staff que lo cree en la pestaña “Soy staff / artista”."],
     wallet_refused: ["Tu billetera rechazó este pago.", ""],
     wallet_unreachable: ["El servicio de billetera no está corriendo.", "Inícialo (services/wallet-owner/run.sh) e intenta de nuevo."],
+    pass_required: ["Tu pase expiró.", "Paga para entrar de nuevo."],
     insufficient_balance: ["No hay fondos suficientes.", "Baja el monto o recarga la billetera del organizador."],
     unknown_asset: ["Tu billetera no tiene ese activo.", "Paga en TUSDT."],
     digest_mismatch: ["El pago cambió después de que lo viste.", "Regresa y prepáralo de nuevo."],
@@ -406,10 +408,21 @@ function showError(slot, code, message) {
 }
 const clearError = (slot) => $(slot).replaceChildren();
 
+// The pass bought at the door is the same session token the editor uses (localStorage "auth-tokens").
+function passToken() {
+  try { return JSON.parse(localStorage.getItem("auth-tokens") || "null")?.access_token || null; } catch { return null; }
+}
 async function api(path, body) {
-  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const opts = body === undefined ? { headers: {} } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const token = passToken();
+  if (token) opts.headers.Authorization = "Bearer " + token;
   let res;
   try { res = await fetch(path, opts); } catch { return { ok: false, error: { code: "wallet_unreachable", message: "network" } }; }
+  if (res.status === 401) {              // no pass, or it expired: back to the door
+    try { localStorage.removeItem("auth-tokens"); } catch {}
+    location.href = "/poweredge-app/login";
+    return { ok: false, error: { code: "pass_required", message: "pay to enter" } };
+  }
   let data = {}; try { data = await res.json(); } catch {}
   if (data && data.error && data.ok === undefined) data.ok = false;
   if (!res.ok && data.ok !== false) data = { ok: false, error: { code: data.code || `http_${res.status}`, message: data.message || "" } };

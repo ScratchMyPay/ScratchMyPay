@@ -207,9 +207,8 @@ fn get_hardcoded_fallback_locale() -> Value {
 /// One editor locale file (`locales/<lang>/<namespace>.json`), falling back to en-US.
 /// The language code is validated so it cannot address anything outside `locales/`.
 async fn editor_namespace_file(state: &WebState, namespace: &str, lang: &str) -> Value {
-    let safe = |code: &str| {
-        (2..=10).contains(&code.len()) && code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-    };
+    let safe =
+        |code: &str| (2..=10).contains(&code.len()) && code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
     let wanted = if safe(lang) { lang } else { "en-US" };
     for candidate in [wanted, "en-US"] {
         let path = state.static_dir.join("locales").join(candidate).join(format!("{namespace}.json"));

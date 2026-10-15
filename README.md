@@ -61,6 +61,9 @@ services/wallet-owner/run.sh recipient &  sleep 30;  services/wallet-owner/run.s
 
 # 6. n2link with the guided app
 scripts/run-n2link.sh
+
+# 7. (once) turn the pay-to-enter door on: creates the break-glass operator password, restarts n2link
+scripts/enable-door.sh && scripts/demo-up.sh stop && scripts/demo-up.sh
 ```
 
 **After the one-time setup above, one command starts (or checks, or stops) everything:**
@@ -74,6 +77,11 @@ scripts/demo-up.sh stop     # stops only the PowerEdge services (matched by port
 It waits for each service to be really ready (wallets confirm `mutinynet` and mainnet off; QVAC reports the model loaded), skips services already running, refuses to start if a port is held by something else, and keeps logs in `artifacts/run/logs/` (git-ignored).
 
 Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "PowerEdge payouts"). Everything listens on 127.0.0.1 only.
+
+### Pay to enter (the business model, live)
+There are no accounts and no passwords. An organizer opens **`/poweredge-app/login`**, pays **1,000 test sats** to a fresh address of the Tether WDK treasury and gets a **24-hour pass**; the pass is the same session token a password login would give, so the guided app and the flow editor open unchanged. The fee lands in the same treasury that pays the network fees of every payout: revenue in, fees out, one balance (`scripts/demo-up.sh status` shows "Door revenue"). The demo button pays the door from the organizer wallet (capped at 5,000 test sats, one payment per 30 s, journaled). `scripts/enable-door.sh` turns the door on with a single break-glass user whose random password lives only in `secrets/`; there is no `admin:admin`. Paying proves payment, not identity: binding a pass to the paying key (a signature) is future work.
+
+![Pay to enter](artifacts/screenshots/door-paid.png)
 
 ### Screenshots
 | Guided app: describe the payout (local AI) | Flow editor: the managed payout flow (RGB nodes in orange) |
@@ -92,6 +100,7 @@ The flow editor and the guided app share one look taken from our [Satoshi of Liv
 - **Both wallets run on one laptop** for the demo (organizer and crew are separate processes with separate keys and datadirs, talking over loopback). Consignment delivery is a direct local hand-off, not a remote transport.
 - **Endpoint ports are fixed** in the template (127.0.0.1:1891–1894); one active payout flow at a time.
 - **Approval is a typed name + checkbox** on the organizer's own machine; there is no multi-user login or signature on the approval.
+- **The door checks payment, not identity.** Anyone who pays 1,000 test sats gets a 24-hour pass bound to that browser; passes are not bound to a key yet. The "pay from the organizer wallet" button exists so the whole loop runs on one machine; a real organizer would pay from their own wallet.
 - **A plan approved before a wallet-service restart must be prepared again** (fail-closed by design).
 - **WDK** (Tether Wallet Development Kit): used as a **read-only treasury** on Mutinynet (`@tetherto/wdk-wallet-btc`): balance, live fee rates, cost of tonight's payouts, history. It shows the network cost on the Review/Approve screens and powers the pre-show treasury check (`examples/flows/treasury-check.json`). WDK does not send in this build, and WDK's RGB wallet is not used: it cannot join Mutinynet (`sbc:`) TUSDT payouts (see `docs/WDK_SPIKE.md`).
 

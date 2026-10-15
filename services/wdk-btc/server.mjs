@@ -6,6 +6,9 @@
 //   GET /fees?count=N&vbytes=V        live fee rates + estimated cost of N RGB payouts
 //   GET /check?count=N&speed=normal   can the treasury cover N payouts tonight?
 //   GET /transfers?limit=N            recent treasury transfers
+//   POST /door/attempts {label}       pay-to-enter: fresh treasury address for one PRICE-sat pass
+//   GET /door/attempts/:id            pending | paid (+ pass) | expired; checks the chain while pending
+//   GET /door/passes                  passes sold + revenue
 // Nothing here can send. The seed lives in a git-ignored 0600 file, never in logs.
 import fs from 'node:fs'
 import http from 'node:http'
@@ -15,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 import bip39 from 'bip39'
 import WalletManagerBtc, { MempoolElectrumClient } from '@tetherto/wdk-wallet-btc'
 import { payoutCost, coverage, RGB_PAYOUT_VBYTES, RGB_WITNESS_SAT } from './costs.mjs'
+import { Door, DOOR_PRICE_SAT } from './door.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const env = (name, fallback) => process.env[name] || fallback
@@ -22,6 +26,8 @@ const HOST = env('WDK_HOST', '127.0.0.1')
 const PORT = Number(env('WDK_PORT', '8713'))
 const SEED_FILE = env('WDK_SEED_FILE', path.join(ROOT, 'secrets', 'wdk-treasury.mnemonic'))
 const TOKEN_FILE = env('WALLET_API_TOKEN_FILE', path.join(ROOT, 'secrets', 'wallet-api.token'))
+const DOOR_DB = env('WDK_DOOR_DB', path.join(ROOT, 'datadirs', 'door', 'door.sqlite3'))
+const DOOR_PRICE = Number(env('POWEREDGE_DOOR_PRICE_SAT', String(DOOR_PRICE_SAT)))
 const ELECTRUM = { host: env('WDK_ELECTRUM_HOST', 'electrum.mutinynet.com'), port: Number(env('WDK_ELECTRUM_PORT', '50002')), protocol: 'ssl' }
 
 const log = (level, msg, extra = {}) => console.log(JSON.stringify({ t: new Date().toISOString(), level, msg, ...extra }))
@@ -47,12 +53,19 @@ if (token.length < 32) { log('error', 'wallet API token too short'); process.exi
 const wallet = new WalletManagerBtc(readOrCreateSeed(), { network: 'testnet', client: new MempoolElectrumClient({ ...ELECTRUM, network: 'testnet' }) })
 const account = await wallet.getAccount(0)
 const address = await account.getAddress()
+const door = new Door({ dbPath: DOOR_DB, getAccount: (i) => wallet.getAccount(i), priceSat: DOOR_PRICE })
 
 const authorized = (req) => {
   const supplied = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
   const expected = Buffer.from(token)
   return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected)
 }
+const readJson = (req) => new Promise((resolve, reject) => {
+  let data = ''
+  req.on('data', (c) => { data += c; if (data.length > 4096) { reject(new RangeError('body too large')); req.destroy() } })
+  req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}) } catch { reject(new RangeError('body must be JSON')) } })
+  req.on('error', reject)
+})
 const send = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
   res.end(JSON.stringify(body, (_, v) => (typeof v === 'bigint' ? Number(v) : v)))
@@ -66,26 +79,46 @@ const intParam = (url, name, def, max) => {
   return n
 }
 
+// Fee rates for THIS network. WDK's getFeeRates() asks mainnet mempool.space (hard-coded), which is
+// the wrong chain for Mutinynet and may be unreachable at a venue; Mutinynet's own mempool answers
+// in well under a second. Falls back to WDK, then to a floor, so a payout quote never hangs.
+const FEE_URL = env('WDK_FEE_URL', 'https://mutinynet.com/api/v1/fees/recommended')
+let lastRates = null
 async function feeRates () {
-  const rates = await wallet.getFeeRates()
-  return { normal: Number(rates.normal), fast: Number(rates.fast) }
+  try {
+    const r = await fetch(FEE_URL, { signal: AbortSignal.timeout(4000) })
+    if (r.ok) {
+      const f = await r.json()
+      lastRates = { normal: Math.max(1, Math.round(f.hourFee ?? f.halfHourFee ?? 1)), fast: Math.max(1, Math.round(f.fastestFee ?? 2)), source: 'mutinynet mempool' }
+      return lastRates
+    }
+  } catch (err) { log('warn', 'network fee source unavailable', { url: FEE_URL, error: String(err?.message || err).slice(0, 120) }) }
+  try {
+    const rates = await Promise.race([wallet.getFeeRates(), new Promise((_, rej) => setTimeout(() => rej(new Error('WDK fee timeout')), 4000))])
+    lastRates = { normal: Number(rates.normal), fast: Number(rates.fast), source: 'WDK (mainnet mempool.space)' }
+    return lastRates
+  } catch (err) { log('warn', 'WDK fee rates unavailable', { error: String(err?.message || err).slice(0, 120) }) }
+  return lastRates ? { ...lastRates, source: lastRates.source + ' (cached)' } : { normal: 1, fast: 2, source: 'floor (no fee source reachable)' }
 }
 
 const routes = {
   '/health': async () => ({ ok: true, engine: 'Tether WDK wdk-wallet-btc', network: 'mutinynet' }),
-  '/balance': async () => ({ network: 'mutinynet', engine: 'Tether WDK', address, balanceSat: Number(await account.getBalance()) }),
+  '/balance': async () => ({ network: 'mutinynet', engine: 'Tether WDK', address, balanceSat: Number(await account.getBalance()), door: door.revenue() }),
   '/fees': async (url) => {
     const count = intParam(url, 'count', 1, 1000)
     const vbytes = intParam(url, 'vbytes', RGB_PAYOUT_VBYTES, 100_000)
-    return { network: 'mutinynet', engine: 'Tether WDK', ...payoutCost({ feeRates: await feeRates(), vbytes, count }), source: 'WDK fee rates × measured PowerEdge payout size' }
+    const rates = await feeRates()
+    return { network: 'mutinynet', engine: 'Tether WDK', ...payoutCost({ feeRates: { normal: rates.normal, fast: rates.fast }, vbytes, count }), feeSource: rates.source, source: 'fee rate × measured PowerEdge payout size' }
   },
   '/check': async (url) => {
     const count = intParam(url, 'count', 1, 1000)
     const speed = url.searchParams.get('speed') || 'normal'
-    const cost = payoutCost({ feeRates: await feeRates(), count })
+    const rates = await feeRates()
+    const cost = payoutCost({ feeRates: { normal: rates.normal, fast: rates.fast }, count })
     const haveSat = Number(await account.getBalance())
     return { network: 'mutinynet', engine: 'Tether WDK', address, cost, coverage: coverage({ haveSat, cost, speed }) }
   },
+  '/door/passes': async () => ({ ...door.revenue(), passes: door.passes(20) }),
   '/transfers': async (url) => {
     const limit = intParam(url, 'limit', 10, 100)
     const transfers = await account.getTransfers({ limit })
@@ -95,14 +128,23 @@ const routes = {
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${HOST}`)
-  const handler = routes[url.pathname]
-  if (req.method !== 'GET' || !handler) return fail(res, 404, 'not_found', 'no such endpoint')
+  let handler = routes[url.pathname]
+  const attempt = /^\/door\/attempts\/(\d{1,9})$/.exec(url.pathname)
+  if (req.method === 'POST' && url.pathname === '/door/attempts') {
+    handler = async () => door.start(await readJson(req))
+  } else if (req.method === 'GET' && attempt) {
+    handler = async () => (await door.check(Number(attempt[1]))) ?? fail(res, 404, 'not_found', 'no such door attempt')
+  } else if (req.method !== 'GET' || !handler) {
+    return fail(res, 404, 'not_found', 'no such endpoint')
+  }
   if (url.pathname !== '/health' && !authorized(req)) return fail(res, 401, 'unauthorized', 'missing or wrong token')
   try {
-    send(res, 200, await handler(url))
+    const body = await handler(url)
+    if (body === undefined) return   // handler already answered (404)
+    send(res, 200, body)
   } catch (err) {
     const bad = err instanceof RangeError
     log(bad ? 'warn' : 'error', 'request failed', { path: url.pathname, error: String(err?.message || err).slice(0, 300) })
     fail(res, bad ? 400 : 502, bad ? 'invalid_request' : 'wdk_error', String(err?.message || err).slice(0, 300))
   }
-}).listen(PORT, HOST, () => log('info', 'WDK treasury service ready', { host: HOST, port: PORT, address, witnessSat: RGB_WITNESS_SAT, payoutVbytes: RGB_PAYOUT_VBYTES }))
+}).listen(PORT, HOST, () => log('info', 'WDK treasury service ready', { host: HOST, port: PORT, address, witnessSat: RGB_WITNESS_SAT, payoutVbytes: RGB_PAYOUT_VBYTES, doorPriceSat: DOOR_PRICE }))

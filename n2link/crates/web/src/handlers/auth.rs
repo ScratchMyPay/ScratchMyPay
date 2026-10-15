@@ -31,7 +31,7 @@ const PENDING_TTL: Duration = Duration::from_secs(10 * 60);
 const DUMMY_PASSWORD: &str = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 #[cfg(feature = "admin_bcrypt")]
 const DUMMY_BCRYPT_HASH: &str = "$2b$08$XFJlDJeJjFhpBkEtfl8SpeSjM7e8uS4Lhh7FFNQHw.cJWpycRi1ky";
-const DEPLOYER_PERMISSIONS: &str = "read,settings.write,flows.write,credentials.write";
+pub(crate) const DEPLOYER_PERMISSIONS: &str = "read,settings.write,flows.write,credentials.write";
 
 #[derive(Clone)]
 enum LocalPassword {
@@ -90,7 +90,7 @@ pub(crate) enum LoginFail {
 }
 
 pub(crate) struct Issued {
-    token: String,
+    pub(crate) token: String,
     expires_in: u64,
 }
 
@@ -229,7 +229,7 @@ impl AdminAuth {
         Issued { token, expires_in: SESSION_SECS }
     }
 
-    #[cfg(test)]
+    /// A session with its own lifetime (PowerEdge door passes are 24 h; password logins keep the default).
     pub(crate) fn issue_with_ttl(&self, username: &str, permissions: &str, ttl: Duration) -> Issued {
         let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
         let mut sessions = self.sessions.lock().expect("sessions");
@@ -552,6 +552,12 @@ fn write_permission(resource: &str) -> &'static str {
 
 fn is_public(path: &str) -> bool {
     path.starts_with("/auth")
+        // PowerEdge door: the page, the pay-to-enter API and the QR renderer are reachable
+        // before a session exists; everything else under /poweredge-app needs one.
+        || path == "/poweredge-app"
+        || path == "/poweredge-app/login"
+        || path.starts_with("/poweredge-app/api/door/")
+        || path == "/poweredge-app/api/qr"
         || path == "/comms"
         || path.starts_with("/api/")
         || path.starts_with("/icons")

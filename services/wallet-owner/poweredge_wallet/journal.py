@@ -236,6 +236,15 @@ class Journal:
         out["statuses"] = json.loads(out["statuses"])
         return out
 
+    def note(self, ref: str, detail: str) -> None:
+        """Durable free-form entry outside the plan state machine (e.g. a plain-sats payment)."""
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO events (plan_id, at, from_state, to_state, detail) VALUES (?, ?, NULL, 'NOTE', ?)",
+                (ref, time.time(), detail),
+            )
+            self._db.commit()
+
     def _event(self, plan_id: str, old: State | None, new: State, detail: str) -> None:
         self._db.execute(
             "INSERT INTO events (plan_id, at, from_state, to_state, detail) VALUES (?, ?, ?, ?, ?)",

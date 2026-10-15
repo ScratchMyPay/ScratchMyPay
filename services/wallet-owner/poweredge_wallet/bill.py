@@ -86,6 +86,11 @@ class RgbLibOps:
             ],
         }
 
+    def send_btc(self, address: str, amount_sat: int, fee_rate: int) -> str:
+        """Plain-sats send (no RGB). rgb-lib takes the sats from uncoloured UTXOs only."""
+        wallet, online = self._backend._wallet, self._backend._online
+        return str(wallet.send_btc(online, address, int(amount_sat), int(fee_rate), False))
+
     def transfers(self, asset_id: str) -> list[TransferRow]:
         return [
             TransferRow(
