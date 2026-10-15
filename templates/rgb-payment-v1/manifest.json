@@ -1,0 +1,23 @@
+{
+  "id": "rgb-payment-v1",
+  "version": "1.0.0",
+  "title": "Pay one person against their RGB invoice",
+  "description": "Post-show payout: the recipient requests a payment (invoice), the organizer reviews a plain-language plan and approves it, the wallet sends it exactly once, and both sides get a receipt.",
+  "allowed_environments": ["mutinynet", "regtest"],
+  "slots": {
+    "recipient_label": { "kind": "text", "required": true, "max_len": 64, "label": "Who is being paid, e.g. \"sound engineer\"" },
+    "amount": { "kind": "decimal-amount", "required": true, "unit_slot": "asset_ticker", "label": "Amount in display units as a string, e.g. \"25\"" },
+    "asset_ticker": { "kind": "ticker", "required": true, "label": "Asset ticker, e.g. \"tUSDT\"" },
+    "memo": { "kind": "text", "required": false, "max_len": 120, "label": "What the payment is for" }
+  },
+  "context_keys": ["payer_wallet_url", "recipient_wallet_url"],
+  "allowed_node_types": [
+    "comment", "http in", "http response",
+    "rgb-wallet-ref", "rgb-invoice", "rgb-plan", "approval-gate",
+    "rgb-send-once", "rgb-refresh", "rgb-receipt", "rgb-status"
+  ],
+  "approval_node_type": "approval-gate",
+  "guarded_node_types": ["rgb-send-once"],
+  "entry_node_types": ["http in"],
+  "digest": "fe668c53ce71f152a83e370c9c4d038c9c26d465edaa24af307888952b362917"
+}
