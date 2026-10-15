@@ -662,6 +662,20 @@ where
     }
 }
 
+/// Node-RED stores some flags as JSON booleans and some exported/generated flows as the
+/// strings "true"/"false". Accept both; anything else is still an error.
+pub fn bool_or_str<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Bool(value) => Ok(value),
+        serde_json::Value::String(text) if text == "true" => Ok(true),
+        serde_json::Value::String(text) if text == "false" => Ok(false),
+        other => Err(de::Error::custom(format!("expected a boolean or \"true\"/\"false\", got {other}"))),
+    }
+}
+
 pub fn str_to_option_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: Deserializer<'de>,
@@ -872,5 +886,32 @@ where
         Value::Number(n) => n.as_u64().map(|u| u as usize).ok_or_else(|| Error::custom("Invalid number")),
         Value::String(s) => s.parse::<usize>().map_err(|_| Error::custom("Invalid number string")),
         _ => Err(Error::custom("Expected number or string")),
+    }
+}
+
+#[cfg(test)]
+mod bool_or_str_tests {
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct Flag {
+        #[serde(default, deserialize_with = "super::bool_or_str")]
+        on: bool,
+    }
+
+    fn parse(json: &str) -> Result<bool, serde_json::Error> {
+        serde_json::from_str::<Flag>(json).map(|f| f.on)
+    }
+
+    #[test]
+    fn accepts_booleans_and_their_string_forms_only() {
+        assert!(parse(r#"{"on": true}"#).unwrap());
+        assert!(!parse(r#"{"on": false}"#).unwrap());
+        assert!(parse(r#"{"on": "true"}"#).unwrap());
+        assert!(!parse(r#"{"on": "false"}"#).unwrap());
+        assert!(!parse(r#"{}"#).unwrap());
+        for bad in [r#"{"on": "yes"}"#, r#"{"on": 1}"#, r#"{"on": "TRUE"}"#, r#"{"on": null}"#] {
+            assert!(parse(bad).is_err(), "{bad}");
+        }
     }
 }

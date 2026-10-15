@@ -70,6 +70,10 @@ a { color: var(--focus); }
 .hidden { display: none !important; }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.how { font-size: 14px; color: var(--muted); }
+.how ol { margin: 6px 0 8px; padding-left: 20px; }
+.how li { margin: 3px 0; }
+.how b { color: var(--ink); }
 footer { max-width: 760px; margin: 0 auto; padding: 0 16px 28px; color: var(--muted); font-size: 13px; }
 @media (max-width: 520px) { .steps li { font-size: 11px; } .big { font-size: 22px; } }
 </style>
@@ -78,7 +82,7 @@ footer { max-width: 760px; margin: 0 auto; padding: 0 16px 28px; color: var(--mu
 <header>
   <h1><span>⚡</span> PowerEdge <span data-t="payouts">Payouts</span></h1>
   <div class="badges">
-    <span class="badge ai" id="ai-badge" data-t="aiLocal">Local AI</span>
+    <span class="badge ai" id="ai-badge">Local AI</span>
     <span class="badge" data-t="testnet">Test network — no real money</span>
     <button class="lang" id="lang" aria-label="Language">ES</button>
   </div>
@@ -171,6 +175,7 @@ footer { max-width: 760px; margin: 0 auto; padding: 0 16px 28px; color: var(--mu
       <h2 data-t="trackTitle">Payout progress</h2>
       <p class="hint" id="t-sub"></p>
       <ol class="timeline" id="timeline"></ol>
+      <p class="hint"><a href="/#flow/9e0d9e0d9e0d9e0d" target="_blank" rel="noopener" data-t="seeFlow">See this payout's flow in the n2link editor ↗</a></p>
       <div id="e4"></div>
     </div>
     <div class="card hidden" id="receipt">
@@ -180,7 +185,16 @@ footer { max-width: 760px; margin: 0 auto; padding: 0 16px 28px; color: var(--mu
     </div>
   </section>
 </main>
-<footer id="foot"></footer>
+<footer>
+  <details class="how">
+    <summary data-t="howTitle">How the AI is used</summary>
+    <ol>
+      <li data-t="how1"></li><li data-t="how2"></li><li data-t="how3"></li><li data-t="how4"></li>
+    </ol>
+    <a href="/#flow/9e0d9e0d9e0d9e0d" target="_blank" rel="noopener" data-t="seeFlow">See this payout's flow in the n2link editor ↗</a>
+  </details>
+  <p id="foot"></p>
+</footer>
 
 <script>
 "use strict";
@@ -210,6 +224,11 @@ const T = {
     rPlan: "Plan fingerprint", rBy: "Approved by", rTemplate: "Template", rAsset: "Asset contract",
     footer: (ai) => `AI: ${ai}. Payments: RGB on Bitcoin (Mutinynet test network). Keys stay in the wallet service on this computer.`,
     unknownErr: "Something went wrong", tryAgain: "Try again in a moment.",
+    seeFlow: "See this payout's flow in the n2link editor ↗", howTitle: "How the AI is used",
+    how1: "1. QVAC, running on this computer, reads your words and fills a fixed form (who, how much, which asset, what for). Your words never leave the machine.",
+    how2: "2. Code — not the AI — checks that form against a pinned template, converts the amount with your wallet's precision and builds the n2link flow.",
+    how3: "3. Your wallet prepares the exact plan. Only you can approve it; the AI cannot approve, sign or send.",
+    how4: "4. The wallet sends exactly once and the crew wallet verifies the RGB proof. The flow tab records which model drafted it.",
   },
   es: {
     payouts: "Pagos", aiLocal: "IA local", testnet: "Red de prueba — sin dinero real",
@@ -236,6 +255,11 @@ const T = {
     rPlan: "Huella del plan", rBy: "Aprobado por", rTemplate: "Plantilla", rAsset: "Contrato del activo",
     footer: (ai) => `IA: ${ai}. Pagos: RGB sobre Bitcoin (red de prueba Mutinynet). Las llaves se quedan en el servicio de billetera de esta computadora.`,
     unknownErr: "Algo salió mal", tryAgain: "Intenta de nuevo en un momento.",
+    seeFlow: "Ver el flujo de este pago en el editor de n2link ↗", howTitle: "Cómo se usa la IA",
+    how1: "1. QVAC, corriendo en esta computadora, lee tus palabras y llena un formulario fijo (a quién, cuánto, qué activo, por qué). Tus palabras no salen de la máquina.",
+    how2: "2. El código — no la IA — valida ese formulario contra una plantilla fijada, convierte el monto con la precisión de tu billetera y construye el flujo de n2link.",
+    how3: "3. Tu billetera prepara el plan exacto. Solo tú puedes aprobarlo; la IA no puede aprobar, firmar ni enviar.",
+    how4: "4. La billetera envía exactamente una vez y la billetera del staff verifica la prueba RGB. La pestaña del flujo registra qué modelo lo redactó.",
   },
 };
 // Every error code the system can return, in words a person can act on.
@@ -303,6 +327,7 @@ function applyLang() {
   $("lang").textContent = lang === "en" ? "ES" : "EN";
   const ex = $("examples"); ex.replaceChildren();
   EXAMPLES[lang].forEach((text) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; b.onclick = () => { $("prompt").value = text; $("prompt").focus(); }; ex.append(b); });
+  $("ai-badge").textContent = state.info ? `${t("aiLocal")} · QVAC · ${state.info.ai.model}` : t("aiLocal");
   if (state.info) $("foot").textContent = t("footer", `QVAC · ${state.info.ai.model}`);
 }
 $("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; try { localStorage.setItem("pe.lang", lang); } catch {} applyLang(); };
@@ -497,7 +522,6 @@ $("new-payout").onclick = () => { clearInterval(state.poll); $("prompt").value =
   const info = await api("/poweredge-app/api/info");
   if (info.ok === false) { showError("e1", info.error?.code, info.error?.message); return; }
   state.info = info;
-  $("ai-badge").textContent = `${t("aiLocal")} · QVAC · ${info.ai.model}`;
   applyLang();
   if (location.hash === "#crew") tab(false);
 })();

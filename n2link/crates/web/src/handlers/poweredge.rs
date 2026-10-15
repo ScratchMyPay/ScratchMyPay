@@ -28,6 +28,8 @@ use super::reply::api_error;
 const APP_HTML: &str = include_str!("../../poweredge-app/index.html");
 /// Fixed editor tab that holds the active PowerEdge payout flow.
 pub const POWEREDGE_TAB: &str = "9e0d9e0d9e0d9e0d";
+/// Fixed id of the "QVAC (local)" `ai-provider` config node (also used by Flow Copilot).
+pub const QVAC_PROVIDER: &str = "9e0d9e0d9e0d0a1c";
 const MAX_PROMPT_CHARS: usize = 1_000;
 const DRAFT_TTL: Duration = Duration::from_secs(30 * 60);
 const QVAC_TIMEOUT: Duration = Duration::from_secs(120);
@@ -79,6 +81,42 @@ fn settings() -> Result<Settings, String> {
 struct Draft {
     created: Instant,
     compiled: CompiledFlow,
+    provenance: String,
+}
+
+/// Model text must never look like a template placeholder.
+fn defang(text: &str) -> String {
+    text.replace("{{", "{ {").replace("}}", "} }")
+}
+
+/// Human-readable record of how this flow was made, stored in the flow itself.
+fn provenance_text(
+    prompt: &str,
+    intent: &WorkflowIntent,
+    model: &str,
+    latency_ms: u128,
+    template: &poweredge::Template,
+) -> String {
+    let params = serde_json::to_string(&intent.parameters).unwrap_or_default();
+    let m = &template.manifest;
+    defang(&format!(
+        "Drafted by LOCAL AI: QVAC, model `{model}`, on this computer in {:.1} s. The AI only proposed this payout; it cannot approve or send.\n\n\
+Organizer's words: \"{}\"\n\n\
+AI structured request (WorkflowIntent v1): template `{}` v{}, environment `{}`, parameters {params}\n\n\
+AI explanation (not authoritative): {}\n\n\
+Decided by code, not by the AI: pinned template `{}`@{} digest {}; amounts converted with the wallet's reported precision; \
+validator checks allowlisted nodes, an approval gate before the only spending node, and loopback-only endpoints. \
+A person approves the exact plan in the PowerEdge app; the wallet journal sends at most once.",
+        latency_ms as f64 / 1000.0,
+        prompt.chars().take(300).collect::<String>(),
+        intent.template_id,
+        intent.template_version,
+        intent.environment.as_str(),
+        intent.rationale.as_deref().unwrap_or("-"),
+        m.id,
+        m.version,
+        m.digest,
+    ))
 }
 
 fn drafts() -> &'static Mutex<HashMap<String, Draft>> {
@@ -298,11 +336,21 @@ pub async fn post_draft(
     };
 
     // --- deterministic: pinned template, typed binding, validation ---
+    let provenance = match registry.resolve(&intent.template_id, &intent.template_version) {
+        Ok(template) => provenance_text(&prompt, &intent, &model, latency_ms, template),
+        Err(err) => {
+            return Json(
+                json!({"ok": false, "error": {"code": err.code(), "message": err.to_string()}, "intent": intent}),
+            )
+            .into_response();
+        }
+    };
     let ctx = BindContext {
         workspace_id: POWEREDGE_TAB.into(),
         values: BTreeMap::from([
             ("payer_wallet_url".into(), s.payer_url.clone()),
             ("recipient_wallet_url".into(), s.recipient_url.clone()),
+            ("provenance".into(), provenance.clone()),
         ]),
         assets: assets
             .iter()
@@ -341,7 +389,7 @@ pub async fn post_draft(
     {
         let mut store = drafts().lock().unwrap_or_else(|p| p.into_inner());
         store.retain(|_, d| d.created.elapsed() < DRAFT_TTL);
-        store.insert(draft_id, Draft { created: Instant::now(), compiled });
+        store.insert(draft_id, Draft { created: Instant::now(), compiled, provenance });
     }
     state.history.record_copilot_produced(&actor.username, 1);
     let _ = state.audit.record(&actor.username, "poweredge.draft", None).await;
@@ -354,12 +402,16 @@ pub async fn post_setup(
     Json(request): Json<SetupRequest>,
 ) -> Response {
     let actor = state.auth.actor_from_headers(&headers);
-    let nodes = {
+    let (nodes, provenance) = {
         let store = drafts().lock().unwrap_or_else(|p| p.into_inner());
         match store.get(&request.draft_id) {
-            Some(d) if d.created.elapsed() < DRAFT_TTL => d.compiled.nodes.clone(),
+            Some(d) if d.created.elapsed() < DRAFT_TTL => (d.compiled.nodes.clone(), d.provenance.clone()),
             _ => return fail(StatusCode::NOT_FOUND, "draft_expired", "this payout draft expired; describe it again"),
         }
+    };
+    let s = match settings() {
+        Ok(s) => s,
+        Err(message) => return fail(StatusCode::SERVICE_UNAVAILABLE, "not_configured", &message),
     };
     let Some(path) = state.flows_file_path.read().await.clone() else {
         return fail(StatusCode::SERVICE_UNAVAILABLE, "runtime_unavailable", "flows file is not configured");
@@ -372,9 +424,26 @@ pub async fn post_setup(
     // Replace the previous PowerEdge payout (one active payout flow); keep everything else.
     let mut flows: Vec<Value> = current
         .into_iter()
-        .filter(|n| n["id"] != POWEREDGE_TAB && n["z"] != POWEREDGE_TAB && n["type"] != "rgb-wallet-ref")
+        .filter(|n| {
+            n["id"] != POWEREDGE_TAB
+                && n["z"] != POWEREDGE_TAB
+                && n["type"] != "rgb-wallet-ref"
+                && n["id"] != QVAC_PROVIDER
+        })
         .collect();
-    flows.push(json!({"id": POWEREDGE_TAB, "type": "tab", "label": "PowerEdge payouts", "info": "Managed by the PowerEdge app. Editing it voids pending approvals."}));
+    flows.push(json!({
+        "id": POWEREDGE_TAB, "type": "tab", "label": "PowerEdge payouts",
+        "info": format!("{provenance}\n\nManaged by the PowerEdge app. Editing this tab changes the flow revision and voids pending approvals."),
+    }));
+    // The same local model, visible to n2link: Configuration nodes + Flow Copilot.
+    // Provider kind `cortex` = n2link's generic OpenAI Chat Completions client (Bearer auth),
+    // which QVAC serves correctly; QVAC's /v1/responses ignores message content (tested 2026-10-15).
+    // The key goes to n2link's encrypted credential sidecar, never into flows.json.
+    flows.push(json!({
+        "id": QVAC_PROVIDER, "type": "ai-provider", "name": "QVAC (local)",
+        "provider": "cortex", "baseUrl": s.qvac_url, "defaultModel": s.qvac_model, "organization": "",
+        "credentials": {"apiKey": s.qvac_key},
+    }));
     flows.extend(nodes);
     match deploy::commit(&state, &path, flows).await {
         Ok((_, revision)) => {

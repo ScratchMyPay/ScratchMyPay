@@ -23,6 +23,7 @@ fn ctx() -> BindContext {
         values: BTreeMap::from([
             ("payer_wallet_url".into(), "http://127.0.0.1:8711".into()),
             ("recipient_wallet_url".into(), "http://127.0.0.1:8712".into()),
+            ("provenance".into(), "Drafted by local AI (test fixture).".into()),
         ]),
         assets: BTreeMap::from([("TUSDT".into(), AssetInfo { precision: 6 })]),
     }
@@ -94,6 +95,8 @@ fn hero_binds_amount_with_wallet_precision_and_resolves_references() {
     assert!(flow.nodes.iter().all(|n| n.get("ref").is_none()));
     assert!(ids.contains(&plan["wallet"].as_str().unwrap()), "config reference resolved");
     assert_eq!(node(&flow.nodes, "rgb-wallet-ref")["environment"], json!("mutinynet"));
+    // How the flow was made (which local model drafted it) travels inside the flow.
+    assert_eq!(node(&flow.nodes, "comment")["info"], json!("Drafted by local AI (test fixture)."));
 }
 
 #[test]

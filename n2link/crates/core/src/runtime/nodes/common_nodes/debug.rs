@@ -22,13 +22,13 @@ use n2link_macro::*;
 
 #[derive(Deserialize, Debug, Clone)]
 struct DebugNodeConfig {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::runtime::model::json::deser::bool_or_str")]
     console: bool,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::runtime::model::json::deser::bool_or_str")]
     tosidebar: bool,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::runtime::model::json::deser::bool_or_str")]
     #[allow(dead_code)]
     tostatus: bool,
 
@@ -39,7 +39,7 @@ struct DebugNodeConfig {
     #[allow(dead_code)]
     target_type: DebugTargetType,
 
-    #[serde(default = "default_active")]
+    #[serde(default = "default_active", deserialize_with = "crate::runtime::model::json::deser::bool_or_str")]
     active: bool,
 }
 

@@ -10,7 +10,7 @@
     "asset_ticker": { "kind": "ticker", "required": true, "label": "Asset ticker, e.g. \"tUSDT\"" },
     "memo": { "kind": "text", "required": false, "max_len": 120, "label": "What the payment is for" }
   },
-  "context_keys": ["payer_wallet_url", "recipient_wallet_url"],
+  "context_keys": ["payer_wallet_url", "recipient_wallet_url", "provenance"],
   "allowed_node_types": [
     "comment", "http in", "http response",
     "rgb-wallet-ref", "rgb-invoice", "rgb-plan", "approval-gate", "rgb-approve",
@@ -19,5 +19,5 @@
   "approval_node_type": "approval-gate",
   "guarded_node_types": ["rgb-send-once"],
   "entry_node_types": ["http in"],
-  "digest": "2a68da911b458db3ea616024ae2e88c1e597480e1792e9086860e12ea4d68270"
+  "digest": "b57078da5be6a63b0faa224b7bd0e63d7c44947cbdf4ed8d06f964c1fc7cea24"
 }

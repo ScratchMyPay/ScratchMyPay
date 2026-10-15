@@ -5,7 +5,7 @@
         "model": "QWEN3_8B_INST_Q4_K_M",
         "preload": true,
         "config": {
-          "ctx_size": 8192,
+          "ctx_size": 32768,
           "reasoning_budget": 0
         }
       }

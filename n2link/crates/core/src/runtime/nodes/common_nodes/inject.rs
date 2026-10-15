@@ -35,7 +35,7 @@ struct InjectNodeConfig {
     #[serde(default)]
     crontab: String,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::runtime::model::json::deser::bool_or_str")]
     once: bool,
 
     #[serde(rename = "onceDelay", default)]

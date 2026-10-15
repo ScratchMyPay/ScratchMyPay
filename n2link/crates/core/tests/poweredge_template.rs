@@ -33,6 +33,7 @@ fn compiled() -> (TemplateRegistry, poweredge::CompiledFlow) {
         values: BTreeMap::from([
             ("payer_wallet_url".into(), "http://127.0.0.1:8711".into()),
             ("recipient_wallet_url".into(), "http://127.0.0.1:8712".into()),
+            ("provenance".into(), "Drafted by local AI (test fixture).".into()),
         ]),
         assets: BTreeMap::from([("TUSDT".into(), AssetInfo { precision: 6 })]),
     };
