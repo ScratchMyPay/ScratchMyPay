@@ -33,6 +33,34 @@ A plain-language request went from local AI to a real RGB transfer:
 | RGB nodes for n2link (`nodes_rgb`) | `n2link/crates/core/src/runtime/nodes/rgb_nodes/` |
 | Wallet-owner service + durable journal | `services/wallet-owner/` |
 
+### Install and run (step by step)
+
+Needs: Linux/macOS, Rust ≥ 1.88, Node.js LTS + npm, Python 3.12, git, ~6 GB disk for the local model.
+
+```bash
+# 1. Clone WITH submodules (the n2link flow editor is the Node-RED client, pinned at 5.0.7)
+git clone --recursive https://github.com/n2link/RGB2linkPowerEdge.git
+cd RGB2linkPowerEdge
+git clone https://github.com/EdwinKestler/bill.git ../bill   # prior-work wallet adapter (pinned be3d237)
+git -C ../bill checkout be3d237
+
+# 2. Build n2link with the RGB nodes; build.rs also builds the flow editor with npm
+scripts/setup-editor.sh           # = submodule check + cargo build --features nodes_rgb
+
+# 3. Local AI (QVAC): installs CLI+SDK, downloads Qwen3-8B on first start, serves on 127.0.0.1:11435
+(cd services/qvac && npm install) && services/qvac/serve.sh &
+
+# 4. Wallets (Mutinynet test network): create, fund from the faucet, issue the test asset
+python3 -m venv services/wallet-owner/.venv && services/wallet-owner/.venv/bin/pip install -r services/wallet-owner/requirements.txt
+#    see services/wallet-owner/README.md for provision -> faucet -> create-utxos -> issue_asset
+services/wallet-owner/run.sh recipient &  sleep 30;  services/wallet-owner/run.sh payer &
+
+# 5. n2link with the guided app
+scripts/run-n2link.sh
+```
+
+Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "PowerEdge payouts"). Everything listens on 127.0.0.1 only.
+
 ### Mocked, simulated or hard-coded (honest list)
 - **Test money only**: TUSDT is a test asset we issued on Mutinynet (a Bitcoin test network). Nothing runs on mainnet; the wallet service refuses to start for any other network.
 - **One template** (`rgb-payment-v1`: pay one person). Multi-recipient payouts are not built yet.

@@ -13,6 +13,10 @@ mkdir -p "$HOME_DIR"
 if [[ ! -x "$BIN" ]]; then
   (cd "$ROOT/n2link" && cargo build --features nodes_rgb)
 fi
+if [[ ! -f "$ROOT/n2link/target/ui_static/red/red.min.js" ]]; then
+  echo "WARNING: the flow editor is not built; http://127.0.0.1:1888/ will be blank." >&2
+  echo "         Run scripts/setup-editor.sh (the guided app at /poweredge-app still works)." >&2
+fi
 
 export POWEREDGE_TEMPLATES_DIR="$ROOT/templates"
 export POWEREDGE_WALLET_TOKEN_FILE="$ROOT/secrets/wallet-api.token"
