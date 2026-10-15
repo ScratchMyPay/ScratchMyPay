@@ -1,4 +1,97 @@
-# Palimnex runtime state, memory packs and key files
-.palimnex/
-*.pmem
+# ---- Secrets: never commit (public repo; a pushed seed is compromised) ----
+.env
+.env.*
+!.env.example
+*.env
+secrets/
+**/secrets/
+*.pem
 *.key
+*.p12
+*.pfx
+*.keystore
+*mnemonic*
+*seed*.txt
+*.pmem
+flows_cred.json
+**/flows_cred.json
+*_cred.json
+*.cred.json
+*.cred
+.netrc
+.pypirc
+.cargo/credentials*
+
+# ---- Wallet, chain and node state ----
+wallet-data/
+**/wallet-data/
+datadirs/
+**/datadirs/
+rln-data/
+.rgb/
+.bdk/
+.rgb-oob/
+*.consignment
+*.rgbc
+*.psbt
+
+# ---- Databases and journals (wallet journal, n2link history, palimnex ledger) ----
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-journal
+history.sqlite3
+
+# ---- Palimnex runtime state ----
+.palimnex/
+
+# ---- Local AI models and caches (QVAC) ----
+.qvac/
+**/.qvac/
+*.gguf
+*.bin
+*.safetensors
+*.onnx
+
+# ---- Build output and dependencies ----
+target/
+**/target/
+node_modules/
+dist/
+build/
+.venv*/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- Archives and binaries (judges must read source) ----
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ---- Runtime output, logs and evidence scratch ----
+*.log
+logs/
+artifacts/tmp/
+evidence/raw/
+*.pid
+*.sock
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store

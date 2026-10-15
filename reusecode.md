@@ -30,7 +30,7 @@ There are four trust domains: (1) AI and ordinary flow nodes, (2) approved templ
 | GitHub MergePay demo | GitHub REST API + future adapter | Read-only PR/merge/CI ingestion | Scoped GitHub token, attributable snapshots, ranking manifest | Trust line count or AI score as authorization | Deterministic fixture test |
 | Palimnex indexing | Installed `palimnex` 2.9.0; n2link corpus at `/media/kestl/andor/github/n2link` | External project knowledge index | Source commit inventory and retrieval metadata | Ingest private secrets, wallet state, `.env`, model weights, chain databases; merge another repo's Redis into this project | Queries retrieve canonical implementation locations |
 
-## Integration order (do not reverse)
+## Integration order (dependency order; M1, M2 and UX are built in parallel — the one hard rule is that a real send is never enabled before the approval gate and journal pass tests)
 
 1. **M0 — Inventory**: pin the n2link SHA, verify its node-pack extension API, verify bill commit and wallet bindings; generate a capability matrix. Preserve all existing n2link tests.
 2. **M1 — Flow authoring**: QVAC offline structured intent -> allowlisted template -> typed IR -> deterministic `flows.json` -> validate -> preview in editor. No signing, mainnet, or wallet writes.

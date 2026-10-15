@@ -3,7 +3,7 @@
 Read this file before making changes. **If installed inside n2link, preserve and obey the original root `AGENTS.md` too; merge instructions rather than overwrite.**
 
 ## Mission
-Deliver a small, real, secure AI-assisted visual RGB workflow builder on top of n2link. Do not build a generic blockchain framework or rewrite n2link. Target M0 then M1 before considering fund movement.
+Deliver a complete, live, secure AI-assisted RGB workflow product on top of n2link by Sunday 2026-10-18 13:00 CEST: guided app for non-technical users, local QVAC intent, validated n2link flow, and a real human-approved RGB transfer on Mutinynet. Do not build a generic blockchain framework or rewrite n2link. Work on M1 (flow authoring), M2 (wallet) and UX in parallel; the only ordering constraint is that a real send path is never enabled before its approval gate and journal exist and pass tests. Implementation starts now (organizer-approved early start); see `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Working method
 1. Inspect actual repository tree, `Cargo.toml`, node authoring APIs, editor deployment contracts, tests and branch HEAD. Record findings and uncertainties.
@@ -40,7 +40,7 @@ See `SKILLS.md` and `.agents/skills/*/SKILL.md` for task-specific checklists.
 - Never commit `.palimnex/`, `*.pmem` or key files. Never run `FLUSHDB`, `FLUSHALL` or raw Redis key deletion.
 - Retention migration, policy activation, erasure and pack activation require explicit human authorization.
 - Palimnex CLI commands come from the installed package (`palimnex` 2.9.0). Do not invent commands; inspect `/home/kestl/github/palimnex/README.md` and `docs/INSTALL.md`.
-- n2link is a separate Palimnex project at `/media/kestl/andor/github/n2link` (pinned SHA in `docs/reference-sources/n2link.json`). Search it with `PALIMNEX_ROOT=/media/kestl/andor/github/n2link palimnex search "…"`, then open the returned path in that checkout. Do not copy n2link into this tree, merge Redis namespaces, or index `3rd-party/`, `target/`, `.env`, `flows_cred.json`, or wallet state.
+- n2link is vendored here as a `git subtree --squash` under `n2link/` at the pinned SHA (ADR-014); hackathon code inside it lives in `n2link/crates/poweredge`, `n2link/node-plugins/n2link-nodes-rgb` and the template-draft handler. The upstream checkout at `/media/kestl/andor/github/n2link` remains a separate Palimnex project for API search: `PALIMNEX_ROOT=/media/kestl/andor/github/n2link palimnex search "…"`. Do not index `n2link/` from this project, merge Redis namespaces, or index `3rd-party/`, `target/`, `.env`, `flows_cred.json`, or wallet state.
 
 ## Source research before implementation
 

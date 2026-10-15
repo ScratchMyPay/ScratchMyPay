@@ -35,4 +35,4 @@
 A: n2link native node/editor integration; B: RGB owner/gateway + wallet integration; C: QVAC adapter/template compiler; D: verification/security/capsules. Maintain one named integration owner. Cross-cutting tests before a showcase.
 
 ## Scope discipline
-Never spend two days implementing a full regtest cluster, multi-node Lightning, RGB smart-contract compiler or Firecracker before prompt-to-valid-preview and one real RGB transfer are complete.
+M0, M1, M2 and the guided UX are all Sunday deliverables and run as parallel tracks (see `docs/IMPLEMENTATION_PLAN.md`). M3/M4, Lightning, an RGB contract compiler and Firecracker are post-event; WDK is a time-boxed bonus spike only. Spend time on whatever most improves the live Sunday demo.

@@ -121,4 +121,4 @@ Treat Bitcoin network identity, RGB invoice/network tag, RGB contract/schema, an
 See `docs/SECURITY.md`. Reject graph edges bypassing approvals; bind authorizations to exact flow revision and financial plan. Keep evidence auditable. Model-generated flows start as draft previews, never auto-deploy or auto-spend. Verify `n2link` versions and actual node APIs at implementation time.
 
 ## 14. Scope for hackathon
-M1 strongly preferred plus one real on-chain RGB flow (M2). An infra-only capsule demonstration is insufficient for meaningful RGB/QVAC integration. Show full provenance of pre-existing n2link/Bill work and dated new commits.
+Sunday target: M1 + a real on-chain Mutinynet RGB flow (M2) + a guided app a non-technical user can complete, all live. An infra-only capsule demonstration is insufficient for meaningful RGB/QVAC integration. Show full provenance of pre-existing n2link/Bill work and dated new commits (early start since 2026-10-15 approved by organizers). Judging weights: RGB 25%, QVAC 20%, Execution 20%, UX 15%, Innovation 10%, Marketability 10%, WDK bonus +1.
