@@ -1,0 +1,97 @@
+{
+ "what": "Live crash-recovery run: organizer service killed after broadcast, before journaling",
+ "network": "mutinynet (test money only)",
+ "crash_point": "after_broadcast (POWEREDGE_CRASH_AT)",
+ "plan_id": "90460217-c480-46b6-9a7d-155501fb578b",
+ "amount": "1 TUSDT",
+ "started_at": "2026-10-15T21:10:32+00:00",
+ "state_after_restart": "UNKNOWN_SUBMISSION",
+ "recovered_by_service": [
+  "90460217-c480-46b6-9a7d-155501fb578b"
+ ],
+ "second_execute": {
+  "http_status": 200,
+  "state": "UNKNOWN_SUBMISSION",
+  "already_executed": true
+ },
+ "reconciled_txid": "2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d",
+ "final_state": "SETTLED",
+ "submissions_in_journal": 1,
+ "crew_balance_base_units": {
+  "before": 55000000,
+  "after": 56000000
+ },
+ "journal": {
+  "plan": {
+   "state": "SETTLED",
+   "txid": "2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d",
+   "idempotency_key": "90460217-c480-46b6-9a7d-155501fb578b-first",
+   "consignment_sha256": "25c3d271bf0eb609b247f02b89603916eeab786744ed418e1b375da48ea71452"
+  },
+  "events": [
+   {
+    "at": "2026-10-15T21:10:32+00:00",
+    "from_state": null,
+    "to_state": "PLANNED",
+    "detail": "plan created"
+   },
+   {
+    "at": "2026-10-15T21:10:32+00:00",
+    "from_state": "PLANNED",
+    "to_state": "APPROVED",
+    "detail": "approved by Gus (crash demo)"
+   },
+   {
+    "at": "2026-10-15T21:10:32+00:00",
+    "from_state": "APPROVED",
+    "to_state": "SUBMITTING",
+    "detail": "about to broadcast"
+   },
+   {
+    "at": "2026-10-15T21:11:09+00:00",
+    "from_state": "SUBMITTING",
+    "to_state": "UNKNOWN_SUBMISSION",
+    "detail": "process restarted during submission; reconcile before any action"
+   },
+   {
+    "at": "2026-10-15T21:11:19+00:00",
+    "from_state": "UNKNOWN_SUBMISSION",
+    "to_state": "BROADCAST",
+    "detail": "reconciled from wallet: txid 2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d"
+   },
+   {
+    "at": "2026-10-15T21:11:22+00:00",
+    "from_state": "BROADCAST",
+    "to_state": "DELIVERED",
+    "detail": "recipient imported: {'6': 'waiting_confirmations'}"
+   },
+   {
+    "at": "2026-10-15T21:11:22+00:00",
+    "from_state": "DELIVERED",
+    "to_state": "SETTLED",
+    "detail": "payer transfer SETTLED; recipient imported"
+   }
+  ]
+ },
+ "service_log_excerpt": [
+  "2026-10-15 23:10:25,507 INFO poweredge.wallet.main: wallet-owner ready: role=payer bill_role=A port=8711 peer=http://127.0.0.1:8712 crash_at=after_broadcast",
+  "2026-10-15 23:10:32,928 INFO poweredge.journal: plan 90460217-c480-46b6-9a7d-155501fb578b: APPROVED -> SUBMITTING about to broadcast",
+  "2026-10-15 23:10:33,414 ERROR poweredge.wallet: CRASH INJECTION at after_broadcast (POWEREDGE_CRASH_AT)",
+  "2026-10-15 23:11:09,668 INFO poweredge.journal: plan 90460217-c480-46b6-9a7d-155501fb578b: SUBMITTING -> UNKNOWN_SUBMISSION process restarted during submission; reconcile",
+  "2026-10-15 23:11:09,669 INFO poweredge.wallet.main: wallet-owner ready: role=payer bill_role=A port=8711 peer=http://127.0.0.1:8712 crash_at=-",
+  "2026-10-15 23:11:22,485 INFO poweredge.wallet: (crew) imported consignment 25c3d271bf0eb609b247f02b89603916eeab786744ed418e1b375da48ea71452 (7014 bytes)",
+  "2026-10-15 23:11:42,717 INFO poweredge.wallet.main: (crew) auto-refresh updated transfers {6: 'settled'}"
+ ],
+ "chain": {
+  "txid": "2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d",
+  "block_height": 3508616,
+  "vsize": 197,
+  "fee_sat": 395,
+  "outputs_sat": [
+   0,
+   1000,
+   4420
+  ],
+  "explorer": "https://mutinynet.com/tx/2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d"
+ }
+}

@@ -5,7 +5,7 @@
 
 Env: the Bill-format wallet env (.env.payer / .env.recipient), POWEREDGE_NETWORK=mutinynet,
 WALLET_API_TOKEN_FILE (default secrets/wallet-api.token), optional PEER_URL (payer delivers
-consignments to the recipient service), optional POWEREDGE_CRASH_AT=before_send|after_send.
+consignments to the recipient service), optional POWEREDGE_CRASH_AT=before_send|after_broadcast|after_send (demo/test only).
 """
 
 from __future__ import annotations

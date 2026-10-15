@@ -75,7 +75,8 @@ launch() {  # name — start detached in its own process group
   spec="$(spec_of "$name")"; port="$(field "$spec" 1)"
   busy="$(pid_on_port "$port")"
   [[ -z "$busy" ]] || die "port $port is held by PID $busy ($(tr '\0' ' ' </proc/"$busy"/cmdline 2>/dev/null | cut -c1-80)) but $name is not healthy; stop it first"
-  setsid nohup "${cmd[@]}" >"$LOGS/$name.log" 2>&1 </dev/null &
+  printf "\n===== %s start %s =====\n" "$name" "$(date -Is)" >>"$LOGS/$name.log"
+  setsid nohup "${cmd[@]}" >>"$LOGS/$name.log" 2>&1 </dev/null &
   echo $! >"$PIDS/$name.pid"
   log "started $name (pid $!, log artifacts/run/logs/$name.log)"
 }

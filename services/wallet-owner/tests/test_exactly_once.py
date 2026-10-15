@@ -159,6 +159,26 @@ def test_crash_after_send_keeps_the_broadcast_and_never_resends(payer):
     assert len(payer.backend.sends) == 1
 
 
+def test_crash_after_broadcast_before_journal_reconciles_without_resending(payer):
+    """Process dies after the wallet broadcast but before BROADCAST is journaled."""
+    payer.crash_at = "after_broadcast"
+    service = payer.service()
+    plan = approved(service)
+    with pytest.raises(SimulatedCrash):
+        service.execute(plan["plan_id"], flow_revision=REVISION, idempotency_key="key-000001")
+    assert len(payer.backend.sends) == 1
+
+    payer.crash_at = None
+    restarted = payer.service()
+    assert restarted.recovered == [plan["plan_id"]]
+    again = restarted.execute(plan["plan_id"], flow_revision=REVISION, idempotency_key="key-000002")
+    assert again["state"] == State.UNKNOWN_SUBMISSION.value and again["already_executed"]
+    reconciled = restarted.reconcile(plan["plan_id"])
+    assert reconciled["state"] == State.BROADCAST.value
+    assert reconciled["txid"] == payer.backend.transfers[0].txid
+    assert len(payer.backend.sends) == 1  # never sent twice
+
+
 def test_ambiguous_send_error_becomes_unknown_then_reconciles_to_broadcast(payer):
     payer.backend.fail_send_after_broadcast = True
     service = payer.service()

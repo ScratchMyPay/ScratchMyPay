@@ -324,6 +324,8 @@ class WalletService:
                 raise ServiceError("unknown_submission",
                                    "the send may or may not have happened; reconcile before anything else",
                                    502) from exc
+            # Worst moment to die: money has left, the journal still says SUBMITTING.
+            self._maybe_crash("after_broadcast")
             row = self._journal.transition(
                 plan_id, State.SUBMITTING, State.BROADCAST, detail=f"txid {artifact.txid}",
                 txid=artifact.txid, batch_transfer_idx=artifact.batch_transfer_idx,
