@@ -1,0 +1,8 @@
+# PowerEdge wallet-owner service. Same rgb-lib pin as EdwinKestler/bill@be3d237 (prior work).
+rgb-lib==0.3.0b7
+fastapi==0.115.12
+uvicorn==0.34.2
+pydantic>=2.9,<3
+# tests
+pytest==8.4.2
+httpx==0.28.1
