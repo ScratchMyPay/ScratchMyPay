@@ -188,6 +188,10 @@ pub async fn commit(
     flows_path: &StdPath,
     mut flows: Vec<Value>,
 ) -> Result<(Vec<Value>, String), DeployErr> {
+    #[cfg(feature = "nodes_rgb")]
+    if let Err(message) = super::poweredge::guard_managed_tab(&flows) {
+        return Err(DeployErr::Invalid(N2linkError::invalid_operation(&message)));
+    }
     let _credential_lock = state.credentials.lock(flows_path).await.map_err(DeployErr::Internal)?;
     let mut stored = state
         .credentials

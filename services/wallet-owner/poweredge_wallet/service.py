@@ -84,6 +84,18 @@ class ServiceConfig:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+def display_matches(display: str, base_units: int, precision: int) -> bool:
+    """True if a plain decimal display amount equals base_units at this precision, exactly."""
+    from decimal import Decimal, InvalidOperation
+    text = str(display).strip()
+    if not text or not all(c.isdigit() or c == "." for c in text) or text.count(".") > 1:
+        return False
+    try:
+        return Decimal(text) * (Decimal(10) ** precision) == Decimal(base_units)
+    except InvalidOperation:
+        return False
+
+
 def canonical_digest(value: dict[str, Any]) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
@@ -186,6 +198,11 @@ class WalletService:
                 raise ServiceError("invalid_plan", f"{key} is required")
         with self._lock:
             asset = self._asset_by_ticker(str(req.get("asset_ticker", "")))
+            # What the person sees must be exactly what is sent (an edited flow could differ).
+            if not display_matches(req["amount_display"], amount, asset.precision):
+                raise ServiceError("amount_mismatch",
+                                   f"{req['amount_display']} {asset.ticker} is not {amount} base units "
+                                   f"at {asset.precision} decimals; prepare the payout again")
             if amount > asset.spendable:
                 raise ServiceError("insufficient_balance",
                                    f"wallet has {asset.spendable} base units of {asset.ticker}")

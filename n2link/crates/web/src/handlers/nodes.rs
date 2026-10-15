@@ -86,6 +86,18 @@ pub async fn get_nodes(
     }
 }
 
+const HTTP_IN_BINDING_DEFAULTS: &str = r#"
+<script type="text/javascript">
+(function () {
+    var def = RED.nodes.getType("http in");
+    if (def && def.defaults) {
+        if (!def.defaults.host) { def.defaults.host = { value: "0.0.0.0" }; }
+        if (!def.defaults.port) { def.defaults.port = { value: 1880 }; }
+    }
+})();
+</script>
+"#;
+
 /// Editor definitions whose `registerType` names are all in the live registry.
 async fn generate_nodes_html(static_dir: &std::path::Path, allowed: &HashSet<String>) -> String {
     let node_red_nodes_dir = static_dir.join("nodes");
@@ -119,6 +131,13 @@ async fn generate_nodes_html(static_dir: &std::path::Path, allowed: &HashSet<Str
     append_bundled_editor("redis-config", "db-editor/94-redis-config.html", allowed, &mut html_content);
     append_bundled_editor("redis", "db-editor/95-redis.html", allowed, &mut html_content);
     append_bundled_editor("rgb-wallet-ref", "rgb-editor/60-rgb-wallet-ref.html", allowed, &mut html_content);
+    if allowed.contains("http in") {
+        // n2link's http in honours per-node `host` and `port`; the stock Node-RED editor
+        // definition does not declare them, so an editor deploy would silently drop them
+        // (and move a loopback-only endpoint back to 0.0.0.0:1880). Declare them with
+        // n2link's own defaults so existing flows are unchanged.
+        html_content.push_str(HTTP_IN_BINDING_DEFAULTS);
+    }
     append_bundled_editor("rgb-invoice", "rgb-editor/61-rgb-invoice.html", allowed, &mut html_content);
     append_bundled_editor("rgb-plan", "rgb-editor/62-rgb-plan.html", allowed, &mut html_content);
     append_bundled_editor("approval-gate", "rgb-editor/63-approval-gate.html", allowed, &mut html_content);

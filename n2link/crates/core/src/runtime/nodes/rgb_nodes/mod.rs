@@ -36,6 +36,20 @@ struct WalletOnly {
     wallet: String,
 }
 
+/// The editor saves text inputs as strings; accept a non-negative integer either way.
+fn u64_or_str<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match Value::deserialize(deserializer)? {
+        Value::Number(n) => n.as_u64().ok_or_else(|| serde::de::Error::custom("expected a non-negative integer")),
+        Value::String(s) if s.trim().is_empty() => Ok(0),
+        Value::String(s) => s.trim().parse().map_err(|_| serde::de::Error::custom("expected a non-negative integer")),
+        Value::Null => Ok(0),
+        _ => Err(serde::de::Error::custom("expected a non-negative integer")),
+    }
+}
+
 fn require_wallet(reference: &str, node: &str) -> crate::Result<String> {
     if reference.trim().is_empty() {
         return Err(N2linkError::invalid_operation(&format!("{node} needs an rgb-wallet-ref")));
@@ -188,7 +202,7 @@ struct PlanConfig {
     asset_ticker: String,
     #[serde(default, rename = "amountDisplay")]
     amount_display: String,
-    #[serde(default, rename = "amountBaseUnits")]
+    #[serde(default, rename = "amountBaseUnits", deserialize_with = "u64_or_str")]
     amount_base_units: u64,
     #[serde(default)]
     memo: String,
@@ -292,7 +306,7 @@ impl FlowNodeBehavior for RgbPlanNode {
 struct GateConfig {
     #[serde(default)]
     wallet: String,
-    #[serde(default = "default_gate_timeout", rename = "timeoutSeconds")]
+    #[serde(default = "default_gate_timeout", rename = "timeoutSeconds", deserialize_with = "u64_or_str")]
     timeout_seconds: u64,
 }
 
@@ -542,7 +556,7 @@ impl FlowNodeBehavior for RgbSendOnceNode {
 struct RefreshConfig {
     #[serde(default)]
     wallet: String,
-    #[serde(default = "default_settle_timeout", rename = "timeoutSeconds")]
+    #[serde(default = "default_settle_timeout", rename = "timeoutSeconds", deserialize_with = "u64_or_str")]
     timeout_seconds: u64,
 }
 

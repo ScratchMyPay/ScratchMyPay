@@ -206,7 +206,9 @@ def test_plan_rejects_bad_amounts_and_unknown_assets(payer):
     for overrides, code in [
         ({"amount_base_units": 0}, "invalid_amount"),
         ({"amount_base_units": True}, "invalid_amount"),
-        ({"amount_base_units": 10**13}, "insufficient_balance"),
+        ({"amount_base_units": 10**13, "amount_display": "10000000"}, "insufficient_balance"),
+        ({"amount_base_units": 40_000_000}, "amount_mismatch"),  # shows "25", would send 40
+        ({"amount_display": "25.0000001"}, "amount_mismatch"),
         ({"asset_ticker": "BTC"}, "unknown_asset"),
     ]:
         with pytest.raises(ServiceError) as err:

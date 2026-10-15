@@ -17,7 +17,9 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::{Extension, Json};
 use n2link_core::runtime::egress::EgressPurpose;
-use poweredge::{AssetInfo, BindContext, CompiledFlow, SlotKind, TemplateRegistry, WorkflowIntent, compile};
+use poweredge::{
+    AssetInfo, BindContext, CompiledFlow, Environment, SlotKind, TemplateRegistry, WorkflowIntent, compile,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -505,4 +507,91 @@ pub async fn flow_proxy(
     let value: Value = serde_json::from_slice(&bytes)
         .unwrap_or_else(|_| json!({"ok": false, "error": {"code": "flow_error", "message": String::from_utf8_lossy(&bytes).chars().take(300).collect::<String>()}}));
     (status, Json(value)).into_response()
+}
+
+/// Deploy guard: whoever deploys (app, editor, API), a "PowerEdge payouts" tab must still pass
+/// the PowerEdge validator against the template it was compiled from. Other tabs are untouched.
+pub fn guard_managed_tab(flows: &[Value]) -> Result<(), String> {
+    let tab: Vec<Value> = flows.iter().filter(|n| n["z"] == POWEREDGE_TAB).cloned().collect();
+    if tab.is_empty() {
+        return Ok(());
+    }
+    let managed = "The \"PowerEdge payouts\" tab is managed by the PowerEdge app";
+    let digest =
+        tab.iter().find(|n| n["type"] == "rgb-plan").and_then(|n| n["templateDigest"].as_str()).ok_or_else(|| {
+            format!("{managed}: its payout plan node is missing; prepare the payout again in the app")
+        })?;
+    let dir = std::env::var("POWEREDGE_TEMPLATES_DIR")
+        .map_err(|_| format!("{managed}: POWEREDGE_TEMPLATES_DIR is not set, so it cannot be checked"))?;
+    let registry = TemplateRegistry::load_dir(std::path::Path::new(&dir)).map_err(|e| format!("{managed}: {e}"))?;
+    let template = registry
+        .iter()
+        .find(|t| t.digest() == digest)
+        .ok_or_else(|| format!("{managed}: it was built from a template that is not pinned here"))?;
+    let refs: Vec<Value> = flows.iter().filter(|n| n["type"] == "rgb-wallet-ref").cloned().collect();
+    let environment: Environment = refs
+        .first()
+        .and_then(|n| serde_json::from_value(n["environment"].clone()).ok())
+        .ok_or_else(|| format!("{managed}: its wallet nodes must name a test network"))?;
+    let mut nodes = refs;
+    nodes.extend(tab);
+    poweredge::validate(&template.manifest, &nodes, environment).map_err(|e| {
+        format!("{managed} and this change is not allowed ({e}). Put other nodes on another tab, or prepare the payout again in the app.")
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn compiled_tab() -> Vec<Value> {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../templates");
+        // SAFETY: test-only; every test in this module sets the same value.
+        unsafe { std::env::set_var("POWEREDGE_TEMPLATES_DIR", &root) };
+        let registry = TemplateRegistry::load_dir(&root).unwrap();
+        let intent = WorkflowIntent::parse(
+            br#"{"version":1,"template_id":"rgb-payment-v1","template_version":"1.0.0","environment":"mutinynet",
+                "parameters":{"recipient_label":"sound engineer","amount":"25","asset_ticker":"TUSDT","memo":"show"}}"#,
+        )
+        .unwrap();
+        let ctx = BindContext {
+            workspace_id: POWEREDGE_TAB.into(),
+            values: BTreeMap::from([
+                ("payer_wallet_url".into(), "http://127.0.0.1:8711".into()),
+                ("recipient_wallet_url".into(), "http://127.0.0.1:8712".into()),
+                ("provenance".into(), "test".into()),
+            ]),
+            assets: BTreeMap::from([("TUSDT".into(), AssetInfo { precision: 6 })]),
+        };
+        let mut flows =
+            vec![json!({"id": POWEREDGE_TAB, "type": "tab"}), json!({"id": "1111111111111111", "type": "tab"})];
+        flows.extend(compile(&registry, &intent, &ctx).unwrap().nodes);
+        flows
+    }
+
+    #[test]
+    fn guard_accepts_the_compiled_tab_and_ignores_other_tabs() {
+        let mut flows = compiled_tab();
+        flows.push(json!({"id": "2222222222222222", "type": "inject", "z": "1111111111111111", "wires": [[]]}));
+        assert!(guard_managed_tab(&flows).is_ok());
+        assert!(guard_managed_tab(&[json!({"id": "1", "type": "tab"})]).is_ok());
+    }
+
+    #[test]
+    fn guard_refuses_edits_that_break_the_payout_rules() {
+        // The stock editor dropped host/port: endpoint would move to 0.0.0.0.
+        let mut dropped = compiled_tab();
+        for n in &mut dropped {
+            if n["type"] == "http in" {
+                n.as_object_mut().unwrap().remove("host");
+            }
+        }
+        let err = guard_managed_tab(&dropped).unwrap_err();
+        assert!(err.contains("127.0.0.1"), "{err}");
+
+        // Someone dropped a debug node (or a Copilot draft) onto the managed tab.
+        let mut extra = compiled_tab();
+        extra.push(json!({"id": "3333333333333333", "type": "debug", "z": POWEREDGE_TAB, "wires": []}));
+        assert!(guard_managed_tab(&extra).unwrap_err().contains("another tab"));
+    }
 }
