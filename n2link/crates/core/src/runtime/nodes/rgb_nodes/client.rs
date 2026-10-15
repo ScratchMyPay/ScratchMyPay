@@ -74,7 +74,7 @@ impl GlobalNodeBehavior for RgbWalletRefNode {
 }
 
 /// Only `http://127.0.0.1|localhost|[::1]:<port>`: the wallet service never leaves the host.
-fn loopback_url(raw: &str) -> crate::Result<String> {
+pub(crate) fn loopback_url(raw: &str) -> crate::Result<String> {
     let url =
         reqwest::Url::parse(raw).map_err(|_| N2linkError::invalid_operation("rgb-wallet-ref baseUrl is not a URL"))?;
     let loopback = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
@@ -84,7 +84,7 @@ fn loopback_url(raw: &str) -> crate::Result<String> {
     Ok(raw.trim_end_matches('/').to_owned())
 }
 
-fn read_token() -> crate::Result<String> {
+pub(crate) fn read_token() -> crate::Result<String> {
     let path = std::env::var("POWEREDGE_WALLET_TOKEN_FILE")
         .map_err(|_| N2linkError::invalid_operation("POWEREDGE_WALLET_TOKEN_FILE is not set"))?;
     let token = std::fs::read_to_string(&path)
@@ -145,6 +145,10 @@ impl CallError {
 }
 
 impl WalletHandle {
+    pub(crate) fn new(base_url: String, token: String, egress: EgressPolicyHandle) -> Self {
+        WalletHandle { base_url, token, egress }
+    }
+
     pub(crate) async fn call(&self, method: Method, path: &str, body: Option<&Value>) -> Result<Value, CallError> {
         let url = format!("{}{}", self.base_url, path);
         let policy = self.egress.snapshot();

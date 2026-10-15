@@ -226,6 +226,7 @@ const T = {
     footer: (ai) => `AI: ${ai}. Payments: RGB on Bitcoin (Mutinynet test network). Keys stay in the wallet service on this computer.`,
     unknownErr: "Something went wrong", tryAgain: "Try again in a moment.",
     seeFlow: "See this payout's flow in the n2link editor ↗", howTitle: "How the AI is used",
+    networkFee: "Network cost", feeText: (f) => `≈ ${f.feeSat} sats fee (${f.feeRateSatVb} sat/vB) + ${f.witnessSat} sats to the crew wallet · live from Tether WDK`,
     how1: "1. QVAC, running on this computer, reads your words and fills a fixed form (who, how much, which asset, what for). Your words never leave the machine.",
     how2: "2. Code — not the AI — checks that form against a pinned template, converts the amount with your wallet's precision and builds the n2link flow.",
     how3: "3. Your wallet prepares the exact plan. Only you can approve it; the AI cannot approve, sign or send.",
@@ -257,6 +258,7 @@ const T = {
     footer: (ai) => `IA: ${ai}. Pagos: RGB sobre Bitcoin (red de prueba Mutinynet). Las llaves se quedan en el servicio de billetera de esta computadora.`,
     unknownErr: "Algo salió mal", tryAgain: "Intenta de nuevo en un momento.",
     seeFlow: "Ver el flujo de este pago en el editor de n2link ↗", howTitle: "Cómo se usa la IA",
+    networkFee: "Costo de red", feeText: (f) => `≈ ${f.feeSat} sats de comisión (${f.feeRateSatVb} sat/vB) + ${f.witnessSat} sats a la billetera del staff · en vivo desde Tether WDK`,
     how1: "1. QVAC, corriendo en esta computadora, lee tus palabras y llena un formulario fijo (a quién, cuánto, qué activo, por qué). Tus palabras no salen de la máquina.",
     how2: "2. El código — no la IA — valida ese formulario contra una plantilla fijada, convierte el monto con la precisión de tu billetera y construye el flujo de n2link.",
     how3: "3. Tu billetera prepara el plan exacto. Solo tú puedes aprobarlo; la IA no puede aprobar, firmar ni enviar.",
@@ -417,6 +419,7 @@ function renderReview() {
     [t("amount"), `${rv.amount} ${rv.assetTicker} (${Number(rv.amountBaseUnits).toLocaleString()} base units)`],
     [t("asset"), `${rv.assetName || rv.assetTicker} · ${short(rv.assetId, 12)}`],
     [t("network"), t("networkVal")],
+    [t("networkFee"), rv.networkFee ? t("feeText", rv.networkFee) : null],
   ]);
   $("r-ai-label").textContent = t("aiLabel");
   $("r-ai").textContent = d.ai.explanation || "—";
@@ -456,6 +459,7 @@ function renderApprove() {
     [t("expires"), left],
     [t("fingerprint"), p.plan_digest.slice(0, 16), true],
     [t("network"), t("networkVal")],
+    [t("networkFee"), state.draft?.review?.networkFee ? t("feeText", state.draft.review.networkFee) : null],
   ]);
   $("a-check").checked = false; $("go-approve").disabled = true;
   $("a-check-label").textContent = t("confirmText", `${p.amount_display} ${p.asset_ticker} ${t("to")} ${p.recipient_label}`);

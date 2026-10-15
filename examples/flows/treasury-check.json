@@ -1,0 +1,132 @@
+[
+ {
+  "id": "7ea5000000000001",
+  "type": "tab",
+  "label": "Treasury check",
+  "info": "Pre-show money check with Tether WDK (read-only). Every day at 17:00, or press the button: can the treasury cover tonight's payouts? Built from WDK balance + live WDK fee rates x measured PowerEdge payout size."
+ },
+ {
+  "id": "7ea5000000000002",
+  "type": "comment",
+  "z": "7ea5000000000001",
+  "name": "Can tonight's payouts be covered? (Tether WDK, read-only)",
+  "info": "",
+  "x": 250,
+  "y": 40,
+  "wires": []
+ },
+ {
+  "id": "7ea5000000000003",
+  "type": "inject",
+  "z": "7ea5000000000001",
+  "name": "17:00 check",
+  "props": [
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "00 17 * * *",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "",
+  "payload": "",
+  "payloadType": "date",
+  "x": 140,
+  "y": 100,
+  "wires": [
+   [
+    "7ea5000000000004"
+   ]
+  ]
+ },
+ {
+  "id": "7ea5000000000004",
+  "type": "wdk-balance",
+  "z": "7ea5000000000001",
+  "name": "Treasury balance",
+  "wallet": "9e0d9e0d9e0d0dd1",
+  "x": 330,
+  "y": 100,
+  "wires": [
+   [
+    "7ea5000000000005"
+   ]
+  ]
+ },
+ {
+  "id": "7ea5000000000005",
+  "type": "wdk-fee-quote",
+  "z": "7ea5000000000001",
+  "name": "Cost of 5 payouts",
+  "wallet": "9e0d9e0d9e0d0dd1",
+  "payoutsTonight": 5,
+  "speed": "normal",
+  "x": 530,
+  "y": 100,
+  "wires": [
+   [
+    "7ea5000000000006"
+   ]
+  ]
+ },
+ {
+  "id": "7ea5000000000006",
+  "type": "switch",
+  "z": "7ea5000000000001",
+  "name": "Enough?",
+  "property": "payload.coverage.enough",
+  "propertyType": "msg",
+  "rules": [
+   {
+    "t": "true"
+   },
+   {
+    "t": "false"
+   }
+  ],
+  "checkall": "true",
+  "repair": false,
+  "outputs": 2,
+  "x": 710,
+  "y": 100,
+  "wires": [
+   [
+    "7ea5000000000007"
+   ],
+   [
+    "7ea5000000000008"
+   ]
+  ]
+ },
+ {
+  "id": "7ea5000000000007",
+  "type": "debug",
+  "z": "7ea5000000000001",
+  "name": "Treasury OK",
+  "active": true,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": true,
+  "complete": "payload.coverage",
+  "targetType": "msg",
+  "x": 900,
+  "y": 80,
+  "wires": []
+ },
+ {
+  "id": "7ea5000000000008",
+  "type": "debug",
+  "z": "7ea5000000000001",
+  "name": "TOP UP the treasury",
+  "active": true,
+  "tosidebar": true,
+  "console": true,
+  "tostatus": true,
+  "complete": "payload.coverage",
+  "targetType": "msg",
+  "x": 910,
+  "y": 130,
+  "wires": []
+ }
+]

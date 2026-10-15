@@ -1,0 +1,30 @@
+<script type="text/html" data-template-name="wdk-wallet-ref">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-baseUrl"><i class="fa fa-plug"></i> Service</label>
+        <input type="text" id="node-config-input-baseUrl">
+    </div>
+    <div class="form-tips">Where the Tether WDK treasury service listens (127.0.0.1 only). Read-only: balance, fees, payout cost, history. The API token is read from POWEREDGE_WALLET_TOKEN_FILE; no secret is stored in the flow.</div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("wdk-wallet-ref", {
+        "category": "config",
+        "defaults": {
+                "name": {
+                        "value": ""
+                },
+                "baseUrl": {
+                        "value": ""
+                }
+        }
+    ,label: function () { return this.name || "WDK treasury"; }
+    });
+</script>
+
+<script type="text/html" data-help-name="wdk-wallet-ref">
+    <p>Where the Tether WDK treasury service listens (127.0.0.1 only). Read-only: balance, fees, payout cost, history. The API token is read from POWEREDGE_WALLET_TOKEN_FILE; no secret is stored in the flow.</p>
+</script>

@@ -32,6 +32,7 @@ A plain-language request went from local AI to a real RGB transfer:
 | Intent, pinned templates, compiler, validator | `n2link/crates/poweredge/`, `templates/` |
 | RGB nodes for n2link (`nodes_rgb`) | `n2link/crates/core/src/runtime/nodes/rgb_nodes/` |
 | Wallet-owner service + durable journal | `services/wallet-owner/` |
+| Tether WDK treasury service + WDK nodes | `services/wdk-btc/`, `n2link/crates/core/src/runtime/nodes/rgb_nodes/wdk.rs` |
 
 ### Install and run (step by step)
 
@@ -55,7 +56,10 @@ python3 -m venv services/wallet-owner/.venv && services/wallet-owner/.venv/bin/p
 #    see services/wallet-owner/README.md for provision -> faucet -> create-utxos -> issue_asset
 services/wallet-owner/run.sh recipient &  sleep 30;  services/wallet-owner/run.sh payer &
 
-# 5. n2link with the guided app
+# 5. Tether WDK treasury (read-only; balance, fees, payout cost)
+(cd services/wdk-btc && npm install) && node services/wdk-btc/server.mjs &
+
+# 6. n2link with the guided app
 scripts/run-n2link.sh
 ```
 
@@ -68,7 +72,7 @@ Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1
 - **Endpoint ports are fixed** in the template (127.0.0.1:1891–1894); one active payout flow at a time.
 - **Approval is a typed name + checkbox** on the organizer's own machine; there is no multi-user login or signature on the approval.
 - **A plan approved before a wallet-service restart must be prepared again** (fail-closed by design).
-- **WDK**: not integrated yet.
+- **WDK** (Tether Wallet Development Kit): used as a **read-only treasury** on Mutinynet (`@tetherto/wdk-wallet-btc`): balance, live fee rates, cost of tonight's payouts, history. It shows the network cost on the Review/Approve screens and powers the pre-show treasury check (`examples/flows/treasury-check.json`). WDK does not send in this build, and WDK's RGB wallet is not used: it cannot join Mutinynet (`sbc:`) TUSDT payouts (see `docs/WDK_SPIKE.md`).
 
 ## Product promise
 A developer asks: “Create a testnet RGB payment API with explicit approval, a receipt, and local AI interpretation.” Local QVAC selects a pinned, validated template and fills typed parameters. An independent validator rejects unsupported nodes, unsafe bindings, policy bypasses and unsupported wallet/network combinations. The editor displays the proposed flow. The user approves a versioned deployment. n2link runs the workflow against a privileged, isolated wallet service; immutable audit records and a reconciliation process prove the outcome.

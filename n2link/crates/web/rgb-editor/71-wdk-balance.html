@@ -1,0 +1,37 @@
+<script type="text/html" data-template-name="wdk-balance">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-wallet"><i class="fa fa-university"></i> Treasury</label>
+        <input type="text" id="node-input-wallet">
+    </div>
+    <div class="form-tips">Treasury BTC balance from Tether WDK (Mutinynet). Sets msg.payload and msg.wdk.balance.</div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("wdk-balance", {
+        "category": "WDK",
+        "color": "#50AF95",
+        "defaults": {
+                "name": {
+                        "value": ""
+                },
+                "wallet": {
+                        "value": "",
+                        "type": "wdk-wallet-ref",
+                        "required": true
+                }
+        },
+        "inputs": 1,
+        "outputs": 1,
+        "icon": "font-awesome/fa-university",
+        "paletteLabel": "treasury balance"
+    ,label: function () { return this.name || "treasury balance"; }
+    });
+</script>
+
+<script type="text/html" data-help-name="wdk-balance">
+    <p>Treasury BTC balance from Tether WDK (Mutinynet). Sets msg.payload and msg.wdk.balance.</p>
+</script>

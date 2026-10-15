@@ -42,6 +42,8 @@ pub fn preferred_wallet_role(node_type: &str) -> &'static str {
 
 /// Fixed id of the "QVAC (local)" `ai-provider` config node (also used by Flow Copilot).
 pub const QVAC_PROVIDER: &str = "9e0d9e0d9e0d0a1c";
+/// Fixed id of the "Treasury (Tether WDK)" `wdk-wallet-ref` config node.
+pub const WDK_TREASURY: &str = "9e0d9e0d9e0d0dd1";
 const MAX_PROMPT_CHARS: usize = 1_000;
 const DRAFT_TTL: Duration = Duration::from_secs(30 * 60);
 const QVAC_TIMEOUT: Duration = Duration::from_secs(120);
@@ -54,6 +56,7 @@ struct Settings {
     qvac_model: String,
     payer_url: String,
     recipient_url: String,
+    wdk_url: String,
     wallet_token: String,
 }
 
@@ -86,6 +89,7 @@ fn settings() -> Result<Settings, String> {
         qvac_model: env_or("POWEREDGE_QVAC_MODEL", "poweredge-intent"),
         payer_url: loopback(&env_or("POWEREDGE_PAYER_URL", "http://127.0.0.1:8711"), "payer wallet")?,
         recipient_url: loopback(&env_or("POWEREDGE_RECIPIENT_URL", "http://127.0.0.1:8712"), "recipient wallet")?,
+        wdk_url: loopback(&env_or("POWEREDGE_WDK_URL", "http://127.0.0.1:8713"), "WDK treasury")?,
         wallet_token: read_secret("POWEREDGE_WALLET_TOKEN_FILE")?,
     })
 }
@@ -180,6 +184,27 @@ async fn payer_assets(state: &WebState, s: &Settings) -> Result<BTreeMap<String,
         }
     }
     Ok(out)
+}
+
+/// Network fee for one payout from the Tether WDK treasury service; `null` if it is not running.
+async fn wdk_fee(state: &WebState, s: &Settings) -> Value {
+    let url = format!("{}/fees?count=1", s.wdk_url);
+    let Ok(client) = http_client(state, EgressPurpose::HttpNode, &url).await else {
+        return Value::Null;
+    };
+    let reply = client.get(&url).bearer_auth(&s.wallet_token).timeout(Duration::from_secs(8)).send().await;
+    match reply {
+        Ok(r) if r.status().is_success() => {
+            let body: Value = r.json().await.unwrap_or(Value::Null);
+            let row = &body["bySpeed"]["normal"];
+            if row.is_null() {
+                return Value::Null;
+            }
+            json!({"engine": "Tether WDK", "feeRateSatVb": row["feeRateSatVb"], "feeSat": row["feeSat"],
+                   "witnessSat": body["witnessSat"], "perPayoutSat": row["perPayoutSat"], "vbytes": body["vbytes"]})
+        }
+        _ => Value::Null,
+    }
 }
 
 /// JSON schema the model must follow, derived from the pinned template's slots.
@@ -397,6 +422,7 @@ pub async fn post_draft(
     let bound = |k: &str| compiled.bound.get(k).cloned().unwrap_or(Value::Null);
     let ticker = bound("asset_ticker").as_str().unwrap_or_default().to_owned();
     let asset = assets.get(&ticker).cloned().unwrap_or(Value::Null);
+    let network_fee = wdk_fee(&state, &s).await;
     let draft_id =
         poweredge::canonical::sha256_hex(format!("{}:{:?}", compiled.flow_digest, Instant::now()).as_bytes())[..24]
             .to_owned();
@@ -407,6 +433,7 @@ pub async fn post_draft(
             "recipient": bound("recipient_label"), "amount": bound("amount"), "amountBaseUnits": bound("amount_base_units"),
             "assetTicker": ticker, "assetName": asset["name"], "assetId": asset["asset_id"], "memo": bound("memo"),
             "network": "mutinynet",
+            "networkFee": network_fee,
         },
         "ai": {"engine": "QVAC", "model": model, "latencyMs": latency_ms, "local": true, "explanation": rationale},
         "template": {"id": compiled.template_id, "version": compiled.template_version, "digest": compiled.template_digest},
@@ -456,6 +483,7 @@ pub async fn post_setup(
                 && n["z"] != POWEREDGE_TAB
                 && n["type"] != "rgb-wallet-ref"
                 && n["id"] != QVAC_PROVIDER
+                && n["id"] != WDK_TREASURY
         })
         .collect();
     flows.push(json!({
@@ -471,6 +499,10 @@ pub async fn post_setup(
         "provider": "cortex", "baseUrl": s.qvac_url, "defaultModel": s.qvac_model, "organization": "",
         "credentials": {"apiKey": s.qvac_key},
     }));
+    // Tether WDK treasury (read-only): balance, fees, payout cost for flows and the Copilot.
+    flows.push(
+        json!({"id": WDK_TREASURY, "type": "wdk-wallet-ref", "name": "Treasury (Tether WDK)", "baseUrl": s.wdk_url}),
+    );
     flows.extend(nodes);
     match deploy::commit(&state, &path, flows).await {
         Ok((_, revision)) => {

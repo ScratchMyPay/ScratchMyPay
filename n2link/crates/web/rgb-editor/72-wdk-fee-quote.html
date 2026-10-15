@@ -1,0 +1,51 @@
+<script type="text/html" data-template-name="wdk-fee-quote">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-wallet"><i class="fa fa-university"></i> Treasury</label>
+        <input type="text" id="node-input-wallet">
+    </div>
+    <div class="form-row">
+        <label for="node-input-payoutsTonight"><i class="fa fa-users"></i> Payouts tonight</label>
+        <input type="text" id="node-input-payoutsTonight">
+    </div>
+    <div class="form-row">
+        <label for="node-input-speed"><i class="fa fa-tachometer"></i> Speed (normal|fast)</label>
+        <input type="text" id="node-input-speed">
+    </div>
+    <div class="form-tips">Live WDK fee rates × the measured size of a PowerEdge RGB payout (197 vB + 1,000 sat witness). After a wdk-balance node it also answers whether the treasury covers the payouts: msg.payload.coverage.enough.</div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("wdk-fee-quote", {
+        "category": "WDK",
+        "color": "#50AF95",
+        "defaults": {
+                "name": {
+                        "value": ""
+                },
+                "wallet": {
+                        "value": "",
+                        "type": "wdk-wallet-ref",
+                        "required": true
+                },
+                "payoutsTonight": {
+                        "value": 1
+                },
+                "speed": {
+                        "value": "normal"
+                }
+        },
+        "inputs": 1,
+        "outputs": 1,
+        "icon": "font-awesome/fa-calculator",
+        "paletteLabel": "payout cost"
+    ,label: function () { return this.name || "payout cost"; }
+    });
+</script>
+
+<script type="text/html" data-help-name="wdk-fee-quote">
+    <p>Live WDK fee rates × the measured size of a PowerEdge RGB payout (197 vB + 1,000 sat witness). After a wdk-balance node it also answers whether the treasury covers the payouts: msg.payload.coverage.enough.</p>
+</script>

@@ -1,0 +1,15 @@
+{
+  "name": "poweredge-wdk-btc",
+  "private": true,
+  "type": "module",
+  "description": "PowerEdge treasury service on Tether WDK (wdk-wallet-btc) for Mutinynet: read-only balance, fee rates, payout cost estimates.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@tetherto/wdk-wallet-btc": "1.0.0-beta.17",
+    "bip39": "3.1.0"
+  }
+}

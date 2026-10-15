@@ -186,3 +186,32 @@ automatically. Bind the endpoint to this computer with a free port from 1895 to 
 Open `http://127.0.0.1:1895/pay-me` to see it. `qr-code` encodes `msg.payload` when it is text,
 otherwise the invoice from an `rgb-invoice` result. Payouts (sending money) are not drafted here:
 they are prepared and approved in the PowerEdge app.
+
+## Pre-show treasury check (Tether WDK)
+
+Use when the user wants to know whether the treasury can cover tonight's payouts, or wants
+a daily money check. `wdk-balance` then `wdk-fee-quote` gives `msg.payload.coverage.enough`
+(true/false). Leave `wallet` out; the "Treasury (Tether WDK)" node is filled automatically.
+
+```json
+{"version": 1, "summary": "Every day at 17:00, check whether the WDK treasury covers tonight's 5 payouts",
+ "nodes": [
+  {"ref": "tick", "type": "inject", "name": "17:00 check", "x": 140, "y": 80,
+   "config": {"props": [{"p": "payload"}], "repeat": "", "crontab": "00 17 * * *", "once": false, "payload": "", "payloadType": "date"}},
+  {"ref": "balance", "type": "wdk-balance", "name": "Treasury balance", "x": 330, "y": 80, "config": {}},
+  {"ref": "cost", "type": "wdk-fee-quote", "name": "Cost of tonight", "x": 520, "y": 80, "config": {"payoutsTonight": 5, "speed": "normal"}},
+  {"ref": "enough", "type": "switch", "name": "Enough?", "x": 700, "y": 80,
+   "config": {"property": "payload.coverage.enough", "propertyType": "msg", "rules": [{"t": "true"}, {"t": "false"}], "checkall": "true", "repair": false, "outputs": 2}},
+  {"ref": "ok", "type": "debug", "name": "Treasury OK", "x": 890, "y": 60, "config": {"active": true, "tosidebar": true, "console": false, "complete": "payload.coverage"}},
+  {"ref": "low", "type": "debug", "name": "TOP UP the treasury", "x": 890, "y": 110, "config": {"active": true, "tosidebar": true, "console": true, "complete": "payload.coverage"}}
+ ],
+ "wires": [
+  {"from": "tick", "output": 0, "to": "balance"},
+  {"from": "balance", "output": 0, "to": "cost"},
+  {"from": "cost", "output": 0, "to": "enough"},
+  {"from": "enough", "output": 0, "to": "ok"},
+  {"from": "enough", "output": 1, "to": "low"}
+ ]}
+```
+
+`coverage` has `haveSat`, `needSat`, `payoutsCovered`, `shortSat`. These WDK nodes are read-only.

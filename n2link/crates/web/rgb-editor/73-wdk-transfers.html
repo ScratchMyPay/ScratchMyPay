@@ -1,0 +1,44 @@
+<script type="text/html" data-template-name="wdk-transfers">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-wallet"><i class="fa fa-university"></i> Treasury</label>
+        <input type="text" id="node-input-wallet">
+    </div>
+    <div class="form-row">
+        <label for="node-input-limit"><i class="fa fa-sort-numeric-asc"></i> How many</label>
+        <input type="text" id="node-input-limit">
+    </div>
+    <div class="form-tips">Recent treasury transfers from Tether WDK.</div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("wdk-transfers", {
+        "category": "WDK",
+        "color": "#50AF95",
+        "defaults": {
+                "name": {
+                        "value": ""
+                },
+                "wallet": {
+                        "value": "",
+                        "type": "wdk-wallet-ref",
+                        "required": true
+                },
+                "limit": {
+                        "value": 10
+                }
+        },
+        "inputs": 1,
+        "outputs": 1,
+        "icon": "font-awesome/fa-list",
+        "paletteLabel": "treasury history"
+    ,label: function () { return this.name || "treasury history"; }
+    });
+</script>
+
+<script type="text/html" data-help-name="wdk-transfers">
+    <p>Recent treasury transfers from Tether WDK.</p>
+</script>
