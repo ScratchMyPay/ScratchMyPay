@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PowerEdge Payouts</title>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --ink: #1d1b16; --muted: #6b665c; --line: #e3dfd6;
+  --brand: #e09a16; --brand-ink: #3a2700; --ok: #1f7a4d; --warn: #9a6a00; --bad: #b3261e;
+  --chip: #f1ede4; --focus: #2f6fed;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14130f; --card: #1e1c17; --ink: #f3efe6; --muted: #a7a093; --line: #34302a;
+    --brand: #f7b32b; --brand-ink: #1d1400; --ok: #5ccf94; --warn: #f0c060; --bad: #ff8a80; --chip: #2a2720; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+h1 { font-size: 20px; margin: 0; }
+h1 span { color: var(--brand); }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+.badge.ai { color: var(--ok); }
+main { max-width: 760px; margin: 0 auto; padding: 16px; }
+.tabs { display: flex; gap: 8px; margin: 4px 0 16px; }
+.tabs button, .lang { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; padding: 8px 14px; font: inherit; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); font-weight: 600; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 16px; padding: 0; list-style: none; }
+.steps li { font-size: 13px; text-align: center; padding: 8px 4px; border-radius: 8px; background: var(--chip); color: var(--muted); }
+.steps li.now { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.steps li.done { color: var(--ok); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+.card h2 { font-size: 18px; margin: 0 0 6px; }
+.hint { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+label { display: block; font-weight: 600; margin: 12px 0 6px; }
+textarea, input[type=text] { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; }
+textarea { min-height: 84px; resize: vertical; }
+textarea.code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; min-height: 64px; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.examples button { border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.btn { border: 0; border-radius: 10px; padding: 12px 18px; font: inherit; font-weight: 600; cursor: pointer; background: var(--brand); color: var(--brand-ink); }
+.btn.secondary { background: var(--chip); color: var(--ink); }
+.btn:disabled { opacity: .5; cursor: wait; }
+button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.big { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
+.rows { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 12px 0 0; font-size: 15px; }
+.rows dt { color: var(--muted); }
+.rows dd { margin: 0; overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+.ai-box { border-left: 4px solid var(--ok); background: var(--chip); padding: 10px 12px; border-radius: 8px; margin-top: 14px; font-size: 15px; }
+.ai-box small { display: block; color: var(--muted); margin-bottom: 4px; }
+.checks { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+.error { border-left: 4px solid var(--bad); background: var(--chip); padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+.error b { color: var(--bad); }
+.error small { display: block; color: var(--muted); margin-top: 4px; }
+.confirm { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; }
+.confirm input { width: 22px; height: 22px; margin-top: 2px; }
+.timeline { list-style: none; padding: 0; margin: 8px 0 0; }
+.timeline li { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; color: var(--muted); }
+.timeline .dot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 13px; }
+.timeline li.done { color: var(--ink); }
+.timeline li.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+.timeline li.now { color: var(--ink); font-weight: 600; }
+.timeline li.now .dot { border-color: var(--brand); animation: pulse 1.2s infinite; }
+.timeline li.bad .dot { background: var(--bad); border-color: var(--bad); color: #fff; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 25%, transparent); } }
+a { color: var(--focus); }
+.hidden { display: none !important; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+footer { max-width: 760px; margin: 0 auto; padding: 0 16px 28px; color: var(--muted); font-size: 13px; }
+@media (max-width: 520px) { .steps li { font-size: 11px; } .big { font-size: 22px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>⚡</span> PowerEdge <span data-t="payouts">Payouts</span></h1>
+  <div class="badges">
+    <span class="badge ai" id="ai-badge" data-t="aiLocal">Local AI</span>
+    <span class="badge" data-t="testnet">Test network — no real money</span>
+    <button class="lang" id="lang" aria-label="Language">ES</button>
+  </div>
+</header>
+
+<main>
+  <div class="tabs" role="group" aria-label="Who are you?">
+    <button id="tab-org" aria-pressed="true" data-t="organizer">I'm the organizer</button>
+    <button id="tab-crew" aria-pressed="false" data-t="crew">I'm crew / artist</button>
+  </div>
+
+  <!-- ============ CREW ============ -->
+  <section id="crew" class="hidden">
+    <div class="card">
+      <h2 data-t="crewTitle">Ask to be paid</h2>
+      <p class="hint" data-t="crewHint">Create a payment request and send the code to the organizer. Your wallet stays on your device.</p>
+      <label for="crew-name" data-t="yourRole">Your role or name</label>
+      <input id="crew-name" type="text" placeholder="sound engineer">
+      <label for="crew-amount" data-t="amountAsk">Amount you expect (optional)</label>
+      <input id="crew-amount" type="text" placeholder="25 TUSDT">
+      <div class="actions"><button class="btn" id="crew-go" data-t="createRequest">Create payment request</button></div>
+      <div id="crew-error"></div>
+    </div>
+    <div class="card hidden" id="crew-result">
+      <h2 data-t="requestReady">Payment request ready</h2>
+      <p class="hint" data-t="requestHint">Send this code to the organizer. It expires in one hour.</p>
+      <textarea class="code" id="crew-invoice" readonly></textarea>
+      <div class="actions"><button class="btn secondary" id="crew-copy" data-t="copy">Copy code</button></div>
+    </div>
+  </section>
+
+  <!-- ============ ORGANIZER ============ -->
+  <section id="org">
+    <ol class="steps" aria-label="Progress">
+      <li id="s1" class="now" data-t="step1">1 Describe</li>
+      <li id="s2" data-t="step2">2 Review</li>
+      <li id="s3" data-t="step3">3 Approve</li>
+      <li id="s4" data-t="step4">4 Track</li>
+    </ol>
+
+    <!-- 1 Describe -->
+    <div class="card" id="v1">
+      <h2 data-t="describeTitle">Who do you want to pay?</h2>
+      <p class="hint" data-t="describeHint">Write it the way you would tell a colleague. The AI runs on this computer; your words never leave it.</p>
+      <label for="prompt" data-t="request">Your request</label>
+      <textarea id="prompt" placeholder="Pay the sound engineer 25 tUSDT for Saturday's show"></textarea>
+      <div class="examples" id="examples"></div>
+      <label for="invoice" data-t="invoiceLabel">Their payment request code</label>
+      <textarea class="code" id="invoice" placeholder="rgb:~/~/~/sbc:wvout:..."></textarea>
+      <div class="actions">
+        <button class="btn secondary" id="paste-latest" data-t="pasteLatest">Use the latest request from this device</button>
+      </div>
+      <div class="actions"><button class="btn" id="go-draft" data-t="prepare">Prepare payout</button></div>
+      <div id="e1"></div>
+    </div>
+
+    <!-- 2 Review -->
+    <div class="card hidden" id="v2">
+      <h2 data-t="reviewTitle">Check before anything happens</h2>
+      <div class="big" id="r-headline"></div>
+      <div class="hint" id="r-sub"></div>
+      <dl class="rows" id="r-rows"></dl>
+      <div class="ai-box"><small id="r-ai-label"></small><span id="r-ai"></span></div>
+      <ul class="checks" id="r-checks"></ul>
+      <div class="actions">
+        <button class="btn secondary" id="back-1" data-t="change">Change request</button>
+        <button class="btn" id="go-setup" data-t="looksRight">Looks right — prepare it</button>
+      </div>
+      <div id="e2"></div>
+    </div>
+
+    <!-- 3 Approve -->
+    <div class="card hidden" id="v3">
+      <h2 data-t="approveTitle">Approve this payout</h2>
+      <p class="hint" data-t="approveHint">Your wallet prepared exactly this. Nothing is sent until you approve.</p>
+      <div class="big" id="a-headline"></div>
+      <dl class="rows" id="a-rows"></dl>
+      <label for="actor" data-t="yourName">Your name</label>
+      <input id="actor" type="text" placeholder="Organizer">
+      <div class="confirm"><input type="checkbox" id="a-check"><label for="a-check" id="a-check-label" style="margin:0;font-weight:500"></label></div>
+      <div class="actions">
+        <button class="btn secondary" id="back-2" data-t="cancel">Cancel</button>
+        <button class="btn" id="go-approve" data-t="approveSend" disabled>Approve and send</button>
+      </div>
+      <div id="e3"></div>
+    </div>
+
+    <!-- 4 Track -->
+    <div class="card hidden" id="v4">
+      <h2 data-t="trackTitle">Payout progress</h2>
+      <p class="hint" id="t-sub"></p>
+      <ol class="timeline" id="timeline"></ol>
+      <div id="e4"></div>
+    </div>
+    <div class="card hidden" id="receipt">
+      <h2 data-t="receiptTitle">Receipt</h2>
+      <dl class="rows" id="rc-rows"></dl>
+      <div class="actions"><button class="btn" id="new-payout" data-t="newPayout">New payout</button></div>
+    </div>
+  </section>
+</main>
+<footer id="foot"></footer>
+
+<script>
+"use strict";
+const T = {
+  en: {
+    payouts: "Payouts", aiLocal: "Local AI", testnet: "Test network — no real money",
+    organizer: "I'm the organizer", crew: "I'm crew / artist",
+    crewTitle: "Ask to be paid", crewHint: "Create a payment request and send the code to the organizer. Your wallet stays on your device.",
+    yourRole: "Your role or name", amountAsk: "Amount you expect (optional)", createRequest: "Create payment request",
+    requestReady: "Payment request ready", requestHint: "Send this code to the organizer. It expires in one hour.", copy: "Copy code", copied: "Copied",
+    step1: "1 Describe", step2: "2 Review", step3: "3 Approve", step4: "4 Track",
+    describeTitle: "Who do you want to pay?", describeHint: "Write it the way you would tell a colleague. The AI runs on this computer; your words never leave it.",
+    request: "Your request", invoiceLabel: "Their payment request code", pasteLatest: "Use the latest request from this device", prepare: "Prepare payout",
+    thinking: "Local AI is reading your request…", settingUp: "Setting up the payout flow…",
+    reviewTitle: "Check before anything happens", change: "Change request", looksRight: "Looks right — prepare it",
+    pay: "Pay", to: "to", forWhat: "For", amount: "Amount", asset: "Asset", network: "Network", networkVal: "Mutinynet (Bitcoin test network)",
+    aiLabel: "AI explanation — for your understanding only. The AI cannot approve or send anything.",
+    checkTemplate: "Built from the pinned template", checkFlow: "Flow fingerprint", checkApproval: "No step can skip your approval",
+    checkAi: "Understood on this computer by", approveTitle: "Approve this payout", approveHint: "Your wallet prepared exactly this. Nothing is sent until you approve.",
+    recipientCode: "Recipient wallet", expires: "Plan expires in", fingerprint: "Plan fingerprint", yourName: "Your name",
+    confirmText: (a) => `I approve sending ${a}.`, cancel: "Cancel", approveSend: "Approve and send",
+    trackTitle: "Payout progress", trackSub: "This page updates by itself. You can keep it open.",
+    tPrepared: "Payout prepared by your wallet", tApproved: "Approved by", tSending: "Sending on Bitcoin", tSent: "Sent — transaction",
+    tDelivered: "Crew wallet received and checked it", tSettled: "Settled on Bitcoin", viewTx: "view",
+    receiptTitle: "Receipt", newPayout: "New payout", min: "min",
+    rAmount: "Amount", rTo: "Paid to", rFor: "For", rTx: "Bitcoin transaction", rProof: "RGB proof (consignment) hash",
+    rPlan: "Plan fingerprint", rBy: "Approved by", rTemplate: "Template", rAsset: "Asset contract",
+    footer: (ai) => `AI: ${ai}. Payments: RGB on Bitcoin (Mutinynet test network). Keys stay in the wallet service on this computer.`,
+    unknownErr: "Something went wrong", tryAgain: "Try again in a moment.",
+  },
+  es: {
+    payouts: "Pagos", aiLocal: "IA local", testnet: "Red de prueba — sin dinero real",
+    organizer: "Soy el organizador", crew: "Soy staff / artista",
+    crewTitle: "Solicitar un pago", crewHint: "Crea una solicitud de pago y envía el código al organizador. Tu billetera se queda en tu dispositivo.",
+    yourRole: "Tu rol o nombre", amountAsk: "Monto que esperas (opcional)", createRequest: "Crear solicitud de pago",
+    requestReady: "Solicitud lista", requestHint: "Envía este código al organizador. Vence en una hora.", copy: "Copiar código", copied: "Copiado",
+    step1: "1 Describir", step2: "2 Revisar", step3: "3 Aprobar", step4: "4 Seguir",
+    describeTitle: "¿A quién quieres pagar?", describeHint: "Escríbelo como se lo dirías a un colega. La IA corre en esta computadora; tus palabras no salen de aquí.",
+    request: "Tu solicitud", invoiceLabel: "Su código de solicitud de pago", pasteLatest: "Usar la última solicitud de este dispositivo", prepare: "Preparar pago",
+    thinking: "La IA local está leyendo tu solicitud…", settingUp: "Preparando el flujo de pago…",
+    reviewTitle: "Revisa antes de que pase nada", change: "Cambiar solicitud", looksRight: "Está bien — prepararlo",
+    pay: "Pagar", to: "a", forWhat: "Por", amount: "Monto", asset: "Activo", network: "Red", networkVal: "Mutinynet (red de prueba de Bitcoin)",
+    aiLabel: "Explicación de la IA — solo para que entiendas. La IA no puede aprobar ni enviar nada.",
+    checkTemplate: "Construido con la plantilla fijada", checkFlow: "Huella del flujo", checkApproval: "Ningún paso puede saltarse tu aprobación",
+    checkAi: "Entendido en esta computadora por", approveTitle: "Aprueba este pago", approveHint: "Tu billetera preparó exactamente esto. No se envía nada hasta que apruebes.",
+    recipientCode: "Billetera destino", expires: "El plan vence en", fingerprint: "Huella del plan", yourName: "Tu nombre",
+    confirmText: (a) => `Apruebo enviar ${a}.`, cancel: "Cancelar", approveSend: "Aprobar y enviar",
+    trackTitle: "Progreso del pago", trackSub: "Esta página se actualiza sola. Puedes dejarla abierta.",
+    tPrepared: "Pago preparado por tu billetera", tApproved: "Aprobado por", tSending: "Enviando en Bitcoin", tSent: "Enviado — transacción",
+    tDelivered: "La billetera del staff lo recibió y verificó", tSettled: "Liquidado en Bitcoin", viewTx: "ver",
+    receiptTitle: "Comprobante", newPayout: "Nuevo pago", min: "min",
+    rAmount: "Monto", rTo: "Pagado a", rFor: "Por", rTx: "Transacción de Bitcoin", rProof: "Hash de la prueba RGB (consignment)",
+    rPlan: "Huella del plan", rBy: "Aprobado por", rTemplate: "Plantilla", rAsset: "Contrato del activo",
+    footer: (ai) => `IA: ${ai}. Pagos: RGB sobre Bitcoin (red de prueba Mutinynet). Las llaves se quedan en el servicio de billetera de esta computadora.`,
+    unknownErr: "Algo salió mal", tryAgain: "Intenta de nuevo en un momento.",
+  },
+};
+// Every error code the system can return, in words a person can act on.
+const ERRORS = {
+  en: {
+    ai_not_understood: ["I couldn't read that as a payout.", "Try: “Pay the sound engineer 25 tUSDT for Saturday's show”."],
+    ai_unreachable: ["The local AI is not running.", "Start QVAC on this computer (services/qvac/serve.sh)."],
+    invalid_parameter: ["Part of the request doesn't fit a payout.", "Check the amount (like 25 or 12.5) and the asset name."],
+    unknown_template: ["That kind of payment isn't available.", "PowerEdge can pay one person at a time for now."],
+    invalid_prompt: ["Please describe the payout.", "One or two sentences are enough."],
+    missing_invoice: ["The payment request code is missing.", "Ask the crew member to create one in the “I'm crew / artist” tab."],
+    wallet_refused: ["Your wallet refused this payout.", ""],
+    wallet_unreachable: ["The wallet service is not running.", "Start it (services/wallet-owner/run.sh) and try again."],
+    insufficient_balance: ["Not enough funds for this payout.", "Lower the amount or top up the organizer wallet."],
+    unknown_asset: ["Your wallet doesn't hold that asset.", "Pay in TUSDT."],
+    digest_mismatch: ["The payout changed after you saw it.", "Go back and prepare it again."],
+    flow_changed: ["The payout flow was changed after this plan was made.", "Prepare the payout again so you approve what will run."],
+    plan_expired: ["This plan expired before approval.", "Prepare the payout again."],
+    not_approvable: ["This payout is no longer waiting for approval.", "Check its progress instead."],
+    invalid_approval: ["Your name is needed to approve.", ""],
+    draft_expired: ["This draft expired.", "Describe the payout again."],
+    flow_not_ready: ["The payout flow isn't running yet.", "Press “Looks right — prepare it” again."],
+    unsafe_graph: ["Safety check blocked this payout.", "Nothing was set up or sent."],
+    egress_denied: ["The network policy blocked a local service.", "Allow 127.0.0.1 ports 1891–1894, 8711–8712 and 11435."],
+    wallet_error: ["The wallet reported a problem.", "Wait a minute (the public test network may be busy) and try again."],
+    unknown_submission: ["We can't confirm yet whether it was sent.", "It will NOT be sent twice. The wallet is checking; don't retry."],
+  },
+  es: {
+    ai_not_understood: ["No pude entenderlo como un pago.", "Prueba: “Pagar al ingeniero de sonido 25 tUSDT por el show del sábado”."],
+    ai_unreachable: ["La IA local no está corriendo.", "Inicia QVAC en esta computadora (services/qvac/serve.sh)."],
+    invalid_parameter: ["Parte de la solicitud no encaja en un pago.", "Revisa el monto (como 25 o 12.5) y el nombre del activo."],
+    unknown_template: ["Ese tipo de pago no está disponible.", "Por ahora PowerEdge paga a una persona a la vez."],
+    invalid_prompt: ["Describe el pago, por favor.", "Una o dos frases bastan."],
+    missing_invoice: ["Falta el código de solicitud de pago.", "Pide al staff que lo cree en la pestaña “Soy staff / artista”."],
+    wallet_refused: ["Tu billetera rechazó este pago.", ""],
+    wallet_unreachable: ["El servicio de billetera no está corriendo.", "Inícialo (services/wallet-owner/run.sh) e intenta de nuevo."],
+    insufficient_balance: ["No hay fondos suficientes.", "Baja el monto o recarga la billetera del organizador."],
+    unknown_asset: ["Tu billetera no tiene ese activo.", "Paga en TUSDT."],
+    digest_mismatch: ["El pago cambió después de que lo viste.", "Regresa y prepáralo de nuevo."],
+    flow_changed: ["El flujo cambió después de preparar este plan.", "Prepara el pago de nuevo para aprobar lo que se va a ejecutar."],
+    plan_expired: ["El plan venció antes de aprobarse.", "Prepara el pago de nuevo."],
+    not_approvable: ["Este pago ya no espera aprobación.", "Revisa su progreso."],
+    invalid_approval: ["Se necesita tu nombre para aprobar.", ""],
+    draft_expired: ["Este borrador venció.", "Describe el pago de nuevo."],
+    flow_not_ready: ["El flujo de pago aún no está corriendo.", "Presiona “Está bien — prepararlo” otra vez."],
+    unsafe_graph: ["El control de seguridad bloqueó este pago.", "No se preparó ni se envió nada."],
+    egress_denied: ["La política de red bloqueó un servicio local.", "Permite 127.0.0.1 puertos 1891–1894, 8711–8712 y 11435."],
+    wallet_error: ["La billetera reportó un problema.", "Espera un minuto (la red de prueba puede estar ocupada) e intenta de nuevo."],
+    unknown_submission: ["Aún no podemos confirmar si se envió.", "NO se enviará dos veces. La billetera está verificando; no reintentes."],
+  },
+};
+const EXAMPLES = {
+  en: ["Pay the sound engineer 25 tUSDT for Saturday's show", "Send 40 tUSDT to the lighting tech for the load-out", "Pay the opening DJ 120 tUSDT, set fee"],
+  es: ["Pagar al ingeniero de sonido 25 tUSDT por el show del sábado", "Enviar 40 tUSDT al técnico de luces por el desmontaje", "Pagar al DJ de apertura 120 tUSDT por su set"],
+};
+
+let lang = (() => { try { return localStorage.getItem("pe.lang") || "en"; } catch { return "en"; } })();
+const $ = (id) => document.getElementById(id);
+const t = (k, ...a) => { const v = (T[lang] || T.en)[k] ?? T.en[k] ?? k; return typeof v === "function" ? v(...a) : v; };
+const state = { info: null, draft: null, payout: null, poll: null, timer: null };
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  $("lang").textContent = lang === "en" ? "ES" : "EN";
+  const ex = $("examples"); ex.replaceChildren();
+  EXAMPLES[lang].forEach((text) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; b.onclick = () => { $("prompt").value = text; $("prompt").focus(); }; ex.append(b); });
+  if (state.info) $("foot").textContent = t("footer", `QVAC · ${state.info.ai.model}`);
+}
+$("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; try { localStorage.setItem("pe.lang", lang); } catch {} applyLang(); };
+
+function showError(slot, code, message) {
+  const [what, next] = (ERRORS[lang][code] || [t("unknownErr"), t("tryAgain")]);
+  const box = document.createElement("div"); box.className = "error"; box.setAttribute("role", "alert");
+  const b = document.createElement("b"); b.textContent = what; box.append(b);
+  if (next) { const n = document.createElement("div"); n.textContent = next; box.append(n); }
+  if (message) { const s = document.createElement("small"); s.textContent = `${code}: ${message}`; box.append(s); }
+  $(slot).replaceChildren(box);
+}
+const clearError = (slot) => $(slot).replaceChildren();
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  let res;
+  try { res = await fetch(path, opts); } catch { return { ok: false, error: { code: "wallet_unreachable", message: "network" } }; }
+  let data = {}; try { data = await res.json(); } catch {}
+  if (data && data.error && data.ok === undefined) data.ok = false;
+  if (!res.ok && data.ok !== false) data = { ok: false, error: { code: data.code || `http_${res.status}`, message: data.message || "" } };
+  return data;
+}
+
+function busy(btn, on, label) {
+  btn.disabled = on;
+  if (on) { btn.dataset.label = btn.textContent; btn.replaceChildren(Object.assign(document.createElement("span"), { className: "spinner" }), document.createTextNode(label)); }
+  else if (btn.dataset.label) { btn.textContent = btn.dataset.label; }
+}
+function rows(el, pairs) {
+  el.replaceChildren();
+  pairs.filter(([, v]) => v !== undefined && v !== null && v !== "").forEach(([k, v, mono]) => {
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd"); if (v instanceof Node) dd.append(v); else dd.textContent = v; if (mono) dd.className = "mono";
+    el.append(dt, dd);
+  });
+}
+const short = (s, n = 10) => (s && s.length > 2 * n ? `${s.slice(0, n)}…${s.slice(-6)}` : s || "");
+function go(step) {
+  [1, 2, 3, 4].forEach((i) => {
+    $(`v${i}`).classList.toggle("hidden", i !== step);
+    const li = $(`s${i}`); li.classList.toggle("now", i === step); li.classList.toggle("done", i < step);
+  });
+  if (step !== 4) $("receipt").classList.add("hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ---------- tabs ----------
+function tab(org) {
+  $("org").classList.toggle("hidden", !org); $("crew").classList.toggle("hidden", org);
+  $("tab-org").setAttribute("aria-pressed", String(org)); $("tab-crew").setAttribute("aria-pressed", String(!org));
+}
+$("tab-org").onclick = () => tab(true);
+$("tab-crew").onclick = () => tab(false);
+
+// ---------- crew ----------
+$("crew-go").onclick = async () => {
+  clearError("crew-error"); const btn = $("crew-go"); busy(btn, true, "…");
+  const r = await api("/poweredge-app/api/flow/invoices", { label: $("crew-name").value.trim(), amount: $("crew-amount").value.trim() });
+  busy(btn, false);
+  if (!r.ok) return showError("crew-error", r.error?.code, r.error?.message);
+  $("crew-invoice").value = r.invoice.invoice; $("crew-result").classList.remove("hidden");
+  try { localStorage.setItem("pe.lastInvoice", r.invoice.invoice); } catch {}
+};
+$("crew-copy").onclick = async () => { try { await navigator.clipboard.writeText($("crew-invoice").value); $("crew-copy").textContent = t("copied"); } catch { $("crew-invoice").select(); } };
+
+// ---------- 1 describe ----------
+$("paste-latest").onclick = () => { try { const v = localStorage.getItem("pe.lastInvoice"); if (v) $("invoice").value = v; } catch {} };
+$("go-draft").onclick = async () => {
+  clearError("e1");
+  if (!$("invoice").value.trim()) return showError("e1", "missing_invoice");
+  const btn = $("go-draft"); busy(btn, true, t("thinking"));
+  const r = await api("/poweredge-app/api/draft", { prompt: $("prompt").value });
+  busy(btn, false);
+  if (!r.ok) return showError("e1", r.error?.code, r.error?.message);
+  state.draft = r; renderReview(); go(2);
+};
+
+// ---------- 2 review ----------
+function renderReview() {
+  const d = state.draft, rv = d.review;
+  $("r-headline").textContent = `${t("pay")} ${rv.amount} ${rv.assetTicker} ${t("to")} ${rv.recipient}`;
+  $("r-sub").textContent = rv.memo ? `${t("forWhat")}: ${rv.memo}` : "";
+  rows($("r-rows"), [
+    [t("amount"), `${rv.amount} ${rv.assetTicker} (${Number(rv.amountBaseUnits).toLocaleString()} base units)`],
+    [t("asset"), `${rv.assetName || rv.assetTicker} · ${short(rv.assetId, 12)}`],
+    [t("network"), t("networkVal")],
+  ]);
+  $("r-ai-label").textContent = t("aiLabel");
+  $("r-ai").textContent = d.ai.explanation || "—";
+  const checks = [
+    `${t("checkAi")} QVAC · ${d.ai.model} (${(d.ai.latencyMs / 1000).toFixed(1)} s)`,
+    `${t("checkTemplate")} ${d.template.id} v${d.template.version} · ${d.template.digest.slice(0, 12)}`,
+    `${t("checkFlow")} ${d.flow.digest.slice(0, 12)}`,
+    t("checkApproval"),
+  ];
+  $("r-checks").replaceChildren(...checks.map((c) => Object.assign(document.createElement("li"), { textContent: c })));
+}
+$("back-1").onclick = () => go(1);
+$("go-setup").onclick = async () => {
+  clearError("e2"); const btn = $("go-setup"); busy(btn, true, t("settingUp"));
+  const s = await api("/poweredge-app/api/setup", { draftId: state.draft.draftId });
+  if (!s.ok) { busy(btn, false); return showError("e2", s.error?.code, s.error?.message); }
+  let p;
+  for (let i = 0; i < 6; i++) { // the redeployed endpoints take a moment to listen
+    p = await api("/poweredge-app/api/flow/payouts", { invoice: $("invoice").value.trim() });
+    if (p.ok || p.error?.code !== "flow_not_ready") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  busy(btn, false);
+  if (!p.ok) return showError("e2", p.error?.code, p.error?.message);
+  state.payout = p.payout; renderApprove(); go(3);
+};
+
+// ---------- 3 approve ----------
+function amountText(p) { return `${p.amount_display} ${p.asset_ticker} ${t("to")} ${p.recipient_label}`; }
+function renderApprove() {
+  const p = state.payout;
+  $("a-headline").textContent = `${t("pay")} ${amountText(p)}`;
+  const left = $("a-left") || Object.assign(document.createElement("span"), { id: "a-left" });
+  rows($("a-rows"), [
+    [t("forWhat"), p.memo],
+    [t("recipientCode"), short(p.recipient_id, 14), true],
+    [t("expires"), left],
+    [t("fingerprint"), p.plan_digest.slice(0, 16), true],
+    [t("network"), t("networkVal")],
+  ]);
+  $("a-check").checked = false; $("go-approve").disabled = true;
+  $("a-check-label").textContent = t("confirmText", `${p.amount_display} ${p.asset_ticker} ${t("to")} ${p.recipient_label}`);
+  clearInterval(state.timer);
+  const tick = () => { const s = Math.max(0, p.expiration_timestamp - Math.floor(Date.now() / 1000)); left.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} ${t("min")}`; };
+  tick(); state.timer = setInterval(tick, 1000);
+}
+const canApprove = () => { $("go-approve").disabled = !($("a-check").checked && $("actor").value.trim()); };
+$("a-check").onchange = canApprove; $("actor").oninput = canApprove;
+$("back-2").onclick = () => { clearInterval(state.timer); go(1); };
+$("go-approve").onclick = async () => {
+  clearError("e3"); const btn = $("go-approve"); busy(btn, true, "…");
+  const p = state.payout;
+  const r = await api("/poweredge-app/api/flow/approvals", { planId: p.plan_id, planDigest: p.plan_digest, actor: $("actor").value.trim() });
+  busy(btn, false);
+  if (!r.ok) return showError("e3", r.error?.code, r.error?.message);
+  clearInterval(state.timer); state.payout = r.payout; go(4); track();
+};
+
+// ---------- 4 track ----------
+const ORDER = ["PLANNED", "APPROVED", "SUBMITTING", "BROADCAST", "DELIVERED", "SETTLED"];
+function renderTimeline(p) {
+  const at = ORDER.indexOf(p.state);
+  const bad = ["FAILED", "EXPIRED", "UNKNOWN_SUBMISSION"].includes(p.state);
+  const txLink = () => { if (!p.txid) return null; const a = document.createElement("a"); a.href = `https://mutinynet.com/tx/${p.txid}`; a.target = "_blank"; a.rel = "noopener"; a.textContent = `${short(p.txid, 8)} (${t("viewTx")})`; return a; };
+  const items = [
+    [t("tPrepared")], [`${t("tApproved")} ${p.approved_by || ""}`], [t("tSending")],
+    [t("tSent"), txLink()], [t("tDelivered")], [t("tSettled")],
+  ];
+  $("timeline").replaceChildren(...items.map(([label, extra], i) => {
+    const li = document.createElement("li");
+    const done = i <= at && !(bad && i === at + 1);
+    li.className = done ? "done" : i === at + 1 && !bad ? "now" : "";
+    const dot = Object.assign(document.createElement("span"), { className: "dot", textContent: done ? "✓" : "" });
+    const text = document.createElement("span"); text.textContent = label + " ";
+    if (extra && i <= at) text.append(extra);
+    li.append(dot, text); return li;
+  }));
+  $("t-sub").textContent = t("trackSub");
+  if (bad) showError("e4", p.state === "UNKNOWN_SUBMISSION" ? "unknown_submission" : (p.error || p.state.toLowerCase()), p.error || "");
+}
+function renderReceipt(p) {
+  const tx = document.createElement("a"); tx.href = `https://mutinynet.com/tx/${p.txid}`; tx.target = "_blank"; tx.rel = "noopener"; tx.textContent = p.txid; tx.className = "mono";
+  rows($("rc-rows"), [
+    [t("rAmount"), `${p.amount_display} ${p.asset_ticker}`], [t("rTo"), p.recipient_label], [t("rFor"), p.memo],
+    [t("rTx"), tx], [t("rProof"), p.consignment_sha256, true], [t("rAsset"), p.asset_id, true],
+    [t("rPlan"), p.plan_digest, true], [t("rBy"), p.approved_by], [t("rTemplate"), `${p.template_digest.slice(0, 16)}…`, true],
+  ]);
+  $("receipt").classList.remove("hidden");
+}
+function track() {
+  clearInterval(state.poll); clearError("e4");
+  const tickOnce = async () => {
+    const r = await api(`/poweredge-app/api/flow/status?planId=${encodeURIComponent(state.payout.plan_id)}`);
+    if (!r.ok) return; // transient: keep polling
+    state.payout = r.payout; renderTimeline(r.payout);
+    if (["SETTLED", "FAILED", "EXPIRED"].includes(r.payout.state)) { clearInterval(state.poll); if (r.payout.state === "SETTLED") renderReceipt(r.payout); }
+  };
+  renderTimeline(state.payout); tickOnce(); state.poll = setInterval(tickOnce, 3000);
+}
+$("new-payout").onclick = () => { clearInterval(state.poll); $("prompt").value = ""; $("invoice").value = ""; state.draft = state.payout = null; go(1); };
+
+// ---------- boot ----------
+(async () => {
+  applyLang();
+  const info = await api("/poweredge-app/api/info");
+  if (info.ok === false) { showError("e1", info.error?.code, info.error?.message); return; }
+  state.info = info;
+  $("ai-badge").textContent = `${t("aiLocal")} · QVAC · ${info.ai.model}`;
+  applyLang();
+  if (location.hash === "#crew") tab(false);
+})();
+</script>
+</body>
+</html>

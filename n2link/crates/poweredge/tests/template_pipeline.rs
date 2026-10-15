@@ -207,6 +207,14 @@ fn validator_rejects_bypass_injection_secrets_and_broken_wires() {
             n["wires"] = json!([["0123456789abcdef"]]);
         }
     }
+    // 7. A payout endpoint opened to the network.
+    let mut public = flow.nodes.clone();
+    for n in &mut public {
+        if n["type"] == "http in" {
+            n["host"] = json!("0.0.0.0");
+        }
+    }
+    assert_eq!(validate(manifest, &public, Environment::Mutinynet).unwrap_err().code(), "unsafe_graph");
     // 6. Unknown node type allowed nowhere.
     let mut unknown = flow.nodes.clone();
     unknown.push(json!({"id": "eeeeeeeeeeeeeeee", "type": "mqtt out", "z": WORKSPACE, "wires": []}));

@@ -78,6 +78,17 @@ fn create_node_red_api_routes() -> Router {
         .route("/assistant/catalog", get(crate::handlers::assistant::get_assistant_catalog))
         .route("/assistant/draft", post(post_assistant_draft));
 
+    #[cfg(feature = "nodes_rgb")]
+    let router = router
+        .route("/poweredge-app", get(crate::handlers::poweredge::get_app))
+        .route("/poweredge-app/api/info", get(crate::handlers::poweredge::get_info))
+        .route("/poweredge-app/api/draft", post(crate::handlers::poweredge::post_draft))
+        .route("/poweredge-app/api/setup", post(crate::handlers::poweredge::post_setup))
+        .route(
+            "/poweredge-app/api/flow/{name}",
+            get(crate::handlers::poweredge::flow_proxy).post(crate::handlers::poweredge::flow_proxy),
+        );
+
     #[cfg(feature = "history_sqlite")]
     let router = router.route("/history", get(crate::handlers::history::get_history));
 

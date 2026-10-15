@@ -19,5 +19,5 @@
   "approval_node_type": "approval-gate",
   "guarded_node_types": ["rgb-send-once"],
   "entry_node_types": ["http in"],
-  "digest": "3eccc585999d06d4a8ed74bedfcdbeea475ef656296d5ba336b98775d2d7a890"
+  "digest": "2a68da911b458db3ea616024ae2e88c1e597480e1792e9086860e12ea4d68270"
 }

@@ -1,0 +1,98 @@
+{
+  "title": "First live PowerEdge payout (Mutinynet), 2026-10-15",
+  "prompt": "Pay the sound engineer 25 tUSDT for Saturday's show",
+  "qvac": {
+    "engine": "QVAC",
+    "model": "poweredge-intent",
+    "latencyMs": 8540,
+    "local": true,
+    "explanation": "The sound engineer is being paid 25 TUSDT for their work at Saturday's show. The payment is processed through the RGB2link PowerEdge system on the mutinynet test network.",
+    "intent": {
+      "version": 1,
+      "template_id": "rgb-payment-v1",
+      "template_version": "1.0.0",
+      "environment": "mutinynet",
+      "parameters": {
+        "amount": "25",
+        "asset_ticker": "TUSDT",
+        "memo": "Saturday's show",
+        "recipient_label": "sound engineer"
+      },
+      "rationale": "The sound engineer is being paid 25 TUSDT for their work at Saturday's show. The payment is processed through the RGB2link PowerEdge system on the mutinynet test network."
+    }
+  },
+  "template": {
+    "id": "rgb-payment-v1",
+    "version": "1.0.0",
+    "digest": "2a68da911b458db3ea616024ae2e88c1e597480e1792e9086860e12ea4d68270"
+  },
+  "compiled_flow_digest": "b0598c3a5dd2468d20c6fba9d872ac0b4bde530784b340b069a22ec3014e14aa",
+  "payout": {
+    "plan_id": "db71215b-c18c-47cc-b7c9-f16073ea17e6",
+    "environment": "mutinynet",
+    "asset_id": "rgb:I7olLl3y-c49Ha7C-v82SFEj-BU33dvn-4mGtCIL-MNRyWm8",
+    "asset_ticker": "TUSDT",
+    "amount_display": "25",
+    "amount_base_units": 25000000,
+    "recipient_label": "sound engineer",
+    "memo": "Saturday's show",
+    "recipient_id": "sbc:wvout:BeMQgU0s-U3V0ndZ-kQ0zxat-KiIb0lc-0Q9IDrY-xF9t8Up-YhGJiyA",
+    "plan_digest": "4b8764719524705667de9b76df256389fb5f86380941f58f6e4d6fa92748625d",
+    "flow_revision": "912b522dbd9a4d2eda5dd44d9dbaab98eaad85dbde9293240b56be121e2b7a24",
+    "template_digest": "2a68da911b458db3ea616024ae2e88c1e597480e1792e9086860e12ea4d68270",
+    "approved_by": "Edwin (organizer)",
+    "txid": "ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1",
+    "consignment_sha256": "82d00ef59a48feb45829e114ba53e464792deae53d17dd07e0ac752ab47fb0b3",
+    "consignment_size": 5163,
+    "state": "SETTLED"
+  },
+  "bitcoin": {
+    "txid": "ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1",
+    "confirmed": true,
+    "block_height": 3508245,
+    "block_hash": "000000474a08ea376d8e4c9a3de22b8ea24f17cd34222598618cd8af59207cc6",
+    "explorer": "https://mutinynet.com/tx/ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1"
+  },
+  "balances_after": {
+    "recipient_TUSDT": "25.000000 (settled)",
+    "payer_TUSDT": "999975.000000"
+  },
+  "journal_events": [
+    {
+      "at": 1792086498.7901297,
+      "from_state": null,
+      "to_state": "PLANNED",
+      "detail": "plan created"
+    },
+    {
+      "at": 1792086518.330224,
+      "from_state": "PLANNED",
+      "to_state": "APPROVED",
+      "detail": "approved by Edwin (organizer)"
+    },
+    {
+      "at": 1792086518.914215,
+      "from_state": "APPROVED",
+      "to_state": "SUBMITTING",
+      "detail": "about to broadcast"
+    },
+    {
+      "at": 1792086520.480508,
+      "from_state": "SUBMITTING",
+      "to_state": "BROADCAST",
+      "detail": "txid ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1"
+    },
+    {
+      "at": 1792086544.252424,
+      "from_state": "BROADCAST",
+      "to_state": "SETTLED",
+      "detail": "wallet reports SETTLED"
+    }
+  ],
+  "notes": [
+    "Recipient delivery first failed on an Esplora race ('transaction height greater than the chain tip'); the payer journal reached SETTLED before the import (bug).",
+    "Recovered by importing the same consignment (sha256 verified) into the recipient service; recipient transfer settled.",
+    "Fixed: SETTLED now waits for DELIVERED and delivery is retried on status refresh (test_failed_delivery_is_retried_and_settled_waits_for_the_recipient).",
+    "A deliberately wrong approval (all-zero plan digest) was refused with digest_mismatch before the real approval."
+  ]
+}

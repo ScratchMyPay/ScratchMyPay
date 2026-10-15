@@ -314,12 +314,19 @@ class WalletService:
     def status(self, plan_id: str, *, refresh: bool) -> dict[str, Any]:
         with self._lock:
             row = self._get(plan_id)
-            if refresh and row.state_enum in (State.BROADCAST, State.DELIVERED):
+            delivering = self._cfg.deliver is not None
+            if refresh and delivering and row.state_enum is State.BROADCAST:
+                # Delivery failed earlier (e.g. indexer race): retry. Never re-sends.
+                self._deliver(row)
+                row = self._get(plan_id)
+            # "Settled" means the recipient holds it: with a peer, only after it imported.
+            settle_from = State.DELIVERED if delivering else State.BROADCAST
+            if refresh and row.state_enum is settle_from:
                 self._call(lambda: with_backoff(self._adapter.refresh_transfers, sleep=self._cfg.sleep))
                 for transfer in self._ops.transfers(row.asset_id):
                     if transfer.batch_transfer_idx == row.batch_transfer_idx and transfer.status == "SETTLED":
                         row = self._journal.transition(plan_id, row.state_enum, State.SETTLED,
-                                                       detail="wallet reports SETTLED")
+                                                       detail="payer transfer SETTLED; recipient imported")
                         break
         return {**self._view(row), "events": self._journal.events(plan_id)}
 

@@ -19,7 +19,28 @@
 - Palimnex 2.9.0 (code search / agent memory tooling).
 - This repository's design docs, schemas and plan (`docs/`).
 
-**Built for the hackathon** (organizer-approved early start on 2026-10-15): everything not listed above — tracked commit by commit and summarized in `docs/IMPLEMENTATION_STATUS.md`. Mocked/simulated parts will be listed here before submission.
+**Built for the hackathon** (organizer-approved early start on 2026-10-15): everything not listed above — tracked commit by commit and summarized in `docs/IMPLEMENTATION_STATUS.md`.
+
+### Working now (verified live on Mutinynet, 2026-10-15)
+A plain-language request went from local AI to a real RGB transfer:
+"Pay the sound engineer 25 tUSDT for Saturday's show" → local QVAC (Qwen3-8B) intent → pinned template `rgb-payment-v1` → validated n2link flow → crew payment request → wallet-prepared plan → human approval → exactly-once send → **txid [`ea4ce78b…43af1`](https://mutinynet.com/tx/ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1)** → crew wallet imported the RGB consignment → **crew holds 25.000000 TUSDT (settled)**. Evidence: `artifacts/payouts/2026-10-15-first-live-payout.json`.
+
+| Piece | Where |
+|---|---|
+| Guided app (Describe → Review → Approve → Track, crew view, EN/ES) | `n2link/crates/web/poweredge-app/`, served at `http://127.0.0.1:1888/poweredge-app` |
+| Local AI drafting (QVAC, JSON-schema from the template) | `n2link/crates/web/src/handlers/poweredge.rs`, `services/qvac/` |
+| Intent, pinned templates, compiler, validator | `n2link/crates/poweredge/`, `templates/` |
+| RGB nodes for n2link (`nodes_rgb`) | `n2link/crates/core/src/runtime/nodes/rgb_nodes/` |
+| Wallet-owner service + durable journal | `services/wallet-owner/` |
+
+### Mocked, simulated or hard-coded (honest list)
+- **Test money only**: TUSDT is a test asset we issued on Mutinynet (a Bitcoin test network). Nothing runs on mainnet; the wallet service refuses to start for any other network.
+- **One template** (`rgb-payment-v1`: pay one person). Multi-recipient payouts are not built yet.
+- **Both wallets run on one laptop** for the demo (organizer and crew are separate processes with separate keys and datadirs, talking over loopback). Consignment delivery is a direct local hand-off, not a remote transport.
+- **Endpoint ports are fixed** in the template (127.0.0.1:1891–1894); one active payout flow at a time.
+- **Approval is a typed name + checkbox** on the organizer's own machine; there is no multi-user login or signature on the approval.
+- **A plan approved before a wallet-service restart must be prepared again** (fail-closed by design).
+- **WDK**: not integrated yet.
 
 ## Product promise
 A developer asks: “Create a testnet RGB payment API with explicit approval, a receipt, and local AI interpretation.” Local QVAC selects a pinned, validated template and fills typed parameters. An independent validator rejects unsupported nodes, unsafe bindings, policy bypasses and unsupported wallet/network combinations. The editor displays the proposed flow. The user approves a versioned deployment. n2link runs the workflow against a privileged, isolated wallet service; immutable audit records and a reconciliation process prove the outcome.

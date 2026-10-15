@@ -13,6 +13,8 @@ pub mod history;
 pub mod library;
 pub mod locales;
 pub mod nodes;
+#[cfg(feature = "nodes_rgb")]
+pub mod poweredge;
 pub mod reply;
 pub mod runtime_config;
 pub mod settings;

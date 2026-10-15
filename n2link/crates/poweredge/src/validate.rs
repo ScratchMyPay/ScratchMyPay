@@ -55,6 +55,12 @@ pub fn validate(manifest: &Manifest, nodes: &[Value], environment: Environment) 
             return Err(Error::Graph(format!("duplicate node id {id}")));
         }
         scan_values(id, node)?;
+        if node_type == "http in" {
+            let host = object.get("host").and_then(Value::as_str).unwrap_or("0.0.0.0");
+            if !matches!(host, "127.0.0.1" | "localhost" | "::1") {
+                return Err(Error::Graph(format!("http endpoint {id} must listen on 127.0.0.1, not {host}")));
+            }
+        }
         let mut targets = Vec::new();
         if let Some(wires) = object.get("wires") {
             for port in wires.as_array().ok_or_else(|| Error::Graph(format!("node {id} wires malformed")))? {

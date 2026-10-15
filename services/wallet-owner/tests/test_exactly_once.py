@@ -39,6 +39,34 @@ def test_happy_path_sends_once_delivers_and_settles(payer, recipient):
         "PLANNED", "APPROVED", "SUBMITTING", "BROADCAST", "DELIVERED", "SETTLED"]
 
 
+def test_failed_delivery_is_retried_and_settled_waits_for_the_recipient(payer, recipient):
+    """Live run 2026-10-15: delivery hit an indexer race (502) and the payer then reported
+    SETTLED although the crew wallet had not imported. Settled must wait for the import."""
+    recipient_service = recipient.service()
+    attempts = []
+
+    def flaky(payload):
+        attempts.append(payload)
+        if len(attempts) == 1:
+            raise RuntimeError("HTTP Error 502: indexer reported a height greater than the tip")
+        return recipient_service.import_consignment(payload)
+
+    payer.deliver = flaky
+    service = payer.service()
+    plan = approved(service)
+    first = service.execute(plan["plan_id"], flow_revision=REVISION, idempotency_key="key-000001")
+    assert first["state"] == State.BROADCAST.value and "delivery_error" in first
+
+    # The payer's own transfer settles on-chain before the recipient imported.
+    settled = payer.backend.transfers[0].__class__(**{**vars(payer.backend.transfers[0]), "status": "SETTLED"})
+    payer.backend.transfers[0] = settled
+    after = service.status(plan["plan_id"], refresh=True)
+    assert len(attempts) == 2 and recipient.backend.imported == [attempts[0]]
+    assert after["state"] == State.SETTLED.value
+    assert [e["to_state"] for e in after["events"]][-3:] == ["BROADCAST", "DELIVERED", "SETTLED"]
+    assert len(payer.backend.sends) == 1
+
+
 def test_second_execute_never_sends_again(payer):
     service = payer.service()
     plan = approved(service)
