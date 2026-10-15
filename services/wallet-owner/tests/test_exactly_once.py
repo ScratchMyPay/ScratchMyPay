@@ -186,6 +186,19 @@ def test_plan_rejects_bad_amounts_and_unknown_assets(payer):
         assert err.value.code == code, overrides
 
 
+def test_first_time_recipient_any_asset_invoice_is_accepted(payer):
+    payer.backend.invoice_asset = None  # recipient never held TUSDT: rgb-lib invoices "any asset"
+    plan = payer.service().plan(plan_request())
+    assert plan["asset_ticker"] == "TUSDT" and plan["recipient_id"] == "fake-recipient-1"
+
+
+def test_invoice_for_another_asset_is_refused(payer):
+    payer.backend.invoice_asset = "rgb:someone-elses-asset"
+    with pytest.raises(ServiceError) as err:
+        payer.service().plan(plan_request())
+    assert err.value.code == "wallet_refused"
+
+
 def test_journal_refuses_illegal_transitions(tmp_path):
     journal = Journal(tmp_path / "j.sqlite3")
     with pytest.raises(JournalError):

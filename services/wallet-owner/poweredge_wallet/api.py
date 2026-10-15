@@ -21,7 +21,8 @@ class Strict(BaseModel):
 
 
 class InvoiceRequest(Strict):
-    asset_id: str = Field(min_length=4, max_length=128)
+    # Omit for a first-time recipient: rgb-lib cannot name an asset the wallet never held.
+    asset_id: str | None = Field(default=None, min_length=4, max_length=128)
     expires_seconds: int = Field(default=900, ge=60, le=86_400)
 
 

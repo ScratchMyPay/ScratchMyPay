@@ -1909,6 +1909,7 @@ dependencies = [
  "n2link-macro",
  "nom 8.0.0",
  "notify",
+ "poweredge",
  "quick-xml",
  "rand 0.9.1",
  "redis",

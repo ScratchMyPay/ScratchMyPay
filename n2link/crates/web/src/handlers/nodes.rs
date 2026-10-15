@@ -118,6 +118,15 @@ async fn generate_nodes_html(static_dir: &std::path::Path, allowed: &HashSet<Str
     append_bundled_editor("postgres", "db-editor/93-postgres.html", allowed, &mut html_content);
     append_bundled_editor("redis-config", "db-editor/94-redis-config.html", allowed, &mut html_content);
     append_bundled_editor("redis", "db-editor/95-redis.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-wallet-ref", "rgb-editor/60-rgb-wallet-ref.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-invoice", "rgb-editor/61-rgb-invoice.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-plan", "rgb-editor/62-rgb-plan.html", allowed, &mut html_content);
+    append_bundled_editor("approval-gate", "rgb-editor/63-approval-gate.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-approve", "rgb-editor/64-rgb-approve.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-send-once", "rgb-editor/65-rgb-send-once.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-refresh", "rgb-editor/66-rgb-refresh.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-receipt", "rgb-editor/67-rgb-receipt.html", allowed, &mut html_content);
+    append_bundled_editor("rgb-status", "rgb-editor/68-rgb-status.html", allowed, &mut html_content);
 
     if html_content.is_empty() {
         return get_fallback_nodes_html(allowed);

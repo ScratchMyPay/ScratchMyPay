@@ -42,6 +42,9 @@ pub(crate) mod ai_nodes;
 #[cfg(any(feature = "nodes_postgres", feature = "nodes_redis"))]
 mod db_nodes;
 
+#[cfg(feature = "nodes_rgb")]
+mod rgb_nodes;
+
 #[cfg(all(feature = "nodes_modbus", not(feature = "nodes_network")))]
 #[path = "network_nodes/modbus.rs"]
 mod modbus;

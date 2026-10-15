@@ -8,14 +8,18 @@
   { "ref": "invoice-out", "type": "http response", "z": "{{workspace}}", "name": "Invoice", "x": 650, "y": 100, "wires": [] },
 
   { "ref": "pay-in", "type": "http in", "z": "{{workspace}}", "name": "Organizer submits payout", "url": "/poweredge/payouts", "method": "post", "x": 170, "y": 180, "wires": [["plan"]] },
-  { "ref": "plan", "type": "rgb-plan", "z": "{{workspace}}", "name": "Prepare payout plan", "wallet": "{{ref:payer-wallet}}", "recipientLabel": "{{slot:recipient_label}}", "assetTicker": "{{slot:asset_ticker}}", "amountDisplay": "{{slot:amount}}", "amountBaseUnits": "{{slot:amount_base_units}}", "memo": "{{slot:memo}}", "x": 420, "y": 180, "wires": [["approval"], ["pay-out"]] },
+  { "ref": "plan", "type": "rgb-plan", "z": "{{workspace}}", "name": "Prepare payout plan", "wallet": "{{ref:payer-wallet}}", "recipientLabel": "{{slot:recipient_label}}", "assetTicker": "{{slot:asset_ticker}}", "amountDisplay": "{{slot:amount}}", "amountBaseUnits": "{{slot:amount_base_units}}", "memo": "{{slot:memo}}", "templateDigest": "{{template_digest}}", "x": 420, "y": 180, "wires": [["approval"], ["pay-out"]] },
   { "ref": "approval", "type": "approval-gate", "z": "{{workspace}}", "name": "Organizer approval", "wallet": "{{ref:payer-wallet}}", "timeoutSeconds": 900, "x": 650, "y": 180, "wires": [["send"], ["pay-out"]] },
-  { "ref": "send", "type": "rgb-send-once", "z": "{{workspace}}", "name": "Send exactly once", "wallet": "{{ref:payer-wallet}}", "x": 880, "y": 180, "wires": [["refresh"], ["pay-out"]] },
+  { "ref": "send", "type": "rgb-send-once", "z": "{{workspace}}", "name": "Send exactly once", "wallet": "{{ref:payer-wallet}}", "x": 880, "y": 180, "wires": [["refresh"], []] },
   { "ref": "refresh", "type": "rgb-refresh", "z": "{{workspace}}", "name": "Wait for settlement", "wallet": "{{ref:payer-wallet}}", "x": 1100, "y": 180, "wires": [["receipt"]] },
   { "ref": "receipt", "type": "rgb-receipt", "z": "{{workspace}}", "name": "Receipt", "wallet": "{{ref:payer-wallet}}", "x": 1300, "y": 180, "wires": [[]] },
   { "ref": "pay-out", "type": "http response", "z": "{{workspace}}", "name": "Payout response", "x": 880, "y": 260, "wires": [] },
 
-  { "ref": "status-in", "type": "http in", "z": "{{workspace}}", "name": "Track payout", "url": "/poweredge/payouts/:planId", "method": "get", "x": 170, "y": 340, "wires": [["status"]] },
+  { "ref": "status-in", "type": "http in", "z": "{{workspace}}", "name": "Track payout", "url": "/poweredge/payouts/status", "method": "get", "x": 170, "y": 340, "wires": [["status"]] },
   { "ref": "status", "type": "rgb-status", "z": "{{workspace}}", "name": "Payout status", "wallet": "{{ref:payer-wallet}}", "x": 420, "y": 340, "wires": [["status-out"]] },
-  { "ref": "status-out", "type": "http response", "z": "{{workspace}}", "name": "Status", "x": 650, "y": 340, "wires": [] }
+  { "ref": "status-out", "type": "http response", "z": "{{workspace}}", "name": "Status", "x": 650, "y": 340, "wires": [] },
+
+  { "ref": "approve-in", "type": "http in", "z": "{{workspace}}", "name": "Organizer approves", "url": "/poweredge/approvals", "method": "post", "x": 170, "y": 420, "wires": [["approve"]] },
+  { "ref": "approve", "type": "rgb-approve", "z": "{{workspace}}", "name": "Record approval", "wallet": "{{ref:payer-wallet}}", "x": 420, "y": 420, "wires": [["approve-out"]] },
+  { "ref": "approve-out", "type": "http response", "z": "{{workspace}}", "name": "Approval", "x": 650, "y": 420, "wires": [] }
 ]

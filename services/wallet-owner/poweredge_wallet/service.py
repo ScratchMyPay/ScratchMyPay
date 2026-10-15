@@ -143,9 +143,10 @@ class WalletService:
         return matches[0]
 
     # ---- recipient ---------------------------------------------------------------------
-    def create_invoice(self, *, asset_id: str, expires_seconds: int) -> dict[str, Any]:
+    def create_invoice(self, *, asset_id: str | None, expires_seconds: int) -> dict[str, Any]:
+        """`asset_id=None` invoices for any asset (needed before the first receipt)."""
         self._require("recipient")
-        if not asset_id.startswith("rgb:"):
+        if asset_id is not None and not asset_id.startswith("rgb:"):
             raise ServiceError("invalid_asset", "asset_id must be an RGB contract id (rgb:...)")
         with self._lock:
             intent = self._call(lambda: self._adapter.create_receive_intent(
@@ -188,8 +189,8 @@ class WalletService:
             if amount > asset.spendable:
                 raise ServiceError("insufficient_balance",
                                    f"wallet has {asset.spendable} base units of {asset.ticker}")
-            parsed, plan = self._call(lambda: self._adapter.plan_transfer_from_tap_invoice(
-                req["invoice"].strip().encode(), expected_asset_id=asset.asset_id, amount=amount))
+            parsed, plan = self._call(lambda: self._plan_from_invoice(
+                req["invoice"].strip(), asset_id=asset.asset_id, amount=amount))
             fields = {
                 "plan_id": plan.plan_id,
                 "wallet_id": self._cfg.wallet_id,
@@ -328,6 +329,32 @@ class WalletService:
         return {"updated_transfers": {int(k): str(v) for k, v in dict(updated).items()}}
 
     # ---- internals ---------------------------------------------------------------------
+    def _plan_from_invoice(self, invoice: str, *, asset_id: str, amount: int) -> tuple[Any, Any]:
+        """Bill's tap-invoice rules, plus: a first-time recipient may invoice for *any* asset.
+
+        rgb-lib refuses to name an asset the recipient wallet has never held, so a crew
+        member's first invoice carries no asset id. The payer still pins its own contract.
+        """
+        errors = self._errors
+        parsed = self._adapter._backend.parse_invoice(invoice)
+        if parsed.invoice != invoice:
+            raise errors.AdapterError("RGB invoice did not round-trip canonically")
+        if parsed.transport_endpoints:
+            raise errors.AdapterError("invoice must use out-of-band delivery (no transport endpoints)")
+        if parsed.unknown_query_params:
+            raise errors.AdapterError("invoice contains unsupported query parameters")
+        if parsed.asset_id is not None and parsed.asset_id != asset_id:
+            raise errors.AdapterError("invoice asks for a different asset")
+        now = int(self._cfg.clock())
+        if parsed.expiration_timestamp is None or parsed.expiration_timestamp <= now:
+            raise errors.AdapterError("invoice is expired or has no expiration")
+        lifetime = min(900, parsed.expiration_timestamp - now)
+        if lifetime < 60:
+            raise errors.AdapterError("invoice expires too soon for a reviewed payout")
+        plan = self._adapter.plan_transfer(asset_id=asset_id, recipient_id=parsed.recipient_id,
+                                           amount=amount, expires_in_seconds=lifetime)
+        return parsed, plan
+
     def _deliver(self, row: Plan) -> dict[str, Any]:
         if self._cfg.deliver is None or row.state_enum is not State.BROADCAST:
             return self._view(row)
@@ -383,6 +410,9 @@ class WalletService:
             raise
         except self._errors.AdapterError as exc:
             raise ServiceError("wallet_refused", str(exc), 409) from exc
+        except Exception as exc:  # noqa: BLE001 - rgb-lib errors become a stable code, not a 500
+            LOG.exception("wallet operation failed")
+            raise ServiceError("wallet_error", f"{type(exc).__name__}: {exc}"[:300], 502) from exc
 
     @staticmethod
     def _view(row: Plan) -> dict[str, Any]:

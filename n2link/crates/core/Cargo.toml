@@ -89,6 +89,8 @@ libc.workspace = true
 
 [dev-dependencies]
 # Enable test-utilities in dev mode only. This is mostly for tests.
+# RGB2link PowerEdge deploy gate (tests/poweredge_template.rs, nodes_rgb only).
+poweredge = { path = "../poweredge" }
 tokio = { workspace = true, features = ["test-util"] }
 log4rs.workspace = true
 wat = "1"
@@ -121,6 +123,8 @@ runtime_scan = []
 nodes_modbus = []
 # OpenAI, xAI, Anthropic, and Snowflake Cortex chat. Off unless a build asks for it.
 nodes_ai = ["reqwest"]
+# RGB2link PowerEdge: unprivileged clients of the loopback wallet-owner service. Off by default.
+nodes_rgb = ["reqwest"]
 nodes_ai_text = []
 nodes_ai_embeddings = ["nodes_ai"]
 nodes_ai_agent = ["nodes_ai", "nodes_ai_text"]

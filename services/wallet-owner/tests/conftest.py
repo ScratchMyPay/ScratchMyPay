@@ -35,6 +35,7 @@ class FakeBackend:
     transfers: list = field(default_factory=list)
     fail_send_after_broadcast: bool = False
     imported: list = field(default_factory=list)
+    invoice_asset: str | None = ASSET_ID
 
     def spendable_balance(self, asset_id: str) -> int:
         return self.balance
@@ -44,7 +45,7 @@ class FakeBackend:
 
     def parse_invoice(self, invoice: str):
         return backend_mod.ParsedInvoice(
-            invoice=invoice, recipient_id="fake-recipient-1", asset_id=ASSET_ID,
+            invoice=invoice, recipient_id="fake-recipient-1", asset_id=self.invoice_asset,
             expiration_timestamp=int(time.time()) + 3600, transport_endpoints=(),
             unknown_query_params={})
 

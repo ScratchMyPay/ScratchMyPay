@@ -8,9 +8,17 @@
 | ADR-004 | Accepted design | Native process and OCI capsules, not bitcoind in Wasmi; Firecracker deferred. |
 | ADR-005 | Accepted design | rgb-lib-python from Bill is first real wallet backend; WDK optional independently owned wallet. |
 | ADR-006 | Accepted design | Visual RGB dApps, not unrestricted on-chain smart contract compilation. |
-| ADR-007 | Open | n2link extension point: native node pack vs separate process with service nodes; inspect current code. |
-| ADR-008 | Open | Local QVAC installed version, CPU/GPU capability, structured-output implementation. |
-| ADR-009 | Open | Regtest full RGB compatibility versus existing tested Mutinynet. Prefer first verified end-to-end path. |
+| ADR-007 | **Accepted 2026-10-15** | Hybrid. RGB nodes live **inside `n2link-core` behind `nodes_rgb`** (like `nodes_ai`), not a plugin crate: `BaseGlobalNodeState` fields are crate-private, so a config node (`rgb-wallet-ref`) cannot be built outside core. The nodes are unprivileged HTTP clients; all keys and spending live in the Python wallet-owner service on loopback (one process per wallet datadir). |
+| ADR-008 | **Accepted 2026-10-15** | QVAC CLI 0.15.0 + SDK 0.21.0 installed together in `services/qvac`, `qvac serve --openai` on 127.0.0.1:11435 with bearer key, Qwen3-8B-Q4_K_M, `json_schema` response format. |
+| ADR-009 | **Accepted 2026-10-15** | Mutinynet (custom signet) via Esplora `https://mutinynet.com/api`. Electrum is rejected by rgb-lib 0.3.0b7 (`InvalidIndexer`). Regtest is post-event. |
 | ADR-010 | Open | Accepted escrow script policy and test fixture design for MergePay (later). |
+| ADR-011 | Accepted | Pure `poweredge` crate (intent, registry, compiler, validator). Node IDs = first 8 bytes of sha256(template_digest ‖ intent_digest ‖ workspace ‖ ref). Placeholders must be whole strings. |
+| ADR-012 | Accepted | Payout approval is recorded by the wallet-owner journal, bound to `{plan_digest, flow_revision, actor}`; `rgb-approve` records it, `approval-gate` only waits for it, `rgb-send-once` re-checks the flow revision. A redeploy voids pending approvals. |
+| ADR-013 | Accepted | The guided app talks only to n2link flow endpoints (`/poweredge/*`), never to the wallet service. |
+| ADR-014 | Accepted | One public repo; n2link imported as a squashed subtree under `n2link/` at `78d7ba1` (declared prior work). |
+| ADR-015 | Accepted 2026-10-15 | Amounts: the model supplies a display-unit decimal string; the compiler converts with the precision the wallet reports. Tickers are normalized to uppercase (rgb-lib rule) before an exact match. |
+| ADR-016 | Accepted 2026-10-15 | First-time recipients issue **any-asset** invoices (rgb-lib refuses to name an asset the wallet never held). The payer still pins its own contract and refuses invoices that name a different asset. |
+| ADR-017 | Accepted 2026-10-15 | Durable journal before every irreversible step: `SUBMITTING` is committed (SQLite WAL, `synchronous=FULL`) before the send; restart turns it into `UNKNOWN_SUBMISSION`, reconciled from wallet transfers, never resent. Plans approved before a service restart cannot execute (Bill's adapter keeps confirmations in memory) and must be re-planned: fail closed. |
+| ADR-018 | Accepted 2026-10-15 | Each RGB node is bound to a wallet role: `rgb-invoice` only accepts the recipient wallet; plan/approve/gate/send/refresh/status only the payer wallet. |
 
 Record implementation findings as new ADRs rather than silently overriding these choices. All stated components are proposed until implemented and tested.

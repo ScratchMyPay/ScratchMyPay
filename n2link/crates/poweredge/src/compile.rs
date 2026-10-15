@@ -6,6 +6,7 @@
 //! - `{{ref:<ref>}}`    ID of another node in the template (config references)
 //! - `{{workspace}}`    target editor tab ID
 //! - `{{environment}}`  the intent's environment
+//! - `{{template_digest}}` the pinned template digest (lets nodes prove their origin)
 //!
 //! Any other occurrence of `{{` is an error, so model text can never be interpolated
 //! into a larger string.
@@ -68,7 +69,7 @@ pub fn compile(registry: &TemplateRegistry, intent: &WorkflowIntent, ctx: &BindC
     let bound = bind_slots(template, intent, ctx)?;
     let intent_digest = intent.digest();
     let ids = node_ids(template, &intent_digest, &ctx.workspace_id)?;
-    let subst = Substitution { bound: &bound, ctx, ids: &ids, intent };
+    let subst = Substitution { bound: &bound, ctx, ids: &ids, intent, template_digest: template.digest() };
 
     let mut nodes = Vec::with_capacity(template.graph.len());
     for node in &template.graph {
@@ -208,6 +209,7 @@ struct Substitution<'a> {
     ctx: &'a BindContext,
     ids: &'a BTreeMap<String, String>,
     intent: &'a WorkflowIntent,
+    template_digest: &'a str,
 }
 
 impl Substitution<'_> {
@@ -284,6 +286,7 @@ impl Substitution<'_> {
             }
             None if inner == "workspace" => Ok(Value::String(self.ctx.workspace_id.clone())),
             None if inner == "environment" => Ok(Value::String(self.intent.environment.as_str().to_owned())),
+            None if inner == "template_digest" => Ok(Value::String(self.template_digest.to_owned())),
             _ => Err(missing("kind")),
         }
     }

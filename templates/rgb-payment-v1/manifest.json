@@ -13,11 +13,11 @@
   "context_keys": ["payer_wallet_url", "recipient_wallet_url"],
   "allowed_node_types": [
     "comment", "http in", "http response",
-    "rgb-wallet-ref", "rgb-invoice", "rgb-plan", "approval-gate",
+    "rgb-wallet-ref", "rgb-invoice", "rgb-plan", "approval-gate", "rgb-approve",
     "rgb-send-once", "rgb-refresh", "rgb-receipt", "rgb-status"
   ],
   "approval_node_type": "approval-gate",
   "guarded_node_types": ["rgb-send-once"],
   "entry_node_types": ["http in"],
-  "digest": "fe668c53ce71f152a83e370c9c4d038c9c26d465edaa24af307888952b362917"
+  "digest": "3eccc585999d06d4a8ed74bedfcdbeea475ef656296d5ba336b98775d2d7a890"
 }

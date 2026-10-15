@@ -223,5 +223,7 @@ history_sqlite = ["n2link-core/history_sqlite", "n2link-web/history_sqlite"]
 # PostgreSQL and Redis clients. In the default app build; omit with --no-default-features.
 nodes_postgres = ["n2link-core/nodes_postgres", "n2link-web/nodes_postgres"]
 nodes_redis = ["n2link-core/nodes_redis", "n2link-web/nodes_redis"]
+# RGB2link PowerEdge RGB nodes (wallet-owner service clients). Off in default; build with --features nodes_rgb.
+nodes_rgb = ["n2link-core/nodes_rgb", "n2link-web/nodes_rgb"]
 # Optional WASM plugin host. Off in default and full.
 nodes_wasm = ["n2link-core/nodes_wasm", "n2link-web/nodes_wasm"]
