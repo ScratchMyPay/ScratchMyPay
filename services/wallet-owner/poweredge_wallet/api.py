@@ -82,6 +82,10 @@ def create_app(service: WalletService, token: str) -> FastAPI:
     def assets() -> dict[str, Any]:
         return {"assets": service.assets()}
 
+    @app.get("/funds", dependencies=guarded)
+    def funds(fee_rate: int = 2) -> dict[str, Any]:
+        return service.funds(fee_rate=fee_rate)
+
     @app.post("/invoices", dependencies=guarded)
     def invoice(body: InvoiceRequest) -> dict[str, Any]:
         return service.create_invoice(asset_id=body.asset_id, expires_seconds=body.expires_seconds)

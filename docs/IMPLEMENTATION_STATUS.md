@@ -67,6 +67,9 @@ Only what has been run and observed goes here. "Planned" lives in `IMPLEMENTATIO
 | 2026-10-15 ~22:40 | WDK spike (`docs/WDK_SPIKE.md`) | `wdk-wallet-btc` works on Mutinynet; `wdk-wallet-rgb` cannot join `sbc:` payouts; RGB addon needs Node 22 | commit `cd589d0` |
 | 2026-10-15 ~22:50 | WDK treasury service live (`services/wdk-btc`, :8713) | treasury `tb1q83x7zca8jdeqc6jpdh9d3ykzcs4pzj4jy2q9wc`; live fees normal 1 / fast 4 sat/vB → 1,197 sat per payout (normal); `/check?count=5` → not enough (empty treasury); 401 without token; cost tests 3/3 | |
 | 2026-10-15 ~22:55 | One-command start-up `scripts/demo-up.sh` (up/status/stop) | cold start of all 5 services 59 s (crew wallet 26 s → organizer wallet 27 s; QVAC loads in parallel, warm-up 1 s); 2nd run skips all (4 s); stop frees all ports + GPU; first draft after start 1.5 s QVAC / 3.7 s total with WDK fee | |
+| 2026-10-15 ~23:05 | Pre-demo wallet check (`GET /funds`, read-only) | organizer: 999,945 TUSDT on one output (5,815 sats), **5 free 10k-sat outputs**, 39,261 vanilla sats → ~40 payouts at 2 sat/vB; **no top-up needed** | WDK treasury funded by Gus: 100,000 sats, txid `779791ce…0215`, block 3,508,594 |
+| 2026-10-15 ~23:05 | **Finding:** crew wallet showed 25 TUSDT, not 55 | two confirmed payouts (`00d20ebd…`, `8dd1afcf…`) stayed `WAITING_CONFIRMATIONS` on the receiving side: rgb-lib settles a receipt only when that wallet refreshes, and nothing refreshed it | manual `/refresh` → transfers 3, 4 settled → 55 TUSDT |
+| 2026-10-15 ~23:08 | Fix: crew wallet auto-refresh | every 60 s, only while a `RECEIVE_*` transfer is `WAITING_*` (`POWEREDGE_AUTO_REFRESH_SECONDS`, 0 = off); tests 25/25 | |
 | 2026-10-15 | **Finding:** QVAC amount units inconsistent | hero returned `amount: 25000000` (base units, precision 6), drummer returned `10` (whole units) under the same instruction | see risk R-AMOUNT |
 
 ## Open risks found by testing

@@ -131,6 +131,12 @@ report() {
   echo
   if ready_payer; then
     get http://127.0.0.1:8711/assets "$(token)" 30 | json "'\n'.join('Organizer funds: {:,.{p}f} {} spendable'.format(a['spendable'] / 10 ** a['precision'], a['ticker'], p=min(a['precision'], 2)) for a in d['assets']) or 'Organizer funds: no assets'" || warn "could not read organizer funds"
+    get "http://127.0.0.1:8711/funds?fee_rate=2" "$(token)" 90 \
+      | json "'Organizer sats:  {:,} plain + {:,} on RGB outputs; {} free RGB outputs; ~{} payouts at 2 sat/vB'.format(d['btc']['vanilla']['spendable'], d['btc']['colored']['spendable'], d['utxos']['free_colorable'], d['estimate']['payouts_from_colored_sats'])" \
+      || warn "could not read organizer outputs"
+  fi
+  if ready_recipient; then
+    get http://127.0.0.1:8712/assets "$(token)" 30 | json "'\n'.join('Crew funds:      {:,.2f} {} spendable'.format(a['spendable'] / 10 ** a['precision'], a['ticker']) for a in d['assets']) or 'Crew funds:      none yet'" || warn "could not read crew funds"
   fi
   if ready_wdk; then
     get "http://127.0.0.1:8713/check?count=$PAYOUTS_TONIGHT" "$(token)" 30 \

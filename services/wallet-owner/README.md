@@ -41,3 +41,14 @@ services/wallet-owner/run.sh payer                                 # restart: ex
 ```bash
 cd services/wallet-owner && BILL_ROOT=../../../bill .venv/bin/python -m pytest -q tests
 ```
+
+## Funds report and crew auto-refresh
+
+- `GET /funds?fee_rate=2` (read-only, token required): BTC balance (vanilla / colored), every output
+  with its RGB allocations, free outputs ready for RGB, and how many payouts the colored sats cover
+  (197 vB × fee rate + 1,000 sat witness per payout, measured from the live payouts).
+  `scripts/demo-up.sh status` shows the summary.
+- The crew (recipient) wallet refreshes itself every 60 s **only while an incoming transfer is still
+  waiting** (`POWEREDGE_AUTO_REFRESH_SECONDS`, `0` disables). rgb-lib marks a receipt settled only when
+  the receiving wallet refreshes after the witness tx confirms; without this the crew balance stays
+  "pending" even though the payment is confirmed on chain.

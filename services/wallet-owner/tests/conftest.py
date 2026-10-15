@@ -81,6 +81,18 @@ class FakeOps:
     def transfers(self, asset_id):
         return list(self.backend.transfers)
 
+    def funds(self):
+        alloc = [{"asset_id": ASSET_ID, "settled": True, "amount": self.backend.balance}]
+        utxo = lambda o, sats, allocs, colorable=True: {  # noqa: E731
+            "outpoint": o, "sats": sats, "colorable": colorable, "exists": True,
+            "pending_blinded": 0, "allocations": allocs}
+        return {
+            "btc": {"vanilla": {"settled": 30000, "future": 30000, "spendable": 30000},
+                    "colored": {"settled": 25000, "future": 25000, "spendable": 25000}},
+            "utxos": [utxo("aa:0", 8605, alloc), utxo("bb:1", 10000, []), utxo("cc:2", 6395, []),
+                      utxo("dd:0", 30000, [], colorable=False)],
+        }
+
 
 def settings(tmp: Path, role: str):
     env = {

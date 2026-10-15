@@ -71,6 +71,8 @@ class WalletOps(Protocol):
 
     def transfers(self, asset_id: str) -> list[TransferRow]: ...
 
+    def funds(self) -> dict[str, Any]: ...
+
 
 @dataclass
 class ServiceConfig:
@@ -146,6 +148,42 @@ class WalletService:
     def assets(self) -> list[dict[str, Any]]:
         with self._lock:
             return [vars(a) for a in self._ops.assets()]
+
+    def funds(self, *, fee_rate: int = 2) -> dict[str, Any]:
+        """Read-only: BTC balances, UTXO inventory and how many payouts the colored sats cover.
+
+        A live PowerEdge payout is one tx of 197 vB with a 1,000 sat witness output, paid
+        from the colored side (both live payouts had a single colored input).
+        """
+        if not 1 <= fee_rate <= 1000:
+            raise ServiceError("invalid_request", "fee_rate must be 1..1000 sat/vB")
+        with self._lock:
+            raw = with_backoff(self._ops.funds, sleep=self._cfg.sleep)
+        utxos = [u for u in raw["utxos"] if u["exists"]]
+        colorable = [u for u in utxos if u["colorable"]]
+        holding = [u for u in colorable if u["allocations"]]
+        free = [u for u in colorable if not u["allocations"] and not u["pending_blinded"]]
+        per_payout = 197 * fee_rate + 1000
+        colored_spendable = raw["btc"]["colored"]["spendable"]
+        return {
+            "wallet_id": self._cfg.wallet_id,
+            "role": self._cfg.role,
+            "btc": raw["btc"],
+            "utxos": {
+                "total": len(utxos),
+                "colorable": len(colorable),
+                "holding_assets": len(holding),
+                "free_colorable": len(free),
+                "free_colorable_sats": sorted((u["sats"] for u in free), reverse=True),
+                "holding": [{"outpoint": u["outpoint"], "sats": u["sats"],
+                             "allocations": u["allocations"]} for u in holding],
+            },
+            "estimate": {
+                "fee_rate_sat_vb": fee_rate,
+                "per_payout_sat": per_payout,
+                "payouts_from_colored_sats": colored_spendable // per_payout,
+            },
+        }
 
     def _asset_by_ticker(self, ticker: str) -> AssetRow:
         wanted = ticker.strip().upper()
@@ -346,6 +384,25 @@ class WalletService:
                                                        detail="payer transfer SETTLED; recipient imported")
                         break
         return {**self._view(row), "events": self._journal.events(plan_id)}
+
+    def has_pending_incoming(self) -> bool:
+        """True while any incoming transfer waits for the counterparty or for confirmations."""
+        with self._lock:
+            return any(
+                "RECEIVE" in t.kind.upper() and t.status.upper().startswith("WAITING")
+                for asset in self._ops.assets()
+                for t in self._ops.transfers(asset.asset_id)
+            )
+
+    def auto_refresh_tick(self) -> dict[str, Any] | None:
+        """One background step: refresh only while something incoming is still pending.
+
+        rgb-lib marks a received transfer settled only when the wallet refreshes after the
+        witness tx confirms; without this the crew wallet stays "pending" indefinitely.
+        """
+        if not self.has_pending_incoming():
+            return None
+        return self.refresh()
 
     def refresh(self) -> dict[str, Any]:
         with self._lock:

@@ -58,6 +58,34 @@ class RgbLibOps:
                 ))
         return rows
 
+    def funds(self) -> dict[str, Any]:
+        """BTC balance + every UTXO with its RGB allocations. One sync, then read-only."""
+        wallet, online = self._backend._wallet, self._backend._online
+        bal = wallet.get_btc_balance(online, False)
+        unspents = wallet.list_unspents(online, False, True)
+
+        def b(x: Any) -> dict[str, int]:
+            return {"settled": int(x.settled), "future": int(x.future), "spendable": int(x.spendable)}
+
+        return {
+            "btc": {"vanilla": b(bal.vanilla), "colored": b(bal.colored)},
+            "utxos": [
+                {
+                    "outpoint": f"{u.utxo.outpoint.txid}:{u.utxo.outpoint.vout}",
+                    "sats": int(u.utxo.btc_amount),
+                    "colorable": bool(u.utxo.colorable),
+                    "exists": bool(u.utxo.exists),
+                    "pending_blinded": int(u.pending_blinded),
+                    "allocations": [
+                        {"asset_id": a.asset_id, "settled": bool(a.settled),
+                         "amount": int(getattr(a.assignment, "amount", 0) or 0)}
+                        for a in u.rgb_allocations
+                    ],
+                }
+                for u in unspents
+            ],
+        }
+
     def transfers(self, asset_id: str) -> list[TransferRow]:
         return [
             TransferRow(
