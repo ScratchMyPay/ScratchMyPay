@@ -141,6 +141,7 @@ rusqlite = { version = "0.40", default-features = false, features = ["bundled"] 
 tokio-postgres = { version = "0.7", default-features = false, features = ["runtime"] }
 redis = { version = "0.27", default-features = false, features = ["aio", "tokio-comp"] }
 # Optional WASM plugin host (`nodes_wasm`, ADR-0002). Exact pin: a bump reruns the hostile tests.
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 wasmi = { version = "=2.0.0", default-features = false, features = ["std", "stable", "validate", "auto-dispatch"] }
 
 [dependencies]

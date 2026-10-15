@@ -82,6 +82,7 @@ fn create_node_red_api_routes() -> Router {
     let router = router
         .route("/poweredge-app", get(crate::handlers::poweredge::get_app))
         .route("/poweredge-app/api/info", get(crate::handlers::poweredge::get_info))
+        .route("/poweredge-app/api/qr", get(crate::handlers::poweredge::get_qr))
         .route("/poweredge-app/api/draft", post(crate::handlers::poweredge::post_draft))
         .route("/poweredge-app/api/setup", post(crate::handlers::poweredge::post_setup))
         .route(

@@ -109,6 +109,7 @@ footer { max-width: 760px; margin: 0 auto; padding: 0 16px 28px; color: var(--mu
     <div class="card hidden" id="crew-result">
       <h2 data-t="requestReady">Payment request ready</h2>
       <p class="hint" data-t="requestHint">Send this code to the organizer. It expires in one hour.</p>
+      <img id="crew-qr" alt="" width="240" height="240" style="display:block;margin:0 auto 12px;background:#fff;border-radius:10px;padding:8px">
       <textarea class="code" id="crew-invoice" readonly></textarea>
       <div class="actions"><button class="btn secondary" id="crew-copy" data-t="copy">Copy code</button></div>
     </div>
@@ -390,6 +391,7 @@ $("crew-go").onclick = async () => {
   busy(btn, false);
   if (!r.ok) return showError("crew-error", r.error?.code, r.error?.message);
   $("crew-invoice").value = r.invoice.invoice; $("crew-result").classList.remove("hidden");
+  $("crew-qr").src = `/poweredge-app/api/qr?text=${encodeURIComponent(r.invoice.invoice)}`; $("crew-qr").alt = t("requestReady");
   try { localStorage.setItem("pe.lastInvoice", r.invoice.invoice); } catch {}
 };
 $("crew-copy").onclick = async () => { try { await navigator.clipboard.writeText($("crew-invoice").value); $("crew-copy").textContent = t("copied"); } catch { $("crew-invoice").select(); } };

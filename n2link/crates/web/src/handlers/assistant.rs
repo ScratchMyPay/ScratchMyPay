@@ -191,6 +191,17 @@ pub async fn post_assistant_draft(
             return api_error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_ai_draft", &message);
         }
     };
+    #[cfg(feature = "nodes_rgb")]
+    if let Some(node) =
+        draft.nodes.iter().find(|n| crate::handlers::poweredge::RESERVED_TYPES.contains(&n.type_name.as_str()))
+    {
+        state.history.record_copilot_rejected(&actor.username, "reserved_node");
+        let message = format!(
+            "'{}' belongs to the payout path; prepare payouts in the PowerEdge app (payment requests and QR codes are fine)",
+            node.type_name
+        );
+        return api_error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_ai_draft", &message);
+    }
     let nodes = match materialize_draft(
         &draft,
         &request.workspace_id,
@@ -279,6 +290,10 @@ fn lookup(registry: &dyn Registry, type_name: &str) -> Option<&'static n2link_co
 fn catalog_json(registry: &dyn Registry, flows: &[Value]) -> Value {
     let mut nodes = Vec::new();
     for meta in registry.all().values() {
+        #[cfg(feature = "nodes_rgb")]
+        if crate::handlers::poweredge::RESERVED_TYPES.contains(&meta.type_()) {
+            continue; // payouts are prepared in the PowerEdge app, never drafted by the Copilot
+        }
         let ports = meta.ports();
         let hints = registry.hints(meta.type_());
         let declared: Vec<(&str, &str)> =
@@ -472,6 +487,19 @@ fn fill_config_refs(
             }
             [] => {
                 return Err(format!("node '{reference}' requires an existing {type_name} for {property}"));
+            }
+            #[cfg(feature = "nodes_rgb")]
+            _ if *type_name == "rgb-wallet-ref" => {
+                // Two wallets (organizer, crew): pick the one this node type is meant to use.
+                let role = crate::handlers::poweredge::preferred_wallet_role(hints.type_);
+                let chosen = flows.iter().find(|node| {
+                    node.get("type").and_then(Value::as_str) == Some("rgb-wallet-ref")
+                        && node.get("walletId").and_then(Value::as_str) == Some(role)
+                });
+                let id = chosen.and_then(|node| node.get("id").and_then(Value::as_str)).ok_or_else(|| {
+                    format!("node '{reference}' needs the {role} wallet; set up a payout in the PowerEdge app first")
+                })?;
+                config.insert((*property).to_owned(), Value::String(id.to_owned()));
             }
             _ => {
                 return Err(format!("node '{reference}' {property} is ambiguous; reuse an existing {type_name} id"));

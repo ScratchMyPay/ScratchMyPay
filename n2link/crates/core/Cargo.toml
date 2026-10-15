@@ -73,6 +73,7 @@ rumqttc = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true, features = ["rustls-tls-native-roots"] }
 futures-util.workspace = true
 reqwest = { workspace = true, optional = true }
+qrcode = { workspace = true, optional = true }
 axum.workspace = true
 jsonata-core = { optional = true, workspace = true }
 rusqlite = { optional = true, workspace = true }
@@ -124,7 +125,7 @@ nodes_modbus = []
 # OpenAI, xAI, Anthropic, and Snowflake Cortex chat. Off unless a build asks for it.
 nodes_ai = ["reqwest"]
 # RGB2link PowerEdge: unprivileged clients of the loopback wallet-owner service. Off by default.
-nodes_rgb = ["reqwest"]
+nodes_rgb = ["reqwest", "dep:qrcode"]
 nodes_ai_text = []
 nodes_ai_embeddings = ["nodes_ai"]
 nodes_ai_agent = ["nodes_ai", "nodes_ai_text"]

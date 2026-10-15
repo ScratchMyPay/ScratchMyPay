@@ -30,6 +30,16 @@ use super::reply::api_error;
 const APP_HTML: &str = include_str!("../../poweredge-app/index.html");
 /// Fixed editor tab that holds the active PowerEdge payout flow.
 pub const POWEREDGE_TAB: &str = "9e0d9e0d9e0d9e0d";
+/// Payout-path node types: only the PowerEdge app may place them, and only on its managed tab.
+/// The Flow Copilot never sees or proposes them.
+pub const RESERVED_TYPES: &[&str] =
+    &["rgb-plan", "approval-gate", "rgb-approve", "rgb-send-once", "rgb-refresh", "rgb-receipt"];
+
+/// Which wallet a node type should use when a flow has both (Copilot drafts).
+pub fn preferred_wallet_role(node_type: &str) -> &'static str {
+    if matches!(node_type, "rgb-invoice") { "recipient" } else { "payer" }
+}
+
 /// Fixed id of the "QVAC (local)" `ai-provider` config node (also used by Flow Copilot).
 pub const QVAC_PROVIDER: &str = "9e0d9e0d9e0d0a1c";
 const MAX_PROMPT_CHARS: usize = 1_000;
@@ -234,6 +244,21 @@ pub struct DraftRequest {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct SetupRequest {
     draft_id: String,
+}
+
+/// QR code (SVG) for the crew's payment request, rendered on this computer.
+pub async fn get_qr(axum::extract::Query(query): axum::extract::Query<BTreeMap<String, String>>) -> Response {
+    let text = query.get("text").map(String::as_str).unwrap_or_default();
+    if text.is_empty() || text.len() > 2_000 {
+        return fail(StatusCode::BAD_REQUEST, "invalid_qr_text", "nothing to encode");
+    }
+    match qrcode::QrCode::new(text.as_bytes()) {
+        Ok(code) => {
+            let svg = code.render::<qrcode::render::svg::Color<'_>>().min_dimensions(240, 240).quiet_zone(true).build();
+            ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg).into_response()
+        }
+        Err(_) => fail(StatusCode::BAD_REQUEST, "invalid_qr_text", "text does not fit in a QR code"),
+    }
 }
 
 pub async fn get_app() -> Html<&'static str> {
@@ -512,6 +537,16 @@ pub async fn flow_proxy(
 /// Deploy guard: whoever deploys (app, editor, API), a "PowerEdge payouts" tab must still pass
 /// the PowerEdge validator against the template it was compiled from. Other tabs are untouched.
 pub fn guard_managed_tab(flows: &[Value]) -> Result<(), String> {
+    if let Some(node) = flows
+        .iter()
+        .find(|n| n["z"] != POWEREDGE_TAB && n["type"].as_str().is_some_and(|t| RESERVED_TYPES.contains(&t)))
+    {
+        return Err(format!(
+            "\"{}\" nodes only run inside the PowerEdge payouts tab, where every payout has an approval step. \
+Prepare payouts in the PowerEdge app; payment requests and QR codes are fine on any tab.",
+            node["type"].as_str().unwrap_or_default()
+        ));
+    }
     let tab: Vec<Value> = flows.iter().filter(|n| n["z"] == POWEREDGE_TAB).cloned().collect();
     if tab.is_empty() {
         return Ok(());
@@ -575,6 +610,16 @@ mod tests {
         flows.push(json!({"id": "2222222222222222", "type": "inject", "z": "1111111111111111", "wires": [[]]}));
         assert!(guard_managed_tab(&flows).is_ok());
         assert!(guard_managed_tab(&[json!({"id": "1", "type": "tab"})]).is_ok());
+    }
+
+    #[test]
+    fn spending_nodes_are_refused_outside_the_managed_tab() {
+        let mut flows = compiled_tab();
+        flows.push(json!({"id": "4444444444444444", "type": "rgb-send-once", "z": "1111111111111111", "wallet": "x", "wires": [[], []]}));
+        assert!(guard_managed_tab(&flows).unwrap_err().contains("only run inside the PowerEdge payouts tab"));
+        let mut ok = compiled_tab();
+        ok.push(json!({"id": "5555555555555555", "type": "qr-code", "z": "1111111111111111", "wires": [[]]}));
+        assert!(guard_managed_tab(&ok).is_ok());
     }
 
     #[test]

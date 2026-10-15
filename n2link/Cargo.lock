@@ -1910,6 +1910,7 @@ dependencies = [
  "nom 8.0.0",
  "notify",
  "poweredge",
+ "qrcode",
  "quick-xml",
  "rand 0.9.1",
  "redis",
@@ -2008,6 +2009,7 @@ dependencies = [
  "log 0.4.27",
  "n2link-core",
  "poweredge",
+ "qrcode",
  "reqwest",
  "serde",
  "serde_json",
@@ -2458,6 +2460,12 @@ dependencies = [
  "quote",
  "syn 2.0.104",
 ]
+
+[[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
 
 [[package]]
 name = "quick-xml"

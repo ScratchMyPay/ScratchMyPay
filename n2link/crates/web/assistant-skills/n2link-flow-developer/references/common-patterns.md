@@ -158,3 +158,31 @@ Then encode and append:
 ```
 
 The CSV node already emits a record terminator, so `appendNewline` is false.
+
+## RGB payment request shown as a QR code
+
+Use when the user wants a payment request, an invoice, or a QR code to get paid in an RGB asset.
+The `rgb-invoice` node uses the crew (recipient) wallet; leave `wallet` out and it is filled
+automatically. Bind the endpoint to this computer with a free port from 1895 to 1899.
+
+```json
+{"version": 1, "summary": "Web page that creates an RGB payment request and shows it as a QR code",
+ "nodes": [
+  {"ref": "page_in", "type": "http in", "name": "Pay me", "x": 140, "y": 80,
+   "config": {"url": "/pay-me", "method": "get", "host": "127.0.0.1", "port": 1895, "upload": false}},
+  {"ref": "invoice", "type": "rgb-invoice", "name": "Payment request", "x": 340, "y": 80,
+   "config": {"assetTicker": "TUSDT"}},
+  {"ref": "qr", "type": "qr-code", "name": "QR", "x": 530, "y": 80,
+   "config": {"format": "html", "caption": "Scan to pay"}},
+  {"ref": "page_out", "type": "http response", "name": "Show page", "x": 700, "y": 80, "config": {}}
+ ],
+ "wires": [
+  {"from": "page_in", "output": 0, "to": "invoice"},
+  {"from": "invoice", "output": 0, "to": "qr"},
+  {"from": "qr", "output": 0, "to": "page_out"}
+ ]}
+```
+
+Open `http://127.0.0.1:1895/pay-me` to see it. `qr-code` encodes `msg.payload` when it is text,
+otherwise the invoice from an `rgb-invoice` result. Payouts (sending money) are not drafted here:
+they are prepared and approved in the PowerEdge app.

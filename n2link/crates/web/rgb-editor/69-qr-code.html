@@ -1,0 +1,36 @@
+<script type="text/html" data-template-name="qr-code">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Text from</label>
+        <input type="text" id="node-input-property" placeholder="auto: payload or rgb-invoice result">
+    </div>
+    <div class="form-row">
+        <label for="node-input-format"><i class="fa fa-file-code-o"></i> Output</label>
+        <select id="node-input-format"><option value="html">HTML page</option><option value="svg">SVG image</option></select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-caption"><i class="fa fa-comment"></i> Caption</label>
+        <input type="text" id="node-input-caption" placeholder="Scan to pay">
+    </div>
+    <div class="form-tips">Renders a QR code on this computer (no internet). Wire an <code>rgb-invoice</code> into it and an <code>http response</code> after it to show a payment request as a scannable page.</div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("qr-code", {
+        category: "RGB2link",
+        color: "#F7B32B",
+        defaults: { name: { value: "" }, property: { value: "" }, format: { value: "html" }, caption: { value: "" } },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-qrcode",
+        paletteLabel: "QR code",
+        label: function () { return this.name || this.caption || "QR code"; }
+    });
+</script>
+
+<script type="text/html" data-help-name="qr-code">
+    <p>Encodes text as a QR code (HTML page or SVG). By default it uses <code>msg.payload</code> if it is text, or the invoice from an <code>rgb-invoice</code> result. Sets <code>msg.headers</code> so an <code>http response</code> serves it correctly.</p>
+</script>

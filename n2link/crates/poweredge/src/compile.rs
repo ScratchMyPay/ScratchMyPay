@@ -195,7 +195,10 @@ fn node_ids(template: &Template, intent_digest: &str, workspace: &str) -> Result
             .get("ref")
             .and_then(Value::as_str)
             .ok_or_else(|| Error::Integrity("every template node needs a string `ref`".into()))?;
-        let seed = format!("{}\n{intent_digest}\n{workspace}\n{reference}", template.digest());
+        // Config nodes (no `z`) get ids independent of the intent, so flows on other tabs that
+        // reference a wallet keep working when the app prepares the next payout.
+        let per_intent = if node.get("z").is_some() { intent_digest } else { "config" };
+        let seed = format!("{}\n{per_intent}\n{workspace}\n{reference}", template.digest());
         let id = canonical::sha256_hex(seed.as_bytes())[..16].to_owned();
         if ids.insert(reference.to_owned(), id).is_some() {
             return Err(Error::Integrity(format!("duplicate template ref `{reference}`")));

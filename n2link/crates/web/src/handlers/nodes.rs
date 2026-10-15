@@ -131,6 +131,7 @@ async fn generate_nodes_html(static_dir: &std::path::Path, allowed: &HashSet<Str
     append_bundled_editor("redis-config", "db-editor/94-redis-config.html", allowed, &mut html_content);
     append_bundled_editor("redis", "db-editor/95-redis.html", allowed, &mut html_content);
     append_bundled_editor("rgb-wallet-ref", "rgb-editor/60-rgb-wallet-ref.html", allowed, &mut html_content);
+    append_bundled_editor("qr-code", "rgb-editor/69-qr-code.html", allowed, &mut html_content);
     if allowed.contains("http in") {
         // n2link's http in honours per-node `host` and `port`; the stock Node-RED editor
         // definition does not declare them, so an editor deploy would silently drop them
