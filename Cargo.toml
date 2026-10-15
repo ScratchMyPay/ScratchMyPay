@@ -1,0 +1,227 @@
+[package]
+name = "n2link-app"
+version = "0.4.0-rc.1"
+edition = "2021"
+rust-version = "1.88"
+readme = "README.md"
+homepage = "https://github.com/n2link/n2link"
+repository = "https://github.com/n2link/n2link"
+description = "n2link is a Node-RED compatible run-time engine in Rust."
+build = "build.rs"
+license = "Apache 2.0"
+authors = ["The n2link contributors", "Li Wei and the EdgeLinkd contributors"]
+
+
+[[bin]]
+name = "n2linkd"
+path = "src/main.rs"
+
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 0
+
+[profile.ci]
+inherits = "release"
+debug = false
+incremental = false
+
+[profile.release]
+opt-level = "z"   # Optimize for size.
+lto = true        # Enable Link Time Optimization
+codegen-units = 1 # Reduce number of codegen units to increase optimizations.
+strip = true      # Automatically strip symbols from the binary.
+
+[profile.test]
+opt-level = 1 # Enables thin local LTO and some optimizations.
+
+[workspace.dependencies]
+# `libc` is only used on Unix, to deliver the stop signal the exec node is asked for.
+libc = "0.2"
+bincode = { version = "^2.0", features = ["serde"] }
+async-trait = "0.1"
+anyhow = { version = "1", features = ["backtrace"] }
+log = "0.4"
+tokio = "1"
+tokio-util = "0.7"
+semver = "1"
+config = { version = "^0.15", default-features = false, features = [
+    "convert-case",
+    "toml",
+] }
+once_cell = { version = "1" }
+serde = { version = "1" }
+serde_json = "1"
+toml_edit = { version = "0.22", features = ["serde"] }
+serde_with = "3"
+dashmap = { version = "6", features = ["serde"] }
+rand = "0.9.1"
+base64 = "0.22"
+bytes = { version = "1", features = ["std", "serde"] }
+chrono = "0.4"
+regex = "1"
+thiserror = "2"
+nom = "^8.0"
+tokio-cron-scheduler = "^0.14"
+bumpalo = "3"
+dirs-next = "2"
+clap = { version = "4", features = ["derive"] }
+itertools = "^0.14"
+arrayvec = "0.7"
+smallvec = "1"
+smallstr = { version = "0.3", features = ["serde", "std", "union"] }
+inventory = "0.3"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+futures = "0.3"
+futures-util = "0.3"
+rquickjs = { version = "0.11", features = [
+    "chrono",
+    "loader",
+    "allocator",
+    "either",
+    "classes",
+    "properties",
+    "array-buffer",
+    "macro",
+    "futures",
+    "parallel",
+] }
+#llrt_modules = { git = "https://github.com/awslabs/llrt.git", default-features = false, package = "llrt_modules", features = ["buffer", "timers"]}
+rquickjs-extra = { version = "0.2", default-features = false, features = [
+    "timers",
+    "console",
+] }
+log4rs = { version = "1", features = [
+    "console_appender",
+    "file_appender",
+    "rolling_file_appender",
+    "compound_policy",
+    "delete_roller",
+    "fixed_window_roller",
+    "size_trigger",
+    "time_trigger",
+    #    "json_encoder",
+    "pattern_encoder",
+    "threshold_filter",
+    "config_parsing",
+    "toml_format",
+], default-features = false }
+ctor = "^0.2"
+sha2 = "0.10"
+hex = "0.4"
+bcrypt = "0.19.3"
+chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc"] }
+zeroize = "1.8"
+fs2 = "0.4"
+reqwest = { version = "0.11", features = [
+    "json",
+    "rustls-tls",
+], default-features = false }
+tokio-tungstenite = { version = "0.26.2", features = [
+    "rustls-tls-native-roots",
+] }
+serde-xml-rs = { version = "0.8.1" }
+quick-xml = { version = "0.39", features = ["serialize"] }
+axum = { version = "0.8.4", default-features = false, features = [
+    "http1",
+    "json",
+    "matched-path",
+    "ws",
+    "tokio",
+    "ws",
+    "query",
+] }
+rumqttc = { version = "0.25.1" }
+# JSONata expression evaluation. `default-features = false` drops the `simd` feature: we
+# convert through serde_json, so simd-json would only add weight to the binary.
+jsonata-core = { version = "2.2", default-features = false }
+# Optional operational history (`history_sqlite`). `bundled` builds a pinned SQLite so embedded
+# targets need no system library; default features (statement cache, etc.) are not needed.
+rusqlite = { version = "0.40", default-features = false, features = ["bundled"] }
+tokio-postgres = { version = "0.7", default-features = false, features = ["runtime"] }
+redis = { version = "0.27", default-features = false, features = ["aio", "tokio-comp"] }
+# Optional WASM plugin host (`nodes_wasm`, ADR-0002). Exact pin: a bump reruns the hostile tests.
+wasmi = { version = "=2.0.0", default-features = false, features = ["std", "stable", "validate", "auto-dispatch"] }
+
+[dependencies]
+clap.workspace = true
+dirs-next.workspace = true
+anyhow.workspace = true
+log.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+tokio-util.workspace = true
+config.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+log4rs.workspace = true
+async-trait.workspace = true
+once_cell.workspace = true
+
+n2link-core = { path = "crates/core", default-features = false }
+
+# Node plug-ins:
+n2link-nodes-dummy = { path = "node-plugins/n2link-nodes-dummy" }
+
+n2link-web = { path = "crates/web", default-features = false }
+
+[dev-dependencies]
+
+[build-dependencies]
+chrono = { workspace = true }
+
+[workspace]
+members = ["crates/*", "node-plugins/*"]
+
+[package.metadata.bundle]
+identifier = "io.github.n2link.n2linkd"
+
+[features]
+full = ["default", "rqjs_bindgen"]
+default = [
+    "core",
+    "js",
+    "jsonata",
+    "nodes_network",
+    "nodes_storage",
+    "nodes_ai",
+    "nodes_ai_text",
+    "nodes_ai_embeddings",
+    "nodes_ai_agent",
+    "admin_bcrypt",
+    "credential_encryption",
+    "history_sqlite",
+    "nodes_postgres",
+    "nodes_redis",
+]
+core = ["n2link-core/core"]
+js = ["n2link-core/js"]
+jsonata = ["n2link-core/jsonata"]
+nodes_network = ["n2link-core/nodes_network"]
+nodes_storage = ["n2link-core/nodes_storage"]
+rqjs_bindgen = ["js", "n2link-core/rqjs_bindgen"]
+# Soft real-time scan task. Off unless a build asks for it.
+runtime_scan = ["n2link-core/runtime_scan"]
+# Modbus TCP. Off unless a build asks for it.
+nodes_modbus = ["n2link-core/nodes_modbus"]
+# OpenAI, xAI, Anthropic, and Snowflake Cortex chat. Included in the application by default.
+nodes_ai = ["n2link-core/nodes_ai", "n2link-web/nodes_ai"]
+# Local splitter and structured-output validator. In the default app build.
+nodes_ai_text = ["n2link-core/nodes_ai_text", "n2link-web/nodes_ai_text"]
+# Embeddings through ai-provider. In the default app build; README stays experimental until live runs.
+nodes_ai_embeddings = ["nodes_ai", "n2link-core/nodes_ai_embeddings", "n2link-web/nodes_ai_embeddings"]
+# Bounded agent/tool loop (two concurrent loops). In the default app build; README stays
+# experimental until live OpenAI and Anthropic runs.
+nodes_ai_agent = ["nodes_ai", "nodes_ai_text", "n2link-core/nodes_ai_agent", "n2link-web/nodes_ai_agent"]
+# Node-RED-compatible bcrypt password verification. Default-on, but removable from minimal builds.
+admin_bcrypt = ["n2link-web/admin_bcrypt"]
+# Versioned XChaCha20-Poly1305 credential envelopes and migration CLI.
+credential_encryption = ["n2link-core/credential_encryption", "n2link-web/credential_encryption"]
+# SQLite operational history (deploy, node health, Copilot, fleet). In the default app build;
+# omit with --no-default-features. See docs/operations/history.md.
+history_sqlite = ["n2link-core/history_sqlite", "n2link-web/history_sqlite"]
+# PostgreSQL and Redis clients. In the default app build; omit with --no-default-features.
+nodes_postgres = ["n2link-core/nodes_postgres", "n2link-web/nodes_postgres"]
+nodes_redis = ["n2link-core/nodes_redis", "n2link-web/nodes_redis"]
+# Optional WASM plugin host. Off in default and full.
+nodes_wasm = ["n2link-core/nodes_wasm", "n2link-web/nodes_wasm"]

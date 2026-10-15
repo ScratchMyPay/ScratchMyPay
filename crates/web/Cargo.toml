@@ -1,0 +1,50 @@
+[package]
+name = "n2link-web"
+version = "0.4.0-rc.1"
+edition = "2024"
+
+[dependencies]
+inventory.workspace = true
+axum.workspace = true
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.6.8", features = ["fs", "cors"] }
+
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+toml_edit = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+chrono = { workspace = true, features = ["serde"] }
+anyhow = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+bcrypt = { workspace = true, optional = true }
+tokio-tungstenite = { workspace = true, optional = true, features = ["rustls-tls-native-roots"] }
+config = { workspace = true }
+reqwest = { workspace = true }
+
+n2link-core = { path = "../core" }
+
+[features]
+default = ["admin_bcrypt", "credential_encryption", "history_sqlite", "nodes_postgres", "nodes_redis"]
+admin_bcrypt = ["dep:bcrypt"]
+credential_encryption = ["n2link-core/credential_encryption"]
+nodes_modbus = ["n2link-core/nodes_modbus"]
+runtime_scan = ["n2link-core/runtime_scan"]
+nodes_ai = ["n2link-core/nodes_ai"]
+nodes_ai_text = ["n2link-core/nodes_ai_text"]
+nodes_ai_embeddings = ["n2link-core/nodes_ai_embeddings"]
+nodes_ai_agent = ["nodes_ai", "nodes_ai_text", "n2link-core/nodes_ai_agent"]
+# Adds the `/history` query route and `/status` history health.
+history_sqlite = ["n2link-core/history_sqlite"]
+nodes_postgres = ["n2link-core/nodes_postgres"]
+nodes_redis = ["n2link-core/nodes_redis"]
+nodes_wasm = ["n2link-core/nodes_wasm"]
+
+[dev-dependencies]
+tokio-tungstenite = { workspace = true }
+# WAT fixtures for the WASM plugin API tests (never linked into a binary).
+wat = "1"

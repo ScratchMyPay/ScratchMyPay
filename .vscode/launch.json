@@ -1,0 +1,89 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'n2link-app'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=n2linkd",
+                    "--package=n2link-app"
+                ],
+                "filter": {
+                    "name": "n2linkd",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "-v",
+                "4"
+            ],
+            "env": {
+                "N2LINK_HOME": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'n2link-app'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=n2linkd",
+                    "--package=n2link-app"
+                ],
+                "filter": {
+                    "name": "n2linkd",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'n2link_core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--color always",
+                    "--package=n2link-core"
+                ],
+                "filter": {
+                    "name": "n2link_core",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'all'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--all",
+                ]
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

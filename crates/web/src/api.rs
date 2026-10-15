@@ -1,0 +1,145 @@
+use axum::middleware::from_fn;
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use tower_http::cors::{Any, CorsLayer};
+
+use crate::handlers::audit::get_audit;
+use crate::handlers::auth::{get_login, post_revoke, post_token, require_admin, start_strategy, strategy_callback};
+use crate::handlers::credentials::get_node_credentials;
+use crate::handlers::fleet::{delete_device, get_devices, post_device, post_promote, post_push};
+use crate::handlers::library::*;
+use crate::handlers::status::get_status;
+use crate::handlers::web_state::WebState;
+use crate::handlers::*;
+use crate::health::*;
+use crate::protection::protect_request;
+
+/// Create Node-RED compatible API routes
+/// These routes directly mimic Node-RED's path structure
+fn create_node_red_api_routes() -> Router {
+    let router = Router::new()
+        // Flows management (Node-RED compatible paths)
+        .route("/flows", get(get_flows).post(post_flows))
+        .route("/credentials/{node_type}/{id}", get(get_node_credentials))
+        .route("/flows/rollback", post(post_flows_rollback))
+        .route("/flows/state", get(get_flows_state).post(post_flows_state))
+        // Single flow management
+        .route("/flow/{id}", get(get_flow).put(put_flow).delete(delete_flow))
+        .route("/flow", post(post_flow))
+        // Node management (supports complex regex paths)
+        .route("/nodes", get(get_nodes).post(install_node_module))
+        .route("/nodes/messages", get(get_nodes_locale))
+        .route("/nodes/{module}", get(get_node_module).put(toggle_node_module).delete(uninstall_node_module))
+        .route("/nodes/{module}/{set}", get(get_node_set).put(toggle_node_set))
+        .route("/nodes/{module}/{set}/messages", get(get_node_set_messages))
+        // Library API (Node-RED compatible)
+        .route("/library/{type}", get(get_library_entries))
+        .route("/library/{type}/{*name}", get(get_library_entry).post(post_library_entry))
+        // Plugin management (Node-RED expected paths)
+        .route("/plugins", get(get_plugins))
+        .route("/plugins/messages", get(get_plugin_messages))
+        // System settings (Node-RED compatible)
+        .route("/settings", get(get_settings))
+        .route("/status", get(get_status))
+        .route("/audit", get(get_audit))
+        .route("/auth/login", get(get_login))
+        .route("/auth/token", post(post_token))
+        .route("/auth/revoke", post(post_revoke))
+        .route("/auth/strategy", get(start_strategy))
+        .route("/auth/strategy/callback", get(strategy_callback))
+        .route("/fleet/devices", get(get_devices).post(post_device))
+        .route("/fleet/devices/{name}", axum::routing::delete(delete_device))
+        .route("/fleet/push", post(post_push))
+        .route("/fleet/pipelines/promote", post(post_promote))
+        .route("/runtime/config/egress", get(get_egress_config).put(put_egress_config))
+        .route("/runtime/config/egress/validate", post(validate_egress_config))
+        .route("/runtime/config/egress/apply", post(apply_egress_config))
+        .route("/runtime/config/egress/rollback", post(rollback_egress_config))
+        // Icons
+        .route("/icons", get(get_icons))
+        // Theme
+        .route("/theme", get(get_theme))
+        // Context management
+        .route("/context/global", get(get_global_context))
+        .route("/context/global/{key}", get(get_global_context_key).delete(delete_global_context_key))
+        .route("/context/flow/{id}", get(get_flow_context))
+        .route("/context/flow/{id}/{key}", get(get_flow_context_key).delete(delete_flow_context_key))
+        .route("/context/node/{id}", get(get_node_context))
+        .route("/context/node/{id}/{key}", get(get_node_context_key).delete(delete_node_context_key))
+        .route("/context/global/{key}/force", post(force_global_context_key).delete(clear_global_context_force))
+        .route("/context/flow/{id}/{key}/force", post(force_flow_context_key).delete(clear_flow_context_force))
+        .route("/context/node/{id}/{key}/force", post(force_node_context_key).delete(clear_node_context_force));
+
+    #[cfg(feature = "nodes_ai")]
+    let router = router
+        .route("/assistant/skills", get(get_assistant_skills))
+        .route("/assistant/catalog", get(crate::handlers::assistant::get_assistant_catalog))
+        .route("/assistant/draft", post(post_assistant_draft));
+
+    #[cfg(feature = "history_sqlite")]
+    let router = router.route("/history", get(crate::handlers::history::get_history));
+
+    #[cfg(feature = "nodes_wasm")]
+    let router = {
+        use crate::handlers::wasm_plugins as wasm;
+        router
+            .route("/wasm/plugins", get(wasm::list_plugins))
+            .route("/wasm/plugins/stage", post(wasm::stage_plugin))
+            .route("/wasm/plugins/quarantine/{sha256}", axum::routing::delete(wasm::discard_package))
+            .route("/wasm/plugins/{publisher}/{name}", axum::routing::delete(wasm::remove_plugin))
+            .route("/wasm/plugins/{publisher}/{name}/activate", post(wasm::activate_plugin))
+            .route("/wasm/plugins/{publisher}/{name}/rollback", post(wasm::rollback_plugin))
+    };
+
+    router
+}
+
+/// Create editor routes (for frontend file service)
+fn create_editor_routes() -> Router {
+    Router::new()
+        .route("/icons/{module}/{icon}", get(get_icon_file))
+        .route("/locales/nodes", get(get_nodes_locale))
+        .route("/locales/editor", get(get_editor_locale))
+        .route("/locales/available", get(get_available_locales))
+        .route("/locales/{namespace}", get(get_namespace_locale))
+        .route("/settings/user", get(get_user_settings).post(update_user_settings))
+        .route("/comms", get(websocket_handler))
+        // Debug node specific routes (Node-RED compatible)
+        .route("/debug/view/view.html", get(serve_debug_view_html))
+        .route("/debug/view/{resource}", get(serve_debug_view_resource))
+        // Debug node root path support (for main editor)
+        .route("/debug.js", get(serve_debug_js))
+        .route("/debug-utils.js", get(serve_debug_utils_js))
+        // General core module resource routes
+        .route("/core/{resource_path}", get(serve_core_lib_resource))
+}
+
+/// Create debug and health check routes
+fn create_debug_routes() -> Router {
+    Router::new().route("/health", get(health_check)).route("/info", get(api_info))
+}
+
+/// Create the complete API router
+/// This function combines all routes and registers dynamic routes from WebHandlerRegistry
+pub fn create_all_routes(web_state: &WebState) -> Router {
+    let router = Router::new()
+        .merge(create_node_red_api_routes())
+        .merge(create_editor_routes())
+        .nest("/api", create_debug_routes());
+
+    let wh = web_state.web_handlers.routes_handle();
+    for desc in wh.lock().unwrap().iter() {
+        log::info!("{}", desc.path);
+    }
+
+    // Auth wraps every route, including ones registered by nodes. Public paths are skipped
+    // inside the middleware. The extension layer is added by the server outside this router,
+    // so the middleware sees it.
+    web_state
+        .register_web_routes(router)
+        .layer(from_fn(protect_request))
+        .layer(from_fn(require_admin))
+        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
+}

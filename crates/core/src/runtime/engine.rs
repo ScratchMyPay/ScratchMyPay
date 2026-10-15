@@ -1,0 +1,1287 @@
+use std::sync::{Arc, Weak};
+
+use dashmap::DashMap;
+use runtime::flow::*;
+use runtime::registry::RegistryHandle;
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use tokio_util::sync::CancellationToken;
+
+use super::context::{Context, ContextManager, ContextManagerBuilder};
+use super::debug_channel::DebugChannel;
+use super::egress::EgressPolicyHandle;
+use super::engine_events::{EngineEvent, EngineEventBus};
+use super::history::HistoryHandle;
+use super::http_registry::HttpResponseRegistry;
+use super::model::json::{RedFlowConfig, RedGlobalNodeConfig};
+use super::model::*;
+use super::nodes::FlowNodeBehavior;
+use super::red_env::*;
+use super::status_channel::StatusChannel;
+use crate::runtime::model::FlowsElement;
+use crate::runtime::model::Variant;
+use crate::runtime::nodes::{GlobalNodeBehavior, NodeFactory, StatusObject, wellknown_names};
+use crate::runtime::status_channel::StatusMessage;
+use crate::*;
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct EngineArgs {
+    //node_msg_queue_capacity: usize,
+}
+
+impl EngineArgs {
+    pub fn load(cfg: Option<&config::Config>) -> crate::Result<Self> {
+        match cfg {
+            Some(cfg) => match cfg.get::<Self>("runtime.engine") {
+                Ok(res) => Ok(res),
+                Err(config::ConfigError::NotFound(_)) => Ok(Self::default()),
+                Err(e) => Err(e.into()),
+            },
+            _ => Ok(Self::default()),
+        }
+    }
+}
+
+/// One MQTT or Modbus node as the status document reports it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkState {
+    pub id: String,
+    pub type_name: String,
+    pub text: Option<String>,
+    pub errors: u64,
+}
+
+fn is_link_type(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "mqtt-broker"
+            | "mqtt in"
+            | "mqtt out"
+            | "modbus"
+            | "postgres"
+            | "postgres-config"
+            | "redis"
+            | "redis-config"
+            | "ai-provider"
+            | "ai-embed"
+            | "ai-agent"
+    )
+}
+
+#[derive(Debug, Clone)]
+pub struct Engine {
+    inner: Arc<InnerEngine>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WeakEngine {
+    inner: Weak<InnerEngine>,
+}
+
+impl WeakEngine {
+    pub fn upgrade(&self) -> Option<Engine> {
+        Weak::upgrade(&self.inner).map(|x| Engine { inner: x })
+    }
+}
+
+struct InnerEngine {
+    shutdown: tokio::sync::RwLock<bool>,
+    stop_token: CancellationToken,
+    _args: EngineArgs,
+    /// The configuration this engine was built with. A redeploy without its own configuration
+    /// (the web deploy path) reuses this instead of silently falling back to the defaults.
+    elcfg: Option<config::Config>,
+    egress: EgressPolicyHandle,
+    history: HistoryHandle,
+    envs: RedEnvs,
+    context_manager: Arc<ContextManager>,
+    context: Context,
+
+    _context: Variant,
+    flows: DashMap<ElementId, Flow>,
+    global_nodes: DashMap<ElementId, Arc<dyn GlobalNodeBehavior>>,
+    all_flow_nodes: DashMap<ElementId, Arc<dyn FlowNodeBehavior>>,
+    http_response_registry: Arc<HttpResponseRegistry>,
+    debug_channel: DebugChannel,
+    status_channel: StatusChannel,
+    event_bus: EngineEventBus,
+    flows_hash: tokio::sync::RwLock<Vec<u8>>,
+    /// JSON the live graph was built from. A failed redeploy reloads this instead of leaving a
+    /// half-built replacement. Never logged: it can hold credentials.
+    loaded_json: std::sync::RwLock<serde_json::Value>,
+    started_at: std::time::Instant,
+    error_count: std::sync::atomic::AtomicU64,
+    node_errors: DashMap<ElementId, u64>,
+    node_status: DashMap<ElementId, (String, Option<String>)>,
+
+    /// Cancelled by `stop` and replaced on the next scan spawn, so a restart arms a new task.
+    #[cfg(feature = "runtime_scan")]
+    scan_cancel: std::sync::Mutex<CancellationToken>,
+
+    #[cfg(feature = "nodes_ai_agent")]
+    agent_slots: std::sync::Arc<tokio::sync::Semaphore>,
+
+    #[cfg(feature = "nodes_wasm")]
+    wasm_plugins: std::sync::RwLock<Option<std::sync::Arc<crate::runtime::wasm::ActivePlugins>>>,
+    #[cfg(feature = "nodes_wasm")]
+    wasm_runtime: std::sync::Arc<crate::runtime::wasm::WasmRuntime>,
+
+    #[cfg(any(test, feature = "pymod"))]
+    final_msgs_rx: MsgUnboundedReceiverHolder,
+
+    #[cfg(any(test, feature = "pymod"))]
+    final_msgs_tx: MsgUnboundedSender,
+}
+
+impl Engine {
+    /// Calculate hash of flows JSON (Node-RED compatible - SHA256)
+    fn calculate_flows_hash(json: &serde_json::Value) -> Vec<u8> {
+        // The editor's `rev` is the hash of the saved flow file. Secrets live in the sidecar,
+        // so a credentials object must not change the digest the next deploy is checked against.
+        let flows_json = serde_json::to_string(&super::flow_credentials::for_revision(json)).unwrap_or_default();
+        let mut hasher = Sha256::new();
+        hasher.update(flows_json.as_bytes());
+        hasher.finalize().to_vec()
+    }
+
+    /// SHA-256 hex digest of the compact JSON. This is the `rev` the editor compares.
+    pub fn revision_of(json: &serde_json::Value) -> String {
+        hex::encode(Self::calculate_flows_hash(json))
+    }
+
+    /// Get flows revision hash as hex string
+    pub async fn flows_rev(&self) -> String {
+        let hash = self.inner.flows_hash.read().await;
+        hex::encode(&*hash)
+    }
+
+    /// Complete one prompt with a deployed AI provider without exposing its credentials.
+    #[cfg(feature = "nodes_ai")]
+    pub async fn complete_ai(
+        &self,
+        provider_id: &str,
+        model: Option<&str>,
+        system: &str,
+        prompt: &str,
+        max_tokens: u32,
+        timeout: std::time::Duration,
+    ) -> crate::Result<String> {
+        super::nodes::ai_nodes::complete_for_engine(self, provider_id, model, system, prompt, max_tokens, timeout).await
+    }
+
+    pub fn downgrade(&self) -> WeakEngine {
+        WeakEngine { inner: Arc::downgrade(&self.inner) }
+    }
+
+    pub fn with_json(
+        reg: &RegistryHandle,
+        json: serde_json::Value,
+        elcfg: Option<config::Config>,
+    ) -> crate::Result<Engine> {
+        super::wasm::reject_enabled_without_feature(elcfg.as_ref())?;
+        let json_values = json::deser::load_flows_json_value(json.clone()).map_err(|e| {
+            log::error!("Failed to load NodeRED JSON value: {e}");
+            e
+        })?;
+
+        let envs = RedEnvStoreBuilder::default().with_process_env().build();
+
+        let mut ctx_builder = ContextManagerBuilder::new();
+        if let Some(ref cfg) = elcfg {
+            let _ = ctx_builder.with_config(cfg)?; // Load the section in the configuration
+        } else {
+            let _ = ctx_builder.load_default();
+        }
+        let context_manager = ctx_builder.build()?;
+        let egress = EgressPolicyHandle::load(elcfg.as_ref())?;
+        let history = HistoryHandle::from_config(elcfg.as_ref())?;
+
+        // let context_manager = Arc::new(ContextManager::default());
+        let context = context_manager.new_global_context();
+
+        #[cfg(any(test, feature = "pymod"))]
+        let final_msgs_channel = tokio::sync::mpsc::unbounded_channel();
+
+        // Calculate flows hash
+        let flows_hash = Self::calculate_flows_hash(&json);
+
+        let engine = Self {
+            inner: Arc::new(InnerEngine {
+                shutdown: tokio::sync::RwLock::new(true),
+                stop_token: CancellationToken::new(),
+                all_flow_nodes: DashMap::new(),
+                global_nodes: DashMap::new(),
+                flows: DashMap::new(),
+                _context: Variant::empty_object(),
+                envs,
+                _args: EngineArgs::load(elcfg.as_ref())?,
+                elcfg: elcfg.clone(),
+                egress,
+                history,
+                context_manager,
+                context,
+                http_response_registry: Arc::new(HttpResponseRegistry::new()),
+                debug_channel: DebugChannel::new(1000),
+                status_channel: StatusChannel::new(1000),
+                event_bus: EngineEventBus::new(100),
+                flows_hash: tokio::sync::RwLock::new(flows_hash.clone()),
+                loaded_json: std::sync::RwLock::new(json.clone()),
+                started_at: std::time::Instant::now(),
+                error_count: std::sync::atomic::AtomicU64::new(0),
+                node_errors: DashMap::new(),
+                node_status: DashMap::new(),
+
+                #[cfg(feature = "runtime_scan")]
+                scan_cancel: std::sync::Mutex::new(CancellationToken::new()),
+
+                #[cfg(feature = "nodes_ai_agent")]
+                agent_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(2)),
+
+                #[cfg(feature = "nodes_wasm")]
+                wasm_plugins: std::sync::RwLock::new(reg.wasm().cloned()),
+                #[cfg(feature = "nodes_wasm")]
+                wasm_runtime: std::sync::Arc::new(crate::runtime::wasm::WasmRuntime::new(
+                    crate::runtime::wasm::WasmSettings::from_config(elcfg.as_ref())?,
+                )),
+
+                #[cfg(any(test, feature = "pymod"))]
+                final_msgs_rx: MsgUnboundedReceiverHolder::new(final_msgs_channel.1),
+
+                #[cfg(any(test, feature = "pymod"))]
+                final_msgs_tx: final_msgs_channel.0,
+            }),
+        };
+
+        engine.clone().load_global_nodes(json_values.global_nodes, reg.clone(), elcfg.as_ref())?;
+        engine.clone().load_flows(json_values.flows, reg, elcfg.as_ref())?;
+
+        log::debug!("Loaded flow revision: {}", hex::encode(&flows_hash));
+        Ok(engine)
+    }
+
+    /// Shared outbound-network policy used by nodes and web adapters.
+    pub fn egress_policy(&self) -> &EgressPolicyHandle {
+        &self.inner.egress
+    }
+
+    /// Operational history handle.
+    /// The configuration this engine was built with. Callers that prepare a candidate graph
+    /// for this engine use it so the candidate sees the same settings (plugins, egress, ...).
+    pub fn config(&self) -> Option<&config::Config> {
+        self.inner.elcfg.as_ref()
+    }
+
+    pub fn history(&self) -> &HistoryHandle {
+        &self.inner.history
+    }
+
+    #[cfg(feature = "nodes_ai_agent")]
+    pub(crate) fn agent_slots(&self) -> std::sync::Arc<tokio::sync::Semaphore> {
+        self.inner.agent_slots.clone()
+    }
+
+    #[cfg(feature = "nodes_wasm")]
+    pub(crate) fn wasm_plugins(&self) -> Option<std::sync::Arc<crate::runtime::wasm::ActivePlugins>> {
+        self.inner.wasm_plugins.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Plugin host state for `/status`.
+    #[cfg(feature = "nodes_wasm")]
+    pub fn wasm_status(&self) -> crate::runtime::wasm::WasmStatus {
+        let runtime = &self.inner.wasm_runtime;
+        let settings = runtime.settings();
+        let engine_live = runtime.engine_live();
+        crate::runtime::wasm::WasmStatus {
+            state: if !settings.enabled {
+                "disabled"
+            } else if engine_live {
+                "active"
+            } else {
+                "idle"
+            },
+            plugins: self.wasm_plugins().map(|set| set.len()).unwrap_or(0),
+            engine_live,
+            permits_in_use: runtime.permits_in_use(),
+            max_concurrent: settings.max_concurrent,
+            memory_reserved_kib: runtime.reserved_kib(),
+            memory_budget_kib: settings.memory_budget_kib,
+        }
+    }
+
+    #[cfg(feature = "nodes_wasm")]
+    pub(crate) fn wasm_runtime(&self) -> std::sync::Arc<crate::runtime::wasm::WasmRuntime> {
+        self.inner.wasm_runtime.clone()
+    }
+
+    #[cfg(feature = "nodes_wasm")]
+    pub(crate) fn wasm_meta(&self, type_name: &str) -> crate::Result<&'static crate::runtime::nodes::MetaNode> {
+        if !self.inner.wasm_runtime.settings().enabled {
+            return Err(crate::runtime::wasm::unavailable_plugin_error(type_name));
+        }
+        self.wasm_plugins()
+            .and_then(|set| set.meta(type_name))
+            .ok_or_else(|| crate::runtime::wasm::not_active_error(type_name))
+    }
+
+    pub async fn with_flows_file(
+        reg: &RegistryHandle,
+        flows_json_path: &str,
+        elcfg: Option<config::Config>,
+    ) -> crate::Result<Engine> {
+        let json = super::flow_credentials::flows_value_with_credentials(
+            std::path::Path::new(flows_json_path),
+            elcfg.as_ref(),
+        )
+        .await?;
+        Self::with_json(reg, json, elcfg)
+    }
+
+    pub fn with_json_string(
+        reg: &RegistryHandle,
+        json_str: String,
+        elcfg: Option<config::Config>,
+    ) -> crate::Result<Engine> {
+        let json: serde_json::Value = serde_json::from_str(&json_str)?;
+        Self::with_json(reg, json, elcfg)
+    }
+
+    pub fn get_flow(&self, id: &ElementId) -> Option<Flow> {
+        self.inner.flows.get(id).map(|x| x.value().clone())
+    }
+
+    #[cfg(feature = "runtime_scan")]
+    pub(crate) fn flows_snapshot(&self) -> Vec<Flow> {
+        self.inner.flows.iter().map(|entry| entry.value().clone()).collect()
+    }
+
+    #[cfg(feature = "runtime_scan")]
+    fn spawn_scan(&self, period_ms: u64) {
+        let cancel = {
+            let mut slot = self.inner.scan_cancel.lock().unwrap_or_else(|err| err.into_inner());
+            slot.cancel();
+            let next = CancellationToken::new();
+            *slot = next.clone();
+            next
+        };
+        let engine = self.clone();
+        tokio::spawn(async move {
+            crate::runtime::scan::run(engine, period_ms, cancel).await;
+        });
+    }
+
+    fn load_flows(
+        &self,
+        flow_cfg: Vec<RedFlowConfig>,
+        reg: &RegistryHandle,
+        elcfg: Option<&config::Config>,
+    ) -> crate::Result<()> {
+        // load flows
+        for flow_config in flow_cfg.into_iter() {
+            log::info!("---- Loading flow/subflow: (id='{}', label='{}')...", flow_config.id, flow_config.label);
+            let flow = Flow::new(self, flow_config, reg, elcfg)?;
+            {
+                // register all nodes
+                for fnode in flow.get_all_flow_nodes().iter() {
+                    if self.inner.all_flow_nodes.contains_key(&fnode.id()) {
+                        return Err(N2linkError::InvalidOperation(format!("This flow node already existed: {fnode}")));
+                    }
+                    self.inner.all_flow_nodes.insert(fnode.id(), fnode.clone());
+                }
+                //register the flow
+                self.inner.flows.insert(flow.id(), flow);
+            }
+        }
+        Ok(())
+    }
+
+    fn load_global_nodes(
+        &self,
+        node_configs: Vec<RedGlobalNodeConfig>,
+        reg: RegistryHandle,
+        settings: Option<&config::Config>,
+    ) -> crate::Result<()> {
+        for global_config in node_configs.into_iter() {
+            let node_type_name = global_config.type_name.as_str();
+            let meta_node = if let Some(meta_node) = reg.get(node_type_name) {
+                meta_node
+            } else if crate::runtime::nodes::is_wasm_plugin_type(node_type_name) {
+                return Err(crate::runtime::nodes::missing_wasm_plugin_type(node_type_name));
+            } else if crate::runtime::nodes::n2link_owned_node_type(node_type_name) {
+                return Err(crate::runtime::nodes::missing_owned_node_type(node_type_name));
+            } else {
+                log::warn!(
+                    "Unknown global configuration node type: (id=`{}`, type=`{}`, name='{}')",
+                    global_config.id,
+                    global_config.type_name,
+                    global_config.name
+                );
+                reg.get(wellknown_names::UNKNOWN_GLOBAL_NODE).unwrap()
+            };
+
+            log::info!(
+                "---- Loading global node: (id=`{}`, type=`{}`, name='{}')...",
+                global_config.id,
+                global_config.type_name,
+                global_config.name
+            );
+
+            let global_node = match meta_node.factory {
+                NodeFactory::Global(factory) => factory(self, &global_config, settings)?,
+                _ => {
+                    return Err(N2linkError::NotSupported(format!(
+                        "Must be a global node: Node(id={0}, type='{1}')",
+                        global_config.id, global_config.type_name
+                    )));
+                }
+            };
+
+            self.inner.global_nodes.insert(global_node.id(), Arc::from(global_node));
+        }
+        Ok(())
+    }
+
+    pub async fn inject_msg_to_flow(
+        &self,
+        flow_id: ElementId,
+        msg: MsgHandle,
+        cancel: CancellationToken,
+    ) -> crate::Result<()> {
+        let flow = self.inner.flows.get(&flow_id).as_deref().cloned();
+        if let Some(flow) = flow {
+            flow.inject_msg(msg, cancel.clone()).await?;
+            Ok(())
+        } else {
+            Err(N2linkError::BadArgument("flow_id")).with_context(|| format!("Can not found flow_id: {flow_id}"))
+        }
+    }
+
+    pub async fn forward_msg_to_link_in(
+        &self,
+        link_in_id: &ElementId,
+        msg: MsgHandle,
+        cancel: CancellationToken,
+    ) -> crate::Result<()> {
+        let flow = { self.inner.flows.get(link_in_id).as_deref().cloned() };
+        if let Some(flow) = flow {
+            flow.inject_msg(msg, cancel.clone()).await?;
+            Ok(())
+        } else {
+            Err(N2linkError::BadArgument("link_in_id"))
+                .with_context(|| format!("Can not found `link id`: {link_in_id}"))
+        }
+    }
+
+    pub async fn start(&self) -> crate::Result<()> {
+        log::info!("-- Starting engine...");
+        let mut shutdown_lock = self.inner.shutdown.try_write()?;
+        if !(*shutdown_lock) {
+            return Err(N2linkError::invalid_operation("already started."));
+        }
+
+        if self.inner.flows.is_empty() {
+            return Err(N2linkError::invalid_operation("no flows loaded in the engine."));
+        }
+
+        // Reject a period the process will not schedule before any flow task starts.
+        #[cfg(feature = "runtime_scan")]
+        let scan_period = crate::runtime::scan::configured_period(self.inner.elcfg.as_ref())?;
+
+        // 发布启动开始事件
+        self.publish_event(EngineEvent::EngineStarted);
+
+        // Load whatever the persistent context stores hold, before any flow can read it.
+        self.inner.context_manager.open_all().await?;
+
+        for f in self.inner.flows.iter() {
+            f.value().start().await?;
+        }
+
+        #[cfg(feature = "runtime_scan")]
+        if scan_period > 0 {
+            self.spawn_scan(scan_period);
+        }
+
+        *shutdown_lock = false;
+
+        self.inner.history.record_runtime_started(env!("CARGO_PKG_VERSION"), super::history::SCHEMA_VERSION);
+
+        log::info!("-- All flows started.");
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> crate::Result<()> {
+        let mut shutdown_lock = self.inner.shutdown.try_write()?;
+        if *shutdown_lock {
+            return Err(N2linkError::invalid_operation("not started."));
+        }
+        log::info!("-- Stopping engine...");
+
+        self.inner.stop_token.cancel();
+        #[cfg(feature = "runtime_scan")]
+        self.inner.scan_cancel.lock().unwrap_or_else(|err| err.into_inner()).cancel();
+
+        for i in self.inner.flows.iter() {
+            i.value().stop().await?;
+        }
+
+        // Give the persistent context stores the chance to flush their pending writes.
+        self.inner.context_manager.close_all().await?;
+
+        *shutdown_lock = true;
+
+        // 发布停止事件
+        self.publish_event(EngineEvent::EngineStopped);
+
+        self.inner.history.record_runtime_stopped(env!("CARGO_PKG_VERSION"), super::history::SCHEMA_VERSION);
+
+        //drop(self.stopped_tx);
+        log::info!("-- Engine flows stopped.");
+        Ok(())
+    }
+
+    #[cfg(any(test, feature = "pymod"))]
+    pub async fn run_once_with_inject(
+        &self,
+        expected_msgs: usize,
+        timeout: std::time::Duration,
+        mut msgs_to_inject: Vec<(ElementId, Msg)>,
+    ) -> crate::Result<Vec<Msg>> {
+        self.start().await?;
+
+        let mut count = 0;
+        let mut received = Vec::new();
+
+        // Clear the final_msgs channel
+        {
+            let mut rx = self.inner.final_msgs_rx.rx.lock().await;
+            while rx.try_recv().is_ok() {}
+        }
+
+        let cancel = CancellationToken::new();
+        for msg in msgs_to_inject.drain(..) {
+            self.inject_msg(&msg.0, MsgHandle::new(msg.1), cancel.clone()).await?;
+        }
+
+        let result = tokio::time::timeout(timeout, async {
+            while !cancel.is_cancelled() && count < expected_msgs {
+                let msg = self.inner.final_msgs_rx.recv_msg(cancel.clone()).await?;
+                count += 1;
+                let msg = msg.unwrap_async().await;
+                received.push(msg);
+            }
+            cancel.cancel();
+            cancel.cancelled().await;
+            Ok(())
+        })
+        .await;
+
+        self.stop().await?;
+        match result {
+            Ok(Ok(())) => Ok(received),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(N2linkError::Timeout),
+        }
+    }
+
+    #[cfg(any(test, feature = "pymod"))]
+    pub async fn run_once(&self, expected_msgs: usize, timeout: std::time::Duration) -> crate::Result<Vec<Msg>> {
+        self.run_once_with_inject(expected_msgs, timeout, Vec::with_capacity(0)).await
+    }
+
+    /// How long a sampling run waits for the first output before it starts sampling.
+    ///
+    /// Only the *first* output is awaited with this bound; engine start-up cost is what it
+    /// absorbs. A run that never produces anything gives up after this.
+    #[cfg(any(test, feature = "pymod"))]
+    const FIRST_MSG_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+    /// Inject the given messages and collect every output emitted during `window`,
+    /// paired with its arrival offset in milliseconds.
+    ///
+    /// Unlike [`Self::run_once_with_inject`], this does not wait for a message count: it
+    /// samples the flow for a fixed duration and returns whatever arrived in that window.
+    /// Node-RED's rate-limiting specs are written that way (inject a burst, sample for
+    /// `runtimeInMillis`, then count and check the spacing), which is impossible to
+    /// express with a count. Offsets are relative to the first observed output. Reached
+    /// from pytest through the `run_flows_for_once` binding.
+    #[cfg(any(test, feature = "pymod"))]
+    pub async fn run_window_with_inject(
+        &self,
+        window: std::time::Duration,
+        msgs_to_inject: Vec<(ElementId, Msg)>,
+    ) -> crate::Result<Vec<(Msg, f64, f64)>> {
+        let scheduled = msgs_to_inject.into_iter().map(|(id, msg)| (id, msg, 0.0)).collect();
+        self.run_window_with_schedule(window, scheduled).await
+    }
+
+    /// Like [`Self::run_window_with_inject`], but every message carries the delay (in
+    /// milliseconds, relative to the start of the run) after which it is injected.
+    ///
+    /// Node-RED's drop-rate specs feed the node a *stream* rather than a burst - their helper
+    /// spaces the injections out with `setTimeout` - and a burst cannot exercise a rate limit
+    /// that drops what arrives too soon. A delay of zero injects immediately.
+    ///
+    /// Each output is reported with two offsets in milliseconds: the first is relative to the
+    /// first observed output (upstream's sampling helper measures the gap to the previous
+    /// message, and the first one has none), the second is relative to the start of the run.
+    /// The delay-node specs assert *when* a node completes a message, which needs the second
+    /// one; the sampling window starts at the first output, so the first keeps that window
+    /// independent of engine start-up cost.
+    #[cfg(any(test, feature = "pymod"))]
+    pub async fn run_window_with_schedule(
+        &self,
+        window: std::time::Duration,
+        mut msgs_to_inject: Vec<(ElementId, Msg, f64)>,
+    ) -> crate::Result<Vec<(Msg, f64, f64)>> {
+        self.start().await?;
+
+        // Clear the final_msgs channel
+        {
+            let mut rx = self.inner.final_msgs_rx.rx.lock().await;
+            while rx.try_recv().is_ok() {}
+        }
+
+        let run_start = std::time::Instant::now();
+        let cancel = CancellationToken::new();
+        let mut deferred = Vec::new();
+        for (node_id, msg, delay_ms) in msgs_to_inject.drain(..) {
+            if delay_ms <= 0.0 {
+                self.inject_msg(&node_id, MsgHandle::new(msg), cancel.clone()).await?;
+                continue;
+            }
+            let engine = self.clone();
+            let inject_cancel = cancel.clone();
+            deferred.push(tokio::spawn(async move {
+                tokio::select! {
+                    _ = inject_cancel.cancelled() => {}
+                    _ = tokio::time::sleep(std::time::Duration::from_secs_f64(delay_ms / 1000.0)) => {
+                        let _ = engine.inject_msg(&node_id, MsgHandle::new(msg), inject_cancel).await;
+                    }
+                }
+            }));
+        }
+
+        // Node-RED's sampling helper starts its clock when the first message is received
+        // (it measures the gap to the *previous* message and the first one has none), so
+        // arrival offsets are reported relative to the first observed message. Anchoring to
+        // the first send also keeps them deterministic regardless of engine start-up cost.
+        //
+        // Waiting for that first message also keeps the engine's start-up cost out of the
+        // sampling window, which would otherwise eat into it.
+        let mut start: Option<std::time::Instant> = None;
+        let mut received = Vec::new();
+        let first =
+            tokio::time::timeout(Self::FIRST_MSG_GRACE, self.inner.final_msgs_rx.recv_msg(cancel.clone())).await;
+        if let Ok(Ok(msg)) = first {
+            start = Some(std::time::Instant::now());
+            let since_start_ms = run_start.elapsed().as_secs_f64() * 1000.0;
+            received.push((msg.unwrap_async().await, 0.0, since_start_ms));
+        }
+
+        if start.is_some() {
+            let _ = tokio::time::timeout(window, async {
+                loop {
+                    let msg = match self.inner.final_msgs_rx.recv_msg(cancel.clone()).await {
+                        Ok(msg) => msg,
+                        Err(_) => break,
+                    };
+                    let arrival_ms = start.unwrap().elapsed().as_secs_f64() * 1000.0;
+                    let since_start_ms = run_start.elapsed().as_secs_f64() * 1000.0;
+                    received.push((msg.unwrap_async().await, arrival_ms, since_start_ms));
+                }
+            })
+            .await;
+        }
+
+        // Drain anything that landed while the window was closing
+        {
+            let mut rx = self.inner.final_msgs_rx.rx.lock().await;
+            while let Ok(msg) = rx.try_recv() {
+                let arrival_ms = start.get_or_insert_with(std::time::Instant::now).elapsed().as_secs_f64() * 1000.0;
+                let since_start_ms = run_start.elapsed().as_secs_f64() * 1000.0;
+                received.push((msg.unwrap_async().await, arrival_ms, since_start_ms));
+            }
+        }
+
+        self.stop().await?;
+
+        // Any injection still waiting for its slot belongs to a run that is over.
+        for task in deferred {
+            task.abort();
+        }
+
+        Ok(received)
+    }
+
+    pub fn find_flow_node_by_id(&self, id: &ElementId) -> Option<Arc<dyn FlowNodeBehavior>> {
+        self.inner.all_flow_nodes.get(id).map(|x| x.value().clone())
+    }
+
+    pub fn find_flow_node_by_name(&self, name: &str) -> crate::Result<Option<Arc<dyn FlowNodeBehavior>>> {
+        for i in self.inner.flows.iter() {
+            let flow = i.value();
+            let opt_node = flow.get_node_by_name(name)?;
+            if opt_node.is_some() {
+                return Ok(opt_node.clone());
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn find_global_node_by_id(&self, id: &ElementId) -> Option<Arc<dyn GlobalNodeBehavior>> {
+        self.inner.global_nodes.get(id).map(|x| x.value().clone())
+    }
+
+    pub fn find_global_node_by_name(&self, name: &str) -> crate::Result<Option<Arc<dyn GlobalNodeBehavior>>> {
+        let mut iter = self.inner.global_nodes.iter().filter(|val| val.name() == name);
+        let nfound = iter.clone().count();
+        if nfound == 1 {
+            Ok(iter.next().map(|x| x.clone()))
+        } else if nfound == 0 {
+            Ok(None)
+        } else {
+            Err(N2linkError::InvalidOperation(format!("There are multiple global nodes with name '{name}'")))
+        }
+    }
+
+    pub async fn inject_msg(
+        &self,
+        flow_node_id: &ElementId,
+        msg: MsgHandle,
+        cancel: CancellationToken,
+    ) -> crate::Result<()> {
+        let node = self
+            .find_flow_node_by_id(flow_node_id)
+            .ok_or(N2linkError::BadArgument("flow_node_id"))
+            .with_context(|| format!("Cannot found the flow node, id='{flow_node_id}'"))?;
+        node.inject_msg(msg, cancel).await
+    }
+
+    pub fn get_envs(&self) -> RedEnvs {
+        self.inner.envs.clone()
+    }
+
+    pub fn get_env(&self, key: &str) -> Option<Variant> {
+        self.inner.envs.evalute_env(key)
+    }
+
+    pub fn get_context_manager(&self) -> &Arc<ContextManager> {
+        &self.inner.context_manager
+    }
+
+    pub fn context(&self) -> &Context {
+        &self.inner.context
+    }
+
+    pub fn http_response_registry(&self) -> &Arc<HttpResponseRegistry> {
+        &self.inner.http_response_registry
+    }
+
+    pub fn debug_channel(&self) -> &DebugChannel {
+        &self.inner.debug_channel
+    }
+
+    pub fn status_channel(&self) -> &StatusChannel {
+        &self.inner.status_channel
+    }
+
+    pub fn report_node_status(&self, from: ElementId, status: StatusObject) {
+        let type_name = self.node_type_name(from);
+        self.inner.node_status.insert(from, (type_name.clone(), status.text.clone()));
+        self.inner.history.record_node_status(
+            from,
+            &type_name,
+            status.fill.as_ref().map(|f| f.as_str()),
+            status.shape.as_ref().map(|s| s.as_str()),
+        );
+        let to_send = StatusMessage { sender_id: from, status };
+        self.inner.status_channel.send(to_send);
+    }
+
+    pub fn note_node_error(&self, id: ElementId) {
+        let type_name = self.node_type_name(id);
+        self.inner.error_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.inner.node_errors.entry(id).and_modify(|count| *count += 1).or_insert(1);
+        self.inner.history.record_node_error(id, &type_name);
+    }
+
+    pub fn error_count(&self) -> u64 {
+        self.inner.error_count.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn uptime(&self) -> std::time::Duration {
+        self.inner.started_at.elapsed()
+    }
+
+    /// Last status of MQTT and Modbus nodes. A node that has not reported status has an empty text.
+    pub fn link_states(&self) -> Vec<LinkState> {
+        let mut links = Vec::new();
+        for entry in self.inner.node_status.iter() {
+            let (type_name, text) = entry.value();
+            if !is_link_type(type_name) {
+                continue;
+            }
+            let errors = self.inner.node_errors.get(entry.key()).map(|count| *count.value()).unwrap_or(0);
+            links.push(LinkState {
+                id: entry.key().to_string(),
+                type_name: type_name.clone(),
+                text: text.clone(),
+                errors,
+            });
+        }
+        links.sort_by(|left, right| left.id.cmp(&right.id));
+        links
+    }
+
+    fn node_type_name(&self, id: ElementId) -> String {
+        if let Some(node) = self.inner.all_flow_nodes.get(&id) {
+            return node.type_str().to_owned();
+        }
+        if let Some(node) = self.inner.global_nodes.get(&id) {
+            return node.type_str().to_owned();
+        }
+        String::new()
+    }
+
+    /// 检查引擎是否正在运行
+    pub fn is_running(&self) -> bool {
+        match self.inner.shutdown.try_read() {
+            Ok(shutdown_lock) => !*shutdown_lock,
+            Err(_) => {
+                // 如果无法获取锁，假设引擎正在运行
+                log::warn!("Failed to read engine shutdown state, assuming running");
+                true
+            }
+        }
+    }
+
+    /// 获取事件总线
+    pub fn event_bus(&self) -> &EngineEventBus {
+        &self.inner.event_bus
+    }
+
+    /// 发布事件
+    pub fn publish_event(&self, event: EngineEvent) {
+        self.inner.event_bus.publish(event);
+    }
+
+    /// 订阅事件
+    pub fn subscribe_events(&self) -> tokio::sync::broadcast::Receiver<EngineEvent> {
+        self.inner.event_bus.subscribe()
+    }
+
+    #[cfg(any(test, feature = "pymod"))]
+    pub fn recv_final_msg(&self, msg: MsgHandle) -> crate::Result<()> {
+        self.inner.final_msgs_tx.send(msg)?;
+        Ok(())
+    }
+
+    pub async fn restart(&self) -> crate::Result<()> {
+        log::info!("-- Restarting engine...");
+
+        // 发布重启开始事件
+        self.publish_event(EngineEvent::EngineRestartStarted);
+
+        // 停止 Engine
+        self.stop().await?;
+
+        // 启动 Engine
+        self.start().await?;
+
+        // 发布重启完成事件
+        self.publish_event(EngineEvent::EngineRestartCompleted);
+
+        log::info!("-- Engine restarted successfully.");
+        Ok(())
+    }
+
+    /// Build the candidate graph without touching this engine. Construction side effects are
+    /// dropped with the temporary engine; the live runtime is not stopped.
+    pub fn prepare_flows(
+        json: &serde_json::Value,
+        reg: &RegistryHandle,
+        elcfg: Option<config::Config>,
+    ) -> crate::Result<()> {
+        let _candidate = Self::with_json(reg, json.clone(), elcfg)?;
+        Ok(())
+    }
+
+    fn clear_graphs(&self) {
+        self.inner.flows.clear();
+        self.inner.all_flow_nodes.clear();
+        self.inner.global_nodes.clear();
+        #[cfg(feature = "nodes_wasm")]
+        self.inner.wasm_runtime.reset_admission();
+    }
+
+    async fn load_into(
+        &self,
+        json: serde_json::Value,
+        reg: &RegistryHandle,
+        elcfg: Option<&config::Config>,
+    ) -> crate::Result<()> {
+        self.clear_graphs();
+        // A redeploy may come with a different plugin set (online activation or rollback).
+        #[cfg(feature = "nodes_wasm")]
+        {
+            *self.inner.wasm_plugins.write().unwrap_or_else(|e| e.into_inner()) = reg.wasm().cloned();
+        }
+        let json_values = json::deser::load_flows_json_value(json.clone()).inspect_err(|_| {
+            self.clear_graphs();
+        })?;
+        let hash = Self::calculate_flows_hash(&json);
+        if let Err(err) = self.load_global_nodes(json_values.global_nodes, reg.clone(), elcfg) {
+            self.clear_graphs();
+            return Err(err);
+        }
+        if let Err(err) = self.load_flows(json_values.flows, reg, elcfg) {
+            self.clear_graphs();
+            return Err(err);
+        }
+        *self.inner.flows_hash.write().await = hash;
+        *self.inner.loaded_json.write().unwrap_or_else(|err| err.into_inner()) = json;
+        self.retain_active_observability();
+        Ok(())
+    }
+
+    fn retain_active_observability(&self) {
+        let active: std::collections::HashSet<ElementId> = self
+            .inner
+            .all_flow_nodes
+            .iter()
+            .map(|node| *node.key())
+            .chain(self.inner.global_nodes.iter().map(|node| *node.key()))
+            .collect();
+        self.inner.node_status.retain(|id, _| active.contains(id));
+        self.inner.node_errors.retain(|id, _| active.contains(id));
+        self.inner.history.reset_node_filters();
+    }
+
+    pub async fn redeploy_flows(
+        &self,
+        json: serde_json::Value,
+        reg: &RegistryHandle,
+        elcfg: Option<&config::Config>,
+    ) -> crate::Result<()> {
+        log::info!("-- Redeploying flows...");
+
+        // A caller with no configuration of its own (the web deploy path passes `None`) must not
+        // silently drop the settings the engine was built with.
+        let elcfg_owned = elcfg.cloned().or(self.inner.elcfg.clone());
+        let elcfg = elcfg_owned.as_ref();
+
+        Self::prepare_flows(&json, reg, elcfg.cloned())?;
+
+        let previous = self.inner.loaded_json.read().unwrap_or_else(|err| err.into_inner()).clone();
+        let was_running = self.is_running();
+
+        self.publish_event(EngineEvent::FlowDeploymentStarted);
+
+        if was_running {
+            self.stop().await?;
+        }
+
+        self.publish_event(EngineEvent::DebugChannelReinitialized);
+
+        if let Err(err) = self.load_into(json.clone(), reg, elcfg).await {
+            if let Err(restore) = self.restore_previous(previous, reg, elcfg, was_running).await {
+                return Err(N2linkError::invalid_operation(&format!(
+                    "{err}; previous graph was not restored: {restore}"
+                )));
+            }
+            return Err(err);
+        }
+
+        if let Err(err) = self.start().await {
+            let _ = self.stop().await;
+            if let Err(restore) = self.restore_previous(previous, reg, elcfg, was_running).await {
+                return Err(N2linkError::invalid_operation(&format!(
+                    "{err}; previous graph was not restored: {restore}"
+                )));
+            }
+            return Err(err);
+        }
+
+        // Start succeeded: this deploy is committed. Context cleanup is best-effort so a
+        // later store error cannot roll disk back while this runtime stays on the candidate.
+        let mut active_nodes: Vec<ElementId> = self.inner.flows.iter().map(|f| *f.key()).collect();
+        active_nodes.extend(self.inner.all_flow_nodes.iter().map(|n| *n.key()));
+        active_nodes.extend(self.inner.global_nodes.iter().map(|n| *n.key()));
+        if let Err(err) = self.inner.context_manager.clean_all(&active_nodes).await {
+            log::error!("context cleanup after deploy failed: {err}");
+        }
+
+        self.publish_event(EngineEvent::FlowDeploymentCompleted);
+
+        log::info!("-- Flows redeployed successfully.");
+        Ok(())
+    }
+
+    async fn restore_previous(
+        &self,
+        previous: serde_json::Value,
+        reg: &RegistryHandle,
+        elcfg: Option<&config::Config>,
+        was_running: bool,
+    ) -> crate::Result<()> {
+        self.load_into(previous, reg, elcfg).await?;
+        if was_running {
+            self.start().await?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for InnerEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `try_read` so Debug never waits on the runtime. The configuration is omitted: it can
+        // hold credentials.
+        let rev = match self.flows_hash.try_read() {
+            Ok(hash) => hex::encode(&*hash),
+            Err(_) => "<locked>".to_string(),
+        };
+        f.debug_struct("InnerEngine")
+            .field("flows", &self.flows.len())
+            .field("flow_nodes", &self.all_flow_nodes.len())
+            .field("global_nodes", &self.global_nodes.len())
+            .field("flows_rev", &rev)
+            .finish()
+    }
+}
+
+#[cfg(test)]
+pub fn build_test_engine(flows_json: serde_json::Value) -> crate::Result<Engine> {
+    let registry = crate::runtime::registry::RegistryBuilder::default().build().unwrap();
+    Engine::with_json(&registry, flows_json, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::time::Duration;
+
+    #[test]
+    fn debug_shows_flow_counts_and_revision() {
+        let engine = build_test_engine(make_simple_flows_json()).unwrap();
+        let rendered = format!("{engine:?}");
+        assert!(rendered.contains("InnerEngine"), "{rendered}");
+        assert!(rendered.contains("flows:"), "{rendered}");
+        assert!(rendered.contains("flow_nodes:"), "{rendered}");
+        assert!(rendered.contains("global_nodes:"), "{rendered}");
+        assert!(rendered.contains("flows_rev:"), "{rendered}");
+        assert!(!rendered.contains("elcfg"), "{rendered}");
+    }
+
+    #[cfg(not(feature = "nodes_ai_agent"))]
+    #[test]
+    fn owned_ai_agent_without_the_feature_is_not_supported() {
+        let flows = json!([
+            { "id": "100", "type": "tab" },
+            { "id": "1", "z": "100", "type": "ai-agent", "provider": "b1", "tools": ["context_get"], "wires": [[]] }
+        ]);
+        let err = build_test_engine(flows).unwrap_err();
+        assert!(err.to_string().contains("not compiled"), "{err}");
+    }
+
+    #[test]
+    fn a_third_party_type_still_maps_to_unknown() {
+        let flows = json!([
+            { "id": "100", "type": "tab" },
+            { "id": "1", "z": "100", "type": "nodered-foo", "wires": [[]] }
+        ]);
+        build_test_engine(flows).unwrap();
+    }
+
+    fn make_simple_flows_json() -> serde_json::Value {
+        let flows_json = json!([
+        { "id": "100", "type": "tab", "label": "Flow 1" },
+        { "id": "1", "type": "inject", "z": "100", "name": "", "props": [
+                { "p": "payload" },
+                { "p": "topic", "vt": "str" },
+                { "p": "target", "vt": "str", "v": "double payload" }
+            ],
+            "once": true, "onceDelay": 0, "repeat": "", "topic": "",
+            "payload": "foo", "payloadType": "str",
+            "wires": [ [ "2" ] ]
+        },
+        { "id": "2", "z": "100", "type": "test-once" }
+        ]);
+        flows_json
+    }
+
+    fn make_flows_json_that_contains_subflows() -> serde_json::Value {
+        let flows_json = json!([
+        { "id": "999", "type": "inject", "z": "100", "name": "", "props": [
+                { "p": "payload" },
+                { "p": "topic", "vt": "str" },
+                { "p": "target", "vt": "str", "v": "double payload" }
+            ],
+            "repeat": "", "once": true, "onceDelay": 0, "topic": "",
+            "payload": "123", "payloadType": "num",
+            "wires": [ [ "5" ] ]
+        },
+        { "id": "100", "type": "tab", "label": "Flow 1" },
+        { "id": "200", "type": "tab", "label": "Flow 2" },
+        { "id": "1", "z": "100", "type": "link in", "name": "double payload", "wires": [ [ "3" ] ] },
+        { "id": "2", "z": "200", "type": "link in", "name": "double payload", "wires": [ [ "3" ] ] },
+        { "id": "3", "z": "100", "type": "function", "func": "msg.payload+=msg.payload;return msg;", "wires": [["4"]]},
+        { "id": "4", "z": "100", "type": "link out", "mode": "return" },
+        { "id": "5", "z": "100", "type": "link call", "linkType": "dynamic", "links": [], "wires": [ [ "6" ] ] },
+        { "id": "6", "z": "100", "type": "test-once" }
+        ]);
+        flows_json
+    }
+
+    #[tokio::test]
+    async fn test_it_should_able_to_inject_msgs() {
+        let flows_json = serde_json::json!([
+            { "id": "100", "type": "tab", "label": "Flow 1" },
+            { "id": "1", "z": "100", "type": "test-once" }
+        ]);
+        let engine = build_test_engine(flows_json).unwrap();
+        let msgs_to_inject_json = serde_json::json!([
+            ["1", {"payload": "foo"}],
+            ["1", {"payload": "bar"}],
+        ]);
+        let msgs_to_inject = Vec::<(ElementId, Msg)>::deserialize(msgs_to_inject_json).unwrap();
+        let msgs = engine.run_once_with_inject(2, Duration::from_millis(200), msgs_to_inject).await.unwrap();
+
+        assert_eq!(msgs.len(), 2);
+        {
+            let msg0 = msgs[0].as_variant_object();
+            assert_eq!(msg0.get("payload").unwrap(), &Variant::from("foo"));
+        }
+        {
+            let msg1 = msgs[1].as_variant_object();
+            assert_eq!(msg1.get("payload").unwrap(), &Variant::from("bar"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_it_should_load_and_run_simple_json_without_configuration() {
+        let flows_json = make_simple_flows_json();
+        let engine = build_test_engine(flows_json).unwrap();
+        let msgs = engine.run_once(1, Duration::from_millis(200)).await.unwrap();
+        assert_eq!(msgs.len(), 1);
+        let msg = msgs[0].as_variant_object();
+        assert_eq!(msg.get("payload").unwrap(), &Variant::from("foo"));
+    }
+
+    #[tokio::test]
+    async fn test_it_should_load_and_run_complex_json_without_configuration() {
+        let flows_json = make_flows_json_that_contains_subflows();
+        let engine = build_test_engine(flows_json).unwrap();
+        let msgs = engine.run_once(1, Duration::from_millis(200)).await.unwrap();
+        assert_eq!(msgs.len(), 1);
+        let msg = msgs[0].as_variant_object();
+        assert_eq!(msg.get("payload").unwrap(), &Variant::from(123 * 2));
+    }
+
+    #[tokio::test]
+    async fn test_it_should_json_flows_multiple_times() {
+        let flows_json = make_flows_json_that_contains_subflows();
+        for _ in 0..10 {
+            let res = build_test_engine(flows_json.clone());
+            assert!(res.is_ok());
+        }
+    }
+
+    /// A deploy from the web API has no configuration of its own; the settings the engine was
+    /// built with must survive it, otherwise every `runtime.*` knob silently reverts to its default
+    /// the first time a user hits deploy.
+    #[tokio::test]
+    async fn test_redeploy_should_keep_the_engine_configuration() {
+        let registry = crate::runtime::registry::RegistryBuilder::default().build().unwrap();
+        let elcfg = config::Config::builder()
+            .set_override("runtime.context.default", "memory")
+            .unwrap()
+            .set_override("runtime.context.stores.memory.provider", "memory")
+            .unwrap()
+            .set_override("runtime.flow.node_message_buffer_max_length", 2i64)
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let flows_json = make_simple_flows_json();
+        let engine = Engine::with_json(&registry, flows_json.clone(), Some(elcfg)).unwrap();
+        engine.redeploy_flows(flows_json, &registry, None).await.unwrap();
+
+        let flow = engine.get_flow(&"100".parse().expect("valid flow id")).expect("The flow must be loaded");
+        assert_eq!(flow.settings().node_message_buffer_max_length, 2);
+        engine.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_invalid_redeploy_leaves_the_running_flow() {
+        let registry = crate::runtime::registry::RegistryBuilder::default().build().unwrap();
+        let good = json!([{ "id": "100", "type": "tab", "label": "Flow 1" }]);
+        let engine = Engine::with_json(&registry, good, None).unwrap();
+        engine.start().await.unwrap();
+        let bad = json!([
+            { "id": "100", "type": "tab" },
+            { "id": "b", "type": "mqtt-broker", "broker": "localhost", "usetls": true }
+        ]);
+        let err = engine.redeploy_flows(bad, &registry, None).await.unwrap_err();
+        assert!(err.to_string().contains("not supported"), "{err}");
+        assert!(!err.to_string().contains("password"));
+        assert!(engine.is_running());
+        assert!(engine.get_flow(&"100".parse().unwrap()).is_some());
+        engine.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_start_failure_restores_the_previous_runtime() {
+        let registry = crate::runtime::registry::RegistryBuilder::default().build().unwrap();
+        let good = json!([{ "id": "100", "type": "tab", "label": "keep" }]);
+        let engine = Engine::with_json(&registry, good, None).unwrap();
+        engine.start().await.unwrap();
+        let empty = json!([]);
+        let err = engine.redeploy_flows(empty, &registry, None).await.unwrap_err();
+        assert!(err.to_string().contains("no flows"), "{err}");
+        assert!(engine.is_running());
+        assert!(engine.get_flow(&"100".parse().unwrap()).is_some());
+        engine.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_removed_mqtt_node_leaves_no_status_link() {
+        let registry = crate::runtime::registry::RegistryBuilder::default().build().unwrap();
+        let with_mqtt = json!([
+            { "id": "100", "type": "tab" },
+            { "id": "b1", "type": "mqtt-broker", "broker": "127.0.0.1", "autoConnect": false },
+            {
+                "id": "2",
+                "z": "100",
+                "type": "mqtt in",
+                "broker": "b1",
+                "topic": "n2linkd/status-link",
+                "qos": 0,
+                "datatype": "utf8",
+                "wires": [[]]
+            }
+        ]);
+        let engine = Engine::with_json(&registry, with_mqtt, None).unwrap();
+        engine.start().await.unwrap();
+        let mqtt_id: ElementId = "2".parse().unwrap();
+        engine.report_node_status(
+            mqtt_id,
+            StatusObject {
+                fill: Some(crate::runtime::nodes::StatusFill::Green),
+                shape: Some(crate::runtime::nodes::StatusShape::Dot),
+                text: Some("connected".to_owned()),
+            },
+        );
+        engine.note_node_error(mqtt_id);
+        let mqtt_id_text = mqtt_id.to_string();
+        assert!(engine.link_states().iter().any(|link| link.id == mqtt_id_text), "{:?}", engine.link_states());
+        let tab_only = json!([{ "id": "100", "type": "tab" }]);
+        engine.redeploy_flows(tab_only, &registry, None).await.unwrap();
+        assert!(
+            engine.link_states().iter().all(|link| link.id != mqtt_id_text),
+            "stale mqtt link remained: {:?}",
+            engine.link_states()
+        );
+        engine.stop().await.unwrap();
+    }
+}

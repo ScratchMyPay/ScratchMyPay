@@ -1,0 +1,14 @@
+[package]
+name = "n2link-wasm-guest"
+version = "0.4.0-rc.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Guest SDK for n2link WASM plugins"
+publish = false
+
+[lib]
+name = "n2link_wasm_guest"
+crate-type = ["rlib"]
+
+[dependencies]
+n2link-eve = { path = "../eve" }

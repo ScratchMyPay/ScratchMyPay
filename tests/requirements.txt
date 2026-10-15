@@ -1,0 +1,8 @@
+pytest==8.4.1
+pytest-asyncio==1.0.0
+pytest-timeout==2.4.0
+pytest-it==0.1.5
+pytest-json-report==1.5.0
+colorama==0.4.6
+tomlkit==0.13.3
+aiofiles==25.1.0
