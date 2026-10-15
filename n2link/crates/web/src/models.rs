@@ -193,6 +193,10 @@ pub struct RedSystemSettings {
     pub libraries: Vec<LibraryEntry>,
     #[serde(default, rename = "configEditor")]
     pub config_editor: bool,
+    /// Node-RED asks on first load whether to send update telemetry when this is absent.
+    /// n2link sends nothing to Node-RED's update service, so it answers `false` up front.
+    #[serde(default, rename = "telemetryEnabled")]
+    pub telemetry_enabled: bool,
     /// Present only when an admin password, user list, or OIDC issuer is configured.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "adminAuth")]
     pub admin_auth: Option<AdminAuthSettings>,
@@ -231,6 +235,13 @@ pub struct EditorTheme {
     /// Locale codes the editor can select. Node-RED sends an array here;
     /// the settings tray calls `.map` on it and throws if this is an object.
     pub languages: Vec<String>,
+    /// Colour schemes the editor may use. Only `["dark"]` makes Node-RED force its dark scheme
+    /// (`nr-theme-dark`), which the PowerEdge theme in `assets/theme` styles.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schemes: Vec<String>,
+    /// `false` skips Node-RED's "Welcome to Node-RED" tour on a fresh browser.
+    #[serde(default)]
+    pub tours: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,6 +352,7 @@ impl Default for RedSystemSettings {
             logging: LoggingConfig::default(),
             libraries: default_libraries(),
             config_editor: false,
+            telemetry_enabled: false,
             admin_auth: None,
             user: None,
         }
@@ -365,6 +377,8 @@ impl Default for EditorTheme {
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
+            schemes: vec!["dark".to_string()],
+            tours: false,
         }
     }
 }

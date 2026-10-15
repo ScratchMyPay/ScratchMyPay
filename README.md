@@ -75,6 +75,17 @@ It waits for each service to be really ready (wallets confirm `mutinynet` and ma
 
 Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "PowerEdge payouts"). Everything listens on 127.0.0.1 only.
 
+### Screenshots
+| Guided app: describe the payout (local AI) | Flow editor: the managed payout flow (RGB nodes in orange) |
+|---|---|
+| ![Guided app](artifacts/screenshots/app-describe.png) | ![Payout flow](artifacts/screenshots/editor-payouts.png) |
+
+Pre-show treasury check with Tether WDK (green nodes, read-only):
+![Treasury check](artifacts/screenshots/editor-treasury.png)
+
+### Look and feel
+The flow editor and the guided app share one look taken from our [Satoshi of Live Music](https://satoshi-of-live-music.vercel.app/) page: Bitcoin orange on near-black, with Inter, Space Mono and Anton served from this repo (no font CDN, works offline at a venue). The editor theme is Node-RED's own dark theme recompiled with our palette (`scripts/build-editor-theme.py`), plus a skin in `n2link/assets/theme/`; n2link's build installs it. Fonts: SIL Open Font License (see `n2link/assets/theme/fonts/`).
+
 ### Mocked, simulated or hard-coded (honest list)
 - **Test money only**: TUSDT is a test asset we issued on Mutinynet (a Bitcoin test network). Nothing runs on mainnet; the wallet service refuses to start for any other network.
 - **One template** (`rgb-payment-v1`: pay one person). Multi-recipient payouts are not built yet.

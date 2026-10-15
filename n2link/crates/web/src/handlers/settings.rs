@@ -184,7 +184,7 @@ pub async fn get_theme() -> Result<Json<Value>, StatusCode> {
             "favicon": "favicon.ico",
             "tabicon": {
                 "icon": "n2link/n2link-icon.svg",
-                "colour": "#0C948A"
+                "colour": "#F7931A"
             }
         },
         // The logo already carries the wordmark, so the header has no separate title text.

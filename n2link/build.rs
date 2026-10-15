@@ -160,6 +160,7 @@ fn build_static_files() {
 
         copy_client_page(&static_dir);
         copy_brand_assets(&static_dir);
+        copy_theme_assets(&static_dir);
 
         println!("cargo:warning=Static files build complete!");
     }
@@ -303,6 +304,49 @@ fn copy_brand_assets(static_dir: &Path) {
     let favicon = brand.join("favicon.ico");
     if favicon.exists() {
         std::fs::copy(&favicon, static_dir.join("favicon.ico")).expect("Failed to copy the favicon");
+    }
+}
+
+/// PowerEdge editor theme from `assets/theme` (Node-RED's dark theme recoloured, plus a skin
+/// and locally served fonts) into `ui_static/n2link/theme/`, and switch the editor page to it:
+/// `nr-theme-dark` on `<html>` (Node-RED reads it to pick dark Monaco/Mermaid) and the two
+/// stylesheets after Node-RED's own. Idempotent: running the build again changes nothing.
+fn copy_theme_assets(static_dir: &Path) {
+    println!("cargo:rerun-if-changed=assets/theme");
+    let src = PathBuf::from("assets/theme");
+    if !src.join("poweredge-dark.css").exists() {
+        return;
+    }
+    let dest = static_dir.join("n2link").join("theme");
+    std::fs::create_dir_all(dest.join("fonts")).expect("Failed to create the theme directory");
+    for name in ["poweredge-dark.css", "poweredge.css", "fonts.css"] {
+        std::fs::copy(src.join(name), dest.join(name)).expect("Failed to copy a theme file");
+    }
+    if let Ok(entries) = std::fs::read_dir(src.join("fonts")) {
+        for entry in entries.flatten() {
+            std::fs::copy(entry.path(), dest.join("fonts").join(entry.file_name())).expect("Failed to copy a font");
+        }
+    }
+    let index = static_dir.join("index.html");
+    let Ok(mut html) = std::fs::read_to_string(&index) else {
+        return;
+    };
+    let original = html.clone();
+    if !html.contains("nr-theme-dark") {
+        html = html.replacen("<html lang=\"en\">", "<html lang=\"en\" class=\"nr-theme-dark\">", 1);
+    }
+    let anchor = "<link rel=\"stylesheet\" href=\"red/style.min.css\">";
+    if !html.contains("n2link/theme/poweredge.css") && html.contains(anchor) {
+        html = html.replacen(
+            anchor,
+            &format!(
+                "{anchor}\n<link rel=\"stylesheet\" href=\"n2link/theme/poweredge-dark.css\">\n<link rel=\"stylesheet\" href=\"n2link/theme/poweredge.css\">"
+            ),
+            1,
+        );
+    }
+    if html != original {
+        std::fs::write(&index, html).expect("Failed to theme the editor page");
     }
 }
 

@@ -1,0 +1,115 @@
+/* PowerEdge editor skin, layered on poweredge-dark.css (Node-RED dark theme, recoloured).
+   Look: "Satoshi of Live Music" — Bitcoin orange on near-black, on-air broadcast header,
+   Space Mono labels, Anton wordmark. Only presentation; no editor behaviour changes. */
+@import url("fonts.css");
+
+html.nr-theme-dark {
+  --pe-btc: #F7931A;
+  --pe-btc-glow: rgba(247, 147, 26, 0.45);
+  --pe-mag: #FF1F8E;
+  --pe-cyan: #3CF2FF;
+  --pe-green: #39FF88;
+  --pe-onair: #ff2a2a;
+  --pe-ink: #F4EFE6;
+  --pe-line: #2a2622;
+  --red-ui-primary-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --red-ui-monospace-font: "Space Mono", ui-monospace, Menlo, monospace;
+  --red-ui-header-background: #050505;
+  --red-ui-node-selected-color: var(--pe-btc);
+  --red-ui-header-height: 44px;
+}
+
+/* ── Header: on-air broadcast bar ─────────────────────────────────────────── */
+html.nr-theme-dark #red-ui-header {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(255, 31, 142, 0.16), transparent 40%),
+    radial-gradient(circle at 70% 120%, rgba(247, 147, 26, 0.18), transparent 45%),
+    #050505;
+  border-bottom: 1px solid var(--pe-line);
+  box-shadow: 0 1px 0 rgba(247, 147, 26, 0.35), 0 10px 30px rgba(247, 147, 26, 0.07);
+}
+html.nr-theme-dark #red-ui-header::before {           /* faint scanlines, header only */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+}
+html.nr-theme-dark #red-ui-header #red-ui-header-logo { flex: 0 0 auto; min-width: max-content; overflow: visible; margin-right: 12px; }
+html.nr-theme-dark #red-ui-header span.red-ui-header-logo { flex: 0 0 auto; overflow: visible; }
+html.nr-theme-dark #red-ui-header span.red-ui-header-logo img { flex: none; height: 24px; width: auto; }
+html.nr-theme-dark #red-ui-header span.red-ui-header-logo::after {
+  content: "POWEREDGE";
+  margin-left: 12px;
+  font: 400 20px/1 "Anton", "Bebas Neue", Impact, sans-serif;
+  letter-spacing: 0.1em;
+  color: var(--pe-btc);
+  text-shadow: 0 0 18px var(--pe-btc-glow);
+}
+html.nr-theme-dark #red-ui-header #red-ui-header-logo::after {
+  content: "● MUTINYNET";
+  margin-left: 14px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 42, 42, 0.6);
+  border-radius: 3px;
+  font: 700 11px/1 "Space Mono", monospace;
+  letter-spacing: 0.08em;
+  color: #ff5a5a;
+  box-shadow: 0 0 10px rgba(255, 42, 42, 0.35), inset 0 0 8px rgba(255, 42, 42, 0.2);
+  white-space: nowrap;
+  animation: pe-onair 2.4s ease-in-out infinite;
+}
+@keyframes pe-onair { 50% { opacity: 0.75; } }
+@media (prefers-reduced-motion: reduce) {
+  html.nr-theme-dark #red-ui-header #red-ui-header-logo::after { animation: none; }
+}
+
+/* Deploy: the one orange button, with a glow */
+html.nr-theme-dark #red-ui-header-button-deploy {
+  border-radius: 4px;
+  font-family: "Space Mono", monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 0 18px rgba(247, 147, 26, 0.35);
+}
+html.nr-theme-dark #red-ui-header-button-deploy:not(.disabled):hover { box-shadow: 0 0 26px rgba(247, 147, 26, 0.55); }
+
+/* ── Tabs, palette, sidebar: mono labels, orange active marks ────────────── */
+html.nr-theme-dark .red-ui-tab.active { box-shadow: inset 0 -2px 0 var(--pe-btc); }
+html.nr-theme-dark .red-ui-tab-label { font-family: "Inter", sans-serif; font-weight: 600; }
+html.nr-theme-dark .red-ui-palette-header {
+  font-family: "Space Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+html.nr-theme-dark .red-ui-palette-node {
+  border-radius: 6px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+html.nr-theme-dark .red-ui-palette-node:hover {
+  transform: translateX(2px);
+  box-shadow: 0 0 0 1px var(--pe-btc), 0 0 14px rgba(247, 147, 26, 0.25);
+}
+html.nr-theme-dark .red-ui-palette-label { font-family: "Inter", sans-serif; font-weight: 600; }
+
+/* ── Canvas: rounded nodes, orange selection glow, round wires ──────────── */
+html.nr-theme-dark rect.red-ui-flow-node { rx: 7px; ry: 7px; }
+html.nr-theme-dark .red-ui-flow-node-label { font-family: "Inter", sans-serif; font-weight: 600; }
+html.nr-theme-dark g.red-ui-flow-node-selected rect.red-ui-flow-node {
+  stroke: var(--pe-btc);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px rgba(247, 147, 26, 0.7));
+}
+html.nr-theme-dark .red-ui-flow-port { rx: 3px; ry: 3px; }
+html.nr-theme-dark .red-ui-flow-link-line { stroke-linecap: round; }
+html.nr-theme-dark .red-ui-flow-link-selected .red-ui-flow-link-line {
+  filter: drop-shadow(0 0 4px rgba(247, 147, 26, 0.6));
+}
+html.nr-theme-dark .red-ui-flow-node-status-label { font-family: "Space Mono", monospace; font-size: 10px; }
+
+/* Text selection and focus in Bitcoin orange */
+html.nr-theme-dark ::selection { background: rgba(247, 147, 26, 0.35); color: var(--pe-ink); }
+html.nr-theme-dark :focus-visible { outline-color: var(--pe-btc); }

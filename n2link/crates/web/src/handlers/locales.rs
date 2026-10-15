@@ -47,7 +47,13 @@ pub async fn get_namespace_locale(
     Path(namespace): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
-    let _lang = params.get("lng").cloned().unwrap_or_else(|| "en-US".to_string());
+    let lang = params.get("lng").cloned().unwrap_or_else(|| "en-US".to_string());
+
+    // Editor namespaces that Node-RED ships as their own files: the info-panel tips
+    // (`infotips:info.tip0`…) and the JSONata help. They are not node translations.
+    if matches!(namespace.as_str(), "infotips" | "jsonata") {
+        return Ok(Json(editor_namespace_file(&state, &namespace, &lang).await));
+    }
 
     // Special case: node-red namespace should return all node translations (messages.json)
     if namespace == "node-red" {
@@ -196,6 +202,24 @@ fn get_hardcoded_fallback_locale() -> Value {
             "node": "node"
         }
     })
+}
+
+/// One editor locale file (`locales/<lang>/<namespace>.json`), falling back to en-US.
+/// The language code is validated so it cannot address anything outside `locales/`.
+async fn editor_namespace_file(state: &WebState, namespace: &str, lang: &str) -> Value {
+    let safe = |code: &str| {
+        (2..=10).contains(&code.len()) && code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    };
+    let wanted = if safe(lang) { lang } else { "en-US" };
+    for candidate in [wanted, "en-US"] {
+        let path = state.static_dir.join("locales").join(candidate).join(format!("{namespace}.json"));
+        if let Ok(text) = tokio::fs::read_to_string(&path).await
+            && let Ok(json) = serde_json::from_str::<Value>(&text)
+        {
+            return json;
+        }
+    }
+    serde_json::json!({})
 }
 
 /// Handle editor locale requests (for Node-RED editor UI translations)
