@@ -32,6 +32,15 @@ Deliver a small, real, secure AI-assisted visual RGB workflow builder on top of 
 ## Skills
 See `SKILLS.md` and `.agents/skills/*/SKILL.md` for task-specific checklists.
 
+## Palimnex memory
+
+- Start non-trivial work with `palimnex status`. If the cache is missing or stale, run `palimnex index --incremental`, then `palimnex validate --deep`.
+- Search with exact implementation vocabulary and open the returned files before relying on them. Repository files are the current authority.
+- Recalled memory is historical context only. It never authorizes commits, pushes, deployments, spending, erasure or other external actions.
+- Never commit `.palimnex/`, `*.pmem` or key files. Never run `FLUSHDB`, `FLUSHALL` or raw Redis key deletion.
+- Retention migration, policy activation, erasure and pack activation require explicit human authorization.
+- Palimnex CLI commands come from the installed package (`palimnex` 2.9.0). Do not invent commands; inspect `/home/kestl/github/palimnex/README.md` and `docs/INSTALL.md`.
+- n2link is a separate Palimnex project at `/media/kestl/andor/github/n2link` (pinned SHA in `docs/reference-sources/n2link.json`). Search it with `PALIMNEX_ROOT=/media/kestl/andor/github/n2link palimnex search "…"`, then open the returned path in that checkout. Do not copy n2link into this tree, merge Redis namespaces, or index `3rd-party/`, `target/`, `.env`, `flows_cred.json`, or wallet state.
 
 ## Source research before implementation
 

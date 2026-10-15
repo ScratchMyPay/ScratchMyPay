@@ -10,5 +10,6 @@ These are agent skill instructions, not product plugins. Invoke/read only the re
 | `rgb2link-capsules` | Service supervision, regtest, Redis | Safely provisioned approved process/container |
 | `rgb2link-security` | Approval, signing, secrets, threat checks | Fail-closed security review |
 | `rgb2link-tests` | Acceptance/release checks | Reproducible functional and failure tests |
+| `palimnex` | Source discovery and historical memory | Indexed files, validated cache, ledger status |
 
 Read the relevant `.agents/skills/<name>/SKILL.md` and referenced design/acceptance docs before implementing.

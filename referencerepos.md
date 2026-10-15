@@ -1,12 +1,12 @@
 # RGB2link PowerEdge — Reference Repositories for Palimnex
 
-Date: 2026-10-13. Purpose: download and index a **curated, immutable code reference set** so local Codex can find existing tested patterns before implementing RGB2link. Links marked **verified** were checked against GitHub; feature compatibility and build status were **not** verified by cloning/building. Index source code and docs, not secrets or binary state.
+Date: 2026-10-13, local n2link pin 2026-10-15. Purpose: download and index a **curated, immutable code reference set** so local Codex can find existing tested patterns before implementing RGB2link. Links marked **verified** were checked against GitHub; feature compatibility and build status were **not** verified by cloning/building. Index source code and docs, not secrets or binary state.
 
 ## Tier P0: immediate development (clone first)
 
 | Priority | Repo (Git URL) | Index focus / reuse question | Status |
 |---|---|---|---|
-| P0 | `https://github.com/n2link/n2link.git` | Rust node registration, flow engine, editor, deployment, credential storage, WASM SDK, security controls, tests. **Primary codebase** | Verified; `master` |
+| P0 | `https://github.com/n2link/n2link.git` | Rust node registration, flow engine, editor, deployment, credential storage, WASM SDK, security controls, tests. **Primary codebase** | Local checkout indexed; see [Local checkouts](#local-checkouts) |
 | P0 | `https://github.com/EdwinKestler/bill.git` | Known-good Mutinynet RGB wallet, witness invoice, OOB consignment bridge, BLE chunk protocol, acceptance reports | Verified; `main` |
 | P0 | `https://github.com/RGB-Tools/rgb-lib.git` | RGB core wallet APIs, Rust bindings, tests/compose, schemas, invoice and consignment methods | Verified; `master` |
 | P0 | `https://github.com/RGB-Tools/rgb-lib-python.git` | Python binding behavior and signatures matching bill | Verified; `master` |
@@ -33,6 +33,18 @@ Date: 2026-10-13. Purpose: download and index a **curated, immutable code refere
 | P2 | `https://github.com/kaleidoswap/kaleido-sdk.git` | Maker/RGB Lightning client examples and transport; optional only | Verified via KaleidoSwap organization listing |
 | P2 | `https://github.com/oldrev/edgelinkd.git` | n2link upstream and provenance; source comparisons, **not** a second runtime to index in every query | Verified through n2link's upstream metadata |
 | P2 | `https://github.com/EdwinKestler/o2a-protocol.git` | Independent identity/attestation policy ideas for later contract examples | User-provided past project; verify before clone |
+
+## Local checkouts
+
+Palimnex is repository-local. Each reference tree has its own `.palimnex.json`, Redis socket, and ledger. Do not merge another project's cache into this repository.
+
+| Repo | Local path | Pinned SHA | Palimnex search | Ingest record |
+|---|---|---|---|---|
+| n2link/n2link | `/media/kestl/andor/github/n2link` | `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (`master`) | `PALIMNEX_ROOT=/media/kestl/andor/github/n2link palimnex search "…"` | [`docs/reference-sources/n2link.json`](docs/reference-sources/n2link.json) |
+
+n2link Palimnex (verified 2026-10-15): 331 files, 1639 chunks, 8045 symbols, `validate --deep` passed, cache fresh. License Apache-2.0. Do not index `3rd-party/`, `target/`, `.env`, `flows_cred.json`, `history.sqlite3`, or wallet state.
+
+Search this RGB2link tree with `palimnex search` from this repository root. Search n2link with `PALIMNEX_ROOT` set to the path above, then open the returned file under that checkout at the pinned SHA.
 
 ## Safe clone recipe
 
@@ -111,4 +123,4 @@ The Palimnex CLI/API must be discovered from the **locally cloned `palimnex` REA
 
 ## How Codex should use this reference library
 
-For each work item: (a) search Palimnex for relevant symbols/design, (b) open exact referenced file at the pinned SHA, (c) determine whether to reuse, wrap or reimplement, (d) write characterization tests, (e) implement in the RGB2link extension, and (f) record source and licensing in `reusecode.md` / `docs/DECISIONS.md`. Prioritize P0 context; avoid indiscriminate retrieval from the entire reference collection.
+For each work item: (a) search this repository's Palimnex for RGB2link contracts, then search n2link Palimnex (`PALIMNEX_ROOT=/media/kestl/andor/github/n2link`) for runtime/editor/node APIs, (b) open the exact referenced file at the pinned SHA in `docs/reference-sources/`, (c) determine whether to reuse, wrap or reimplement, (d) write characterization tests, (e) implement in the RGB2link extension, and (f) record source and licensing in `reusecode.md` / `docs/DECISIONS.md`. Prioritize P0 context; avoid indiscriminate retrieval from the entire reference collection.

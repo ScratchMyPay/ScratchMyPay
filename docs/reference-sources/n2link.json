@@ -1,0 +1,57 @@
+{
+  "repository": "n2link/n2link",
+  "remote_url": "https://github.com/n2link/n2link.git",
+  "local_path": "/media/kestl/andor/github/n2link",
+  "commit_sha": "78d7ba107ed3ade008a9fcc5ab192755c11b8299",
+  "branch": "master",
+  "license": "Apache-2.0",
+  "protocol_version": "n2link 0.4.0-rc.1 (Node-RED compatible Rust runtime)",
+  "paths": [
+    "src",
+    "crates/core",
+    "crates/web",
+    "crates/macro",
+    "crates/pymod",
+    "crates/wasm-guest",
+    "node-plugins",
+    "docs",
+    "adoption",
+    "tests",
+    "scripts"
+  ],
+  "topic": [
+    "n2link",
+    "node-red",
+    "flow-engine",
+    "editor",
+    "deploy",
+    "wasm",
+    "credentials",
+    "nodes"
+  ],
+  "indexed_at": "2026-10-15T15:31:24Z",
+  "palimnex": {
+    "project_slug": "n2linkd",
+    "project_id": "edf9ac94-43cb-4c70-a2bb-a0461a0c5de2",
+    "root_env": "PALIMNEX_ROOT=/media/kestl/andor/github/n2link",
+    "file_count": 331,
+    "chunk_count": 1639,
+    "symbol_count": 8045,
+    "fingerprint": "dc732a2445ea2db39c890ec0480fc77a9823d254c2369dbaa9e3bd2e0155c330",
+    "validate": "passed",
+    "cache_fresh": true
+  },
+  "exclusions": [
+    "3rd-party/",
+    "target/",
+    ".env",
+    "flows_cred.json",
+    "history.sqlite3",
+    "wallet state"
+  ],
+  "reuse_questions": [
+    "How is a native Rust flow node registered and dispatched?",
+    "Which API validates and deploys flows.json, and how are flow revisions handled?",
+    "What are the restrictions of Wasmi node ABI imports?"
+  ]
+}

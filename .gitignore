@@ -1,0 +1,4 @@
+# Palimnex runtime state, memory packs and key files
+.palimnex/
+*.pmem
+*.key

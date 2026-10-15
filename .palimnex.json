@@ -1,0 +1,18 @@
+{
+  "project_slug": "rgb2linkpoweredge",
+  "project_id": "3ccdad21-6973-4e24-8d01-c75f9361d70a",
+  "cache_mode": "on",
+  "redis_socket_path": ".palimnex/redis/redis.sock",
+  "durable_ledger_path": ".palimnex/memory.sqlite3",
+  "include_patterns": [
+    "docs/**/*.md",
+    "docs/reference-sources/**/*",
+    "schemas/**/*",
+    "templates/**/*",
+    ".agents/skills/**/*.md",
+    "*.md"
+  ],
+  "semantic_provider": {
+    "mode": "disabled"
+  }
+}
