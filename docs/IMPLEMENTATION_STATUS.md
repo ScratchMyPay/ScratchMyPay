@@ -23,7 +23,18 @@ Only what has been run and observed goes here. "Planned" lives in `IMPLEMENTATIO
 | 2026-10-15 | n2link subtree tracked "credential" files reviewed | fixture/redacted values only, already public upstream | `n2link/adoption/*/fixtures/flows_cred.json` |
 | 2026-10-15 | Mutinynet wallets provisioned (payer = Bill role A, recipient = role B) | created, mnemonics 0600 in git-ignored `secrets/`, env in git-ignored `.env.payer` / `.env.recipient` | `services/wallet-owner/scripts/provision.py` |
 | 2026-10-15 | Payer funding address | `tb1pncw03gkwd65gydgq2pq499xq09nsdymhp6eara5cq9de8m9mjdzs3dd26s` | awaiting faucet funds |
-| 2026-10-15 | Recipient funding address | `tb1pglk2u0d64upreatyl6sz3sy7yny583l4qu40rh092gg0jhdkfngqyt6t4e` | awaiting faucet funds |
+| 2026-10-15 | Recipient funding address | `tb1pglk2u0d64upreatyl6sz3sy7yny583l4qu40rh092gg0jhdkfngqyt6t4e` | funded |
+| 2026-10-15 ~18:45 | Faucet funding confirmed on-chain (Esplora API) | payer 100,000 sats (UTXO `a971a954…:1`), recipient 20,000 sats (UTXO `44d86fd1…:1`), both confirmed | mutinynet.com/api |
+| 2026-10-15 ~19:00 | rgb-lib wallet sync via Bill `rgb_wallet status` | payer: vanilla spendable 100,000, colored 0, no assets; recipient: vanilla spendable 20,000, colored 0, no assets | Esplora `https://mutinynet.com/api` |
+| 2026-10-15 | **Finding:** Esplora returns HTTP 429 on back-to-back fresh-wallet syncs | transient (Cloudflare); succeeded after ~20–60 s backoff | see risk R-INDEXER |
+| 2026-10-15 | **Finding:** Electrum `ssl://electrum.mutinynet.com:50002` rejected by rgb-lib | `InvalidIndexer: resolver returned invalid data` — not usable | Esplora only |
+| 2026-10-15 | QVAC server up | `@qvac/cli 0.15.0`, `@qvac/sdk 0.21.0`, Qwen3-8B-Q4_K_M (5.03 GB), `127.0.0.1:11435`, bearer key | `services/qvac/` |
+| 2026-10-15 | QVAC WorkflowIntent smoke (json_schema, temp 0) | 3/3 schema-valid; hero 9.5 s (first call, warm-up), injections 1.1 s; exec/mainnet/skip-approval requests refused in `rationale`, environment kept `mutinynet` | `artifacts/qvac-smoke/*.json` |
+| 2026-10-15 | **Finding:** QVAC amount units inconsistent | hero returned `amount: 25000000` (base units, precision 6), drummer returned `10` (whole units) under the same instruction | see risk R-AMOUNT |
+
+## Open risks found by testing
+- **R-INDEXER:** public Mutinynet Esplora rate-limits. Mitigation: single wallet-owner process per wallet with backoff + jitter on 429; never sync both wallets simultaneously; on demo day sync once at startup and refresh only on demand; keep a spare funded UTXO set.
+- **R-AMOUNT:** the model must not decide units. Mitigation: intent carries `amount` as a decimal **string in display units** plus `asset_ticker`; the Rust binder normalizes to base units using the asset precision from the wallet (not the model), and the Review card shows the human amount for explicit confirmation. Mismatch with the invoice amount fails closed.
 
 ## Palimnex / reference sources
 
