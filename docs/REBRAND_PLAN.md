@@ -48,7 +48,7 @@ Every item is a text or asset change; no behaviour changes. Order chosen so a ha
 - [ ] Organizer message (email `info.rgb@proton.me` or Telegram @birk1907 / @Maryive), **before 23:00 CEST**:
 
   > Project: **NAME** (repo codename RGB2link PowerEdge until today)
-  > Team: **ScratchMyPay** — Edwin Kestler (@EdwinKestler), ___ (@cms)
+  > Team: **ScratchMyPay** — Edwin Kestler (@EdwinKestler), Christian (@cms)
   > Repo: https://github.com/ScratchMyPay/ScratchMyPay (transferred from n2link/RGB2linkPowerEdge; full history kept)
   > Prior work is declared in the README (n2link runtime at 78d7ba1, RGB Bill at be3d237); early start was organizer-approved from Oct 15. We use rgb-lib unmodified from PyPI and no RLN, so there is no fork on our side.
 
