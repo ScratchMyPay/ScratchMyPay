@@ -54,6 +54,8 @@ struct Settings {
     qvac_url: String,
     qvac_key: String,
     qvac_model: String,
+    /// What people see for the model (the alias stays the API name): e.g. "Qwen3-8B".
+    qvac_model_label: String,
     payer_url: String,
     recipient_url: String,
     wdk_url: String,
@@ -87,6 +89,7 @@ fn settings() -> Result<Settings, String> {
         qvac_url: loopback(&env_or("POWEREDGE_QVAC_URL", "http://127.0.0.1:11435/v1"), "QVAC")?,
         qvac_key: read_secret("POWEREDGE_QVAC_KEY_FILE")?,
         qvac_model: env_or("POWEREDGE_QVAC_MODEL", "poweredge-intent"),
+        qvac_model_label: env_or("POWEREDGE_QVAC_MODEL_LABEL", "Qwen3-8B"),
         payer_url: loopback(&env_or("POWEREDGE_PAYER_URL", "http://127.0.0.1:8711"), "payer wallet")?,
         recipient_url: loopback(&env_or("POWEREDGE_RECIPIENT_URL", "http://127.0.0.1:8712"), "recipient wallet")?,
         wdk_url: loopback(&env_or("POWEREDGE_WDK_URL", "http://127.0.0.1:8713"), "WDK treasury")?,
@@ -122,7 +125,7 @@ AI structured request (WorkflowIntent v1): template `{}` v{}, environment `{}`, 
 AI explanation (not authoritative): {}\n\n\
 Decided by code, not by the AI: pinned template `{}`@{} digest {}; amounts converted with the wallet's reported precision; \
 validator checks allowlisted nodes, an approval gate before the only spending node, and loopback-only endpoints. \
-A person approves the exact plan in the PowerEdge app; the wallet journal sends at most once.",
+A person approves the exact plan in the ScratchMyPay app; the wallet journal sends at most once.",
         latency_ms as f64 / 1000.0,
         prompt.chars().take(300).collect::<String>(),
         intent.template_id,
@@ -245,7 +248,7 @@ fn intent_schema(registry: &TemplateRegistry, tickers: &[String]) -> Value {
 fn system_prompt(registry: &TemplateRegistry, tickers: &[String]) -> String {
     format!(
         "You turn an event organizer's payout request into one WorkflowIntent JSON object for \
-RGB2link PowerEdge (post-show payouts to crew and artists).\n\
+ScratchMyPay (post-show payouts to crew and artists, built on n2link).\n\
 Rules:\n\
 - Use only these templates (JSON): {catalog}\n\
 - environment is always \"mutinynet\" (a Bitcoin test network; no real money).\n\
@@ -304,7 +307,7 @@ pub async fn get_info(Extension(state): Extension<Arc<WebState>>) -> Response {
         Err(resp) => return resp,
     };
     Json(json!({
-        "ai": {"engine": "QVAC", "model": s.qvac_model, "endpoint": s.qvac_url, "local": true},
+        "ai": {"engine": "QVAC", "model": s.qvac_model, "modelLabel": s.qvac_model_label, "endpoint": s.qvac_url, "local": true},
         "network": "mutinynet",
         "templates": registry.iter().map(|t| json!({"id": t.manifest.id, "version": t.manifest.version, "digest": t.digest(), "title": t.manifest.title})).collect::<Vec<_>>(),
         "assets": assets.values().collect::<Vec<_>>(),
@@ -435,7 +438,7 @@ pub async fn post_draft(
             "network": "mutinynet",
             "networkFee": network_fee,
         },
-        "ai": {"engine": "QVAC", "model": model, "latencyMs": latency_ms, "local": true, "explanation": rationale},
+        "ai": {"engine": "QVAC", "model": model, "modelLabel": s.qvac_model_label, "latencyMs": latency_ms, "local": true, "explanation": rationale},
         "template": {"id": compiled.template_id, "version": compiled.template_version, "digest": compiled.template_digest},
         "flow": {"digest": compiled.flow_digest, "intentDigest": compiled.intent_digest, "nodes": compiled.nodes.len()},
         "intent": intent,
@@ -487,8 +490,8 @@ pub async fn post_setup(
         })
         .collect();
     flows.push(json!({
-        "id": POWEREDGE_TAB, "type": "tab", "label": "PowerEdge payouts",
-        "info": format!("{provenance}\n\nManaged by the PowerEdge app. Editing this tab changes the flow revision and voids pending approvals."),
+        "id": POWEREDGE_TAB, "type": "tab", "label": "ScratchMyPay payouts",
+        "info": format!("{provenance}\n\nManaged by the ScratchMyPay app. Editing this tab changes the flow revision and voids pending approvals."),
     }));
     // The same local model, visible to n2link: Configuration nodes + Flow Copilot.
     // Provider kind `cortex` = n2link's generic OpenAI Chat Completions client (Bearer auth),
@@ -538,7 +541,7 @@ pub async fn flow_proxy(
     body: Option<Json<Value>>,
 ) -> Response {
     let Some((method, url)) = flow_endpoint(&name) else {
-        return fail(StatusCode::NOT_FOUND, "unknown_endpoint", "no such PowerEdge step");
+        return fail(StatusCode::NOT_FOUND, "unknown_endpoint", "no such ScratchMyPay step");
     };
     let client = match http_client(&state, EgressPurpose::HttpNode, &url).await {
         Ok(c) => c,
@@ -574,8 +577,8 @@ pub fn guard_managed_tab(flows: &[Value]) -> Result<(), String> {
         .find(|n| n["z"] != POWEREDGE_TAB && n["type"].as_str().is_some_and(|t| RESERVED_TYPES.contains(&t)))
     {
         return Err(format!(
-            "\"{}\" nodes only run inside the PowerEdge payouts tab, where every payout has an approval step. \
-Prepare payouts in the PowerEdge app; payment requests and QR codes are fine on any tab.",
+            "\"{}\" nodes only run inside the ScratchMyPay payouts tab, where every payout has an approval step. \
+Prepare payouts in the ScratchMyPay app; payment requests and QR codes are fine on any tab.",
             node["type"].as_str().unwrap_or_default()
         ));
     }
@@ -583,7 +586,7 @@ Prepare payouts in the PowerEdge app; payment requests and QR codes are fine on 
     if tab.is_empty() {
         return Ok(());
     }
-    let managed = "The \"PowerEdge payouts\" tab is managed by the PowerEdge app";
+    let managed = "The \"ScratchMyPay payouts\" tab is managed by the ScratchMyPay app";
     let digest =
         tab.iter().find(|n| n["type"] == "rgb-plan").and_then(|n| n["templateDigest"].as_str()).ok_or_else(|| {
             format!("{managed}: its payout plan node is missing; prepare the payout again in the app")
@@ -648,7 +651,7 @@ mod tests {
     fn spending_nodes_are_refused_outside_the_managed_tab() {
         let mut flows = compiled_tab();
         flows.push(json!({"id": "4444444444444444", "type": "rgb-send-once", "z": "1111111111111111", "wallet": "x", "wires": [[], []]}));
-        assert!(guard_managed_tab(&flows).unwrap_err().contains("only run inside the PowerEdge payouts tab"));
+        assert!(guard_managed_tab(&flows).unwrap_err().contains("only run inside the ScratchMyPay payouts tab"));
         let mut ok = compiled_tab();
         ok.push(json!({"id": "5555555555555555", "type": "qr-code", "z": "1111111111111111", "wires": [[]]}));
         assert!(guard_managed_tab(&ok).is_ok());

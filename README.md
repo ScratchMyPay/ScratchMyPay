@@ -1,4 +1,6 @@
-# RGB2link PowerEdge by n2link
+# ScratchMyPay by n2link
+
+> **ScratchMyPay** — post-show payouts in agentic dollars, built on n2link, RGB, QVAC and WDK. Repository codename until 2026-10-16: *RGB2link PowerEdge* (commit history and internal names keep it; see `docs/REBRAND_PLAN.md`).
 
 **Describe. Validate. Deploy.** A proposed AI-assisted, visual development environment for Bitcoin/RGB applications using the existing [n2link](https://github.com/n2link/n2link) Rust/Node-RED-compatible runtime, locally running QVAC, and verified workflow templates.
 
@@ -6,10 +8,10 @@
 
 ## Hackathon submission — "Agentic Dollars on Bitcoin", Turin, Oct 17–18, 2026
 
-**Project:** RGB2link PowerEdge · **Team:** n2link
+**Project:** ScratchMyPay (codename RGB2link PowerEdge) · **Team:** n2link
 **Members:** Edwin Kestler ([@EdwinKestler](https://github.com/EdwinKestler)) · [@cms](https://github.com/cms)
 
-**Idea.** Post-show payouts for live events. After a concert, an organizer has to pay the sound engineer, the stage crew and the artist. With PowerEdge they type it in plain words ("Pay the sound engineer 25 tUSDT for Saturday's show"); a local AI (QVAC) turns that into a validated payment workflow, shows a plain-language plan, and the organizer approves it. The payment settles as an RGB asset transfer on Bitcoin (Mutinynet test network), with a receipt both sides can verify. Payout details never leave the organizer's machine.
+**Idea.** Post-show payouts for live events. After a concert, an organizer has to pay the sound engineer, the stage crew and the artist. With ScratchMyPay they type it in plain words ("Pay the sound engineer 25 tUSDT for Saturday's show"); a local AI (QVAC) turns that into a validated payment workflow, shows a plain-language plan, and the organizer approves it. The payment settles as an RGB asset transfer on Bitcoin (Mutinynet test network), with a receipt both sides can verify. Payout details never leave the organizer's machine.
 
 **Stack.** Rust: [n2link](https://github.com/n2link/n2link) (Node-RED-compatible runtime, editor, Flow Copilot). Python: `rgb-lib` 0.3.0b7 wallet service (FastAPI). Local AI: QVAC (`qvac serve --openai`, structured JSON output). Network: Mutinynet (`signetcustom`). Guided web app served by n2link. WDK: under evaluation (bonus).
 
@@ -71,12 +73,12 @@ scripts/enable-door.sh && scripts/demo-up.sh stop && scripts/demo-up.sh
 ```bash
 scripts/demo-up.sh          # QVAC + crew wallet + WDK -> organizer wallet -> n2link -> QVAC warm-up (~1 min cold)
 scripts/demo-up.sh status   # health of each service, organizer funds, WDK treasury check for tonight
-scripts/demo-up.sh stop     # stops only the PowerEdge services (matched by port and command)
+scripts/demo-up.sh stop     # stops only the ScratchMyPay services (matched by port and command)
 ```
 
 It waits for each service to be really ready (wallets confirm `mutinynet` and mainnet off; QVAC reports the model loaded), skips services already running, refuses to start if a port is held by something else, and keeps logs in `artifacts/run/logs/` (git-ignored).
 
-Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "PowerEdge payouts"). Everything listens on 127.0.0.1 only.
+Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "ScratchMyPay payouts"). Everything listens on 127.0.0.1 only.
 
 ### Flow Library: templates the local AI retrieves and adapts
 Saved flows live in SQLite (`datadirs/n2link/library/`) in the Copilot's own draft form, so a template is exactly what the model would have drafted. The repo seeds three (`library/seed/`): the pay-me QR page, the pre-show treasury check and a door-revenue report. At draft time the local AI sees the library (name, description, example requests, nodes) and adapts a fitting template instead of drafting from nothing: asked for "every Friday at 16:30 check whether the treasury can cover 8 payouts", it returned the treasury-check template with the new schedule and count. Any editor tab can be saved as a template (`POST /flow-library/from-tab`); payout-path nodes are refused, secret fields are refused, wallet references are stripped and re-bound at deploy, and a template is accepted only if it would deploy on this runtime now. API: `GET/POST /flow-library`, `GET/DELETE /flow-library/{id}`. A library page with "deploy" and "ask the AI to adapt" buttons is planned for Saturday.
@@ -155,7 +157,7 @@ Prior work, not authored for this hackathon: n2link runtime/editor/Flow Copilot 
 
 This project is source-available under the **PolyForm Noncommercial License 1.0.0**.
 
-Original RGB2link components, including RGB workflow nodes, wallet integrations, MVM orchestration, and PowerEdge extensions, are available for permitted noncommercial uses, including qualifying research, education, experimentation, modification, and redistribution.
+Original RGB2link components, including RGB workflow nodes, wallet integrations, MVM orchestration, and ScratchMyPay extensions, are available for permitted noncommercial uses, including qualifying research, education, experimentation, modification, and redistribution.
 
 Commercial use of these components requires separate written authorization from the respective copyright holders. This includes commercial production deployments, paid hosting, resale, and commercial integrations where the intended use is not permitted under the PolyForm Noncommercial License.
 

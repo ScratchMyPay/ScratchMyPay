@@ -24,6 +24,7 @@ export POWEREDGE_WALLET_TOKEN_FILE="$ROOT/secrets/wallet-api.token"
 export POWEREDGE_QVAC_KEY_FILE="$ROOT/secrets/qvac.api-key"
 export POWEREDGE_QVAC_URL="${POWEREDGE_QVAC_URL:-http://127.0.0.1:11435/v1}"
 export POWEREDGE_QVAC_MODEL="${POWEREDGE_QVAC_MODEL:-poweredge-intent}"
+export POWEREDGE_QVAC_MODEL_LABEL="${POWEREDGE_QVAC_MODEL_LABEL:-Qwen3-8B}"   # shown to people; the alias above is the API name
 export POWEREDGE_PAYER_URL="${POWEREDGE_PAYER_URL:-http://127.0.0.1:8711}"
 export POWEREDGE_RECIPIENT_URL="${POWEREDGE_RECIPIENT_URL:-http://127.0.0.1:8712}"
 

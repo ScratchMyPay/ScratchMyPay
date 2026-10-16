@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the whole PowerEdge demo in the right order, waiting for each service to be really ready.
+# Start the whole ScratchMyPay demo in the right order, waiting for each service to be really ready.
 #
 #   scripts/demo-up.sh            start everything (skips services that are already healthy)
 #   scripts/demo-up.sh status     health of every service + payer funds + WDK treasury check

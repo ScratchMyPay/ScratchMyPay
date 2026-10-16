@@ -1,6 +1,6 @@
 # Rebrand plan — "what people see" (layer 1)
 
-**Status:** waiting for the brand decision. Deadline: name chosen by **Friday 18:00 CEST** so the
+**Status:** DONE 2026-10-16 — brand: **ScratchMyPay** (layer 1 applied; see commit). Deadline: name chosen by **Friday 18:00 CEST** so the
 rebrand, the GitHub repo rename and the organizer message (due **23:00**) all carry the final name.
 
 **Scope:** everything a judge reads or sees. **Out of scope (on purpose):** routes
@@ -18,7 +18,7 @@ Placeholder below: **NAME** (display form, e.g. "CurtainCall"), **NAME_UPPER** (
       `"NAME" bitcoin`; App Store / Google Play search; `NAME_SLUG.com` / `.app` lookup;
       GitHub org/repo `NAME_SLUG`. **Pay-i is out** (Pay-i, Redmond, $4.9M seed 2025; PayI,
       Amsterdam, crypto POS, Series A). "PowerEdge" is Dell's server line: fine as a codename, not as the brand.
-- [ ] Pick the display spelling once (capitalisation, hyphen/space) and write it here: `NAME = ________`
+- [ ] Pick the display spelling once (capitalisation, hyphen/space) and write it here: `NAME = ScratchMyPay` (one word, capital S, M, P)
 - [ ] Tagline for the README and the pitch: `NAME — post-show payouts in agentic dollars, built on n2link, RGB, QVAC and WDK`
 
 ## 1. Visible rebrand (Claude) — ~90 min

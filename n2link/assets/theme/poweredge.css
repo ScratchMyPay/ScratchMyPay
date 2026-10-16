@@ -37,9 +37,9 @@ html.nr-theme-dark #red-ui-header::before {           /* faint scanlines, header
 }
 html.nr-theme-dark #red-ui-header #red-ui-header-logo { flex: 0 0 auto; min-width: max-content; overflow: visible; margin-right: 12px; }
 html.nr-theme-dark #red-ui-header span.red-ui-header-logo { flex: 0 0 auto; overflow: visible; }
-html.nr-theme-dark #red-ui-header span.red-ui-header-logo img { flex: none; height: 24px; width: auto; }
+html.nr-theme-dark #red-ui-header span.red-ui-header-logo img { flex: none; height: 28px; width: auto; }
 html.nr-theme-dark #red-ui-header span.red-ui-header-logo::after {
-  content: "POWEREDGE";
+  content: "SCRATCHMYPAY";
   margin-left: 12px;
   font: 400 20px/1 "Anton", "Bebas Neue", Impact, sans-serif;
   letter-spacing: 0.1em;
@@ -47,7 +47,7 @@ html.nr-theme-dark #red-ui-header span.red-ui-header-logo::after {
   text-shadow: 0 0 18px var(--pe-btc-glow);
 }
 html.nr-theme-dark #red-ui-header #red-ui-header-logo::after {
-  content: "● MUTINYNET";
+  content: "● MUTINYNET · ON N2LINK";
   margin-left: 14px;
   padding: 3px 8px;
   border: 1px solid rgba(255, 42, 42, 0.6);

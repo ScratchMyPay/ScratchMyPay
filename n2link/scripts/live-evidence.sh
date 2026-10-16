@@ -135,7 +135,7 @@ if has_step branding; then
     http_get /api/info "$D/info.json";      check_grep branding info "$D/info.json" '"name":"n2link Web API"'
     http_get /theme "$D/theme.json";        check_grep branding theme-title "$D/theme.json" '"title":"n2link"'
     check_grep branding theme-logo "$D/theme.json" 'n2link/n2link-logo.svg'
-    http_get / "$D/index.html";             check_grep branding editor-title "$D/index.html" '<title>n2link</title>'
+    http_get / "$D/index.html";             check_grep branding editor-title "$D/index.html" '<title>ScratchMyPay</title>'
     http_get /favicon.ico "$D/favicon.ico"
     if cmp -s "$D/favicon.ico" assets/brand/favicon.ico; then record branding favicon PASS "same bytes as assets/brand/favicon.ico"
     else record branding favicon FAIL "served favicon differs from assets/brand/favicon.ico"; fi

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PowerEdge Payouts</title>
+<title>ScratchMyPay · Payouts</title>
 <link rel="stylesheet" href="/n2link/theme/fonts.css">
 <style>
 :root {
@@ -141,7 +141,7 @@ a { color: var(--focus); }
 </head>
 <body>
 <header>
-  <h1><span>⚡</span> PowerEdge <span data-t="payouts">Payouts</span></h1>
+  <h1><span>⚡</span> ScratchMyPay <span data-t="payouts">Payouts</span></h1>
   <div class="badges">
     <span class="badge ai" id="ai-badge">Local AI</span>
     <span class="badge" data-t="testnet">Test network — no real money</span>
@@ -332,7 +332,7 @@ const ERRORS = {
     ai_not_understood: ["I couldn't read that as a payout.", "Try: “Pay the sound engineer 25 tUSDT for Saturday's show”."],
     ai_unreachable: ["The local AI is not running.", "Start QVAC on this computer (services/qvac/serve.sh)."],
     invalid_parameter: ["Part of the request doesn't fit a payout.", "Check the amount (like 25 or 12.5) and the asset name."],
-    unknown_template: ["That kind of payment isn't available.", "PowerEdge can pay one person at a time for now."],
+    unknown_template: ["That kind of payment isn't available.", "ScratchMyPay can pay one person at a time for now."],
     invalid_prompt: ["Please describe the payout.", "One or two sentences are enough."],
     missing_invoice: ["The payment request code is missing.", "Ask the crew member to create one in the “I'm crew / artist” tab."],
     wallet_refused: ["Your wallet refused this payout.", ""],
@@ -356,7 +356,7 @@ const ERRORS = {
     ai_not_understood: ["No pude entenderlo como un pago.", "Prueba: “Pagar al ingeniero de sonido 25 tUSDT por el show del sábado”."],
     ai_unreachable: ["La IA local no está corriendo.", "Inicia QVAC en esta computadora (services/qvac/serve.sh)."],
     invalid_parameter: ["Parte de la solicitud no encaja en un pago.", "Revisa el monto (como 25 o 12.5) y el nombre del activo."],
-    unknown_template: ["Ese tipo de pago no está disponible.", "Por ahora PowerEdge paga a una persona a la vez."],
+    unknown_template: ["Ese tipo de pago no está disponible.", "Por ahora ScratchMyPay paga a una persona a la vez."],
     invalid_prompt: ["Describe el pago, por favor.", "Una o dos frases bastan."],
     missing_invoice: ["Falta el código de solicitud de pago.", "Pide al staff que lo cree en la pestaña “Soy staff / artista”."],
     wallet_refused: ["Tu billetera rechazó este pago.", ""],
@@ -393,8 +393,8 @@ function applyLang() {
   $("lang").textContent = lang === "en" ? "ES" : "EN";
   const ex = $("examples"); ex.replaceChildren();
   EXAMPLES[lang].forEach((text) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; b.onclick = () => { $("prompt").value = text; $("prompt").focus(); }; ex.append(b); });
-  $("ai-badge").textContent = state.info ? `${t("aiLocal")} · QVAC · ${state.info.ai.model}` : t("aiLocal");
-  if (state.info) $("foot").textContent = t("footer", `QVAC · ${state.info.ai.model}`);
+  $("ai-badge").textContent = state.info ? `${t("aiLocal")} · QVAC · ${state.info.ai.modelLabel || state.info.ai.model}` : t("aiLocal");
+  if (state.info) $("foot").textContent = t("footer", `QVAC · ${state.info.ai.modelLabel || state.info.ai.model} (${state.info.ai.model})`);
 }
 $("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; try { localStorage.setItem("pe.lang", lang); } catch {} applyLang(); };
 
@@ -498,7 +498,7 @@ function renderReview() {
   $("r-ai-label").textContent = t("aiLabel");
   $("r-ai").textContent = d.ai.explanation || "—";
   const checks = [
-    `${t("checkAi")} QVAC · ${d.ai.model} (${(d.ai.latencyMs / 1000).toFixed(1)} s)`,
+    `${t("checkAi")} QVAC · ${d.ai.modelLabel || d.ai.model} (${(d.ai.latencyMs / 1000).toFixed(1)} s)`,
     `${t("checkTemplate")} ${d.template.id} v${d.template.version} · ${d.template.digest.slice(0, 12)}`,
     `${t("checkFlow")} ${d.flow.digest.slice(0, 12)}`,
     t("checkApproval"),

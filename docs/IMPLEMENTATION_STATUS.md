@@ -1,3 +1,5 @@
+> Brand: **ScratchMyPay** (codename RGB2link PowerEdge until 2026-10-16).
+
 # Implementation status (factual ledger)
 
 Only what has been run and observed goes here. "Planned" lives in `IMPLEMENTATION_PLAN.md`.

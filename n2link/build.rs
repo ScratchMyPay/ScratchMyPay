@@ -295,7 +295,7 @@ fn copy_brand_assets(static_dir: &Path) {
     let brand = PathBuf::from("assets/brand");
     let dest = static_dir.join("n2link");
     std::fs::create_dir_all(&dest).expect("Failed to create the brand directory");
-    for name in ["n2link-logo.svg", "n2link-icon.svg", "n2link-icon-256.png", "n2link-square-logo.svg"] {
+    for name in ["n2link-logo.svg", "n2link-icon.svg", "n2link-icon-256.png", "n2link-square-logo.svg", "scratchmypay-mark.svg"] {
         let src = brand.join(name);
         if src.exists() {
             std::fs::copy(&src, dest.join(name)).expect("Failed to copy a brand asset");

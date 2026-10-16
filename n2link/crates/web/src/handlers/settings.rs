@@ -199,17 +199,17 @@ pub async fn get_theme() -> Result<Json<Value>, StatusCode> {
     // Return Node-RED compatible theme list
     let jd = serde_json::json!({
         "page": {
-            "title": "n2link",
+            "title": "ScratchMyPay",
             "favicon": "favicon.ico",
             "tabicon": {
-                "icon": "n2link/n2link-icon.svg",
+                "icon": "n2link/scratchmypay-mark.svg",
                 "colour": "#F7931A"
             }
         },
         // The logo already carries the wordmark, so the header has no separate title text.
         "header": {
             "title": "",
-            "image": "n2link/n2link-logo.svg"
+            "image": "n2link/scratchmypay-mark.svg"
         },
         "asset": {
             "red": "red/red.min.js",

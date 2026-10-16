@@ -1,4 +1,4 @@
-# Saturday plan — "Keys in a box": wallets in Rust micro-VMs
+# Saturday plan — ScratchMyPay — "Keys in a box": wallets in Rust micro-VMs
 
 **Date:** Saturday 2026-10-17 (hackathon day 1, clock starts 09:30).
 **Goal in one sentence:** *the AI drafts, a human approves, and the key lives in a box the AI cannot reach.*

@@ -364,8 +364,8 @@ impl Default for RedSystemSettings {
 impl Default for EditorTheme {
     fn default() -> Self {
         Self {
-            page: ThemePage { title: "n2link".to_string(), favicon: None, css: None, scripts: None },
-            header: ThemeHeader { title: String::new(), url: None, image: Some("n2link/n2link-logo.svg".to_string()) },
+            page: ThemePage { title: "ScratchMyPay".to_string(), favicon: None, css: None, scripts: None },
+            header: ThemeHeader { title: String::new(), url: None, image: Some("n2link/scratchmypay-mark.svg".to_string()) },
             deploy_button: ThemeDeployButton { button_type: "simple".to_string(), label: None, icon: None },
             menu: ThemeMenu {
                 menu_item_import_library: true,
