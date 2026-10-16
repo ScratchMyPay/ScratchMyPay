@@ -7,6 +7,8 @@ pub mod context;
 pub mod credentials;
 pub mod deploy;
 pub mod fleet;
+#[cfg(feature = "nodes_rgb")]
+pub mod flow_library;
 pub mod flows;
 #[cfg(feature = "history_sqlite")]
 pub mod history;

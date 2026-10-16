@@ -1,0 +1,75 @@
+{
+ "name": "Door revenue report",
+ "description": "Every hour, read the Tether WDK treasury and report how many passes were sold at the door and the revenue in sats, in the debug sidebar.",
+ "tags": [
+  "wdk",
+  "revenue",
+  "door",
+  "report"
+ ],
+ "examples": [
+  "Report door revenue every hour",
+  "How many passes did we sell today?",
+  "Show me pass sales from the treasury"
+ ],
+ "draft": {
+  "version": 1,
+  "summary": "Hourly door revenue: WDK treasury balance with pass count and sats",
+  "nodes": [
+   {
+    "ref": "tick",
+    "type": "inject",
+    "name": "Every hour",
+    "x": 140,
+    "y": 80,
+    "config": {
+     "props": [
+      {
+       "p": "payload"
+      }
+     ],
+     "repeat": "3600",
+     "crontab": "",
+     "once": true,
+     "payload": "",
+     "payloadType": "date"
+    }
+   },
+   {
+    "ref": "balance",
+    "type": "wdk-balance",
+    "name": "Treasury balance",
+    "x": 340,
+    "y": 80,
+    "config": {}
+   },
+   {
+    "ref": "report",
+    "type": "debug",
+    "name": "Door revenue",
+    "x": 540,
+    "y": 80,
+    "config": {
+     "active": true,
+     "tosidebar": true,
+     "console": false,
+     "tostatus": true,
+     "complete": "payload.balance.door",
+     "targetType": "msg"
+    }
+   }
+  ],
+  "wires": [
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "balance"
+   },
+   {
+    "from": "balance",
+    "output": 0,
+    "to": "report"
+   }
+  ]
+ }
+}

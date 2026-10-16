@@ -155,8 +155,18 @@ pub async fn post_assistant_draft(
     };
 
     let catalog = catalog_json(registry.as_ref(), &request.flows);
+    #[cfg(feature = "nodes_rgb")]
+    let library_section = match crate::handlers::flow_library::library(&state).await {
+        Ok(lib) => lib.prompt_section(),
+        Err(e) => {
+            log::warn!("flow library unavailable for this draft: {e}");
+            String::new()
+        }
+    };
+    #[cfg(not(feature = "nodes_rgb"))]
+    let library_section = String::new();
     let system = format!(
-        "{FLOW_DEVELOPER_SKILL}\n\n# Loaded draft schema\n{DRAFT_SCHEMA}\n\n# Loaded common patterns\n{COMMON_PATTERNS}\n\n# Live node metadata\n{}",
+        "{FLOW_DEVELOPER_SKILL}\n\n# Loaded draft schema\n{DRAFT_SCHEMA}\n\n# Loaded common patterns\n{COMMON_PATTERNS}\n\n{library_section}# Live node metadata\n{}",
         catalog
     );
     let prompt = format!(
@@ -257,6 +267,28 @@ fn workspace_exists(flows: &[Value], workspace_id: &str) -> bool {
         node.get("id").and_then(Value::as_str) == Some(workspace_id)
             && node.get("type").and_then(Value::as_str) == Some("tab")
     })
+}
+
+/// What the flow library needs to know about a validated draft.
+#[cfg(feature = "nodes_rgb")]
+pub struct DraftCheck {
+    pub node_count: usize,
+}
+
+/// Validate a template exactly like a Copilot draft (schema, registered flow-node types, no
+/// reserved or secret fields, wires intact) and refuse payout-path node types.
+#[cfg(feature = "nodes_rgb")]
+pub fn check_draft_for_library(draft: &Value, registry: &dyn Registry, flows: &[Value]) -> Result<DraftCheck, String> {
+    let parsed = parse_model_draft(&draft.to_string())?;
+    if let Some(node) =
+        parsed.nodes.iter().find(|n| crate::handlers::poweredge::RESERVED_TYPES.contains(&n.type_name.as_str()))
+    {
+        return Err(format!("'{}' belongs to the payout path and cannot be saved as a template", node.type_name));
+    }
+    // Strict against the live flows: a template is accepted only if it would deploy here now
+    // (wallet references resolve, output ports exist).
+    materialize_draft(&parsed, "0000000000000000", flows, registry, true)?;
+    Ok(DraftCheck { node_count: parsed.nodes.len() })
 }
 
 fn parse_model_draft(text: &str) -> Result<ModelDraft, String> {

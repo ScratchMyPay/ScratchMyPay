@@ -87,6 +87,15 @@ fn create_node_red_api_routes() -> Router {
         .route("/poweredge-app/api/door/start", post(crate::handlers::poweredge::door_start))
         .route("/poweredge-app/api/door/pay", post(crate::handlers::poweredge::door_pay))
         .route("/poweredge-app/api/door/{id}", get(crate::handlers::poweredge::door_check))
+        .route(
+            "/flow-library",
+            get(crate::handlers::flow_library::get_templates).post(crate::handlers::flow_library::post_template),
+        )
+        .route("/flow-library/from-tab", post(crate::handlers::flow_library::post_from_tab))
+        .route(
+            "/flow-library/{id}",
+            get(crate::handlers::flow_library::get_template).delete(crate::handlers::flow_library::delete_template),
+        )
         .route("/poweredge-app/api/draft", post(crate::handlers::poweredge::post_draft))
         .route("/poweredge-app/api/setup", post(crate::handlers::poweredge::post_setup))
         .route(

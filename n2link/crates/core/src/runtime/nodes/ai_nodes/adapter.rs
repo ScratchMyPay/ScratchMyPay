@@ -429,6 +429,8 @@ pub(crate) struct ToolCall {
     pub arguments: Value,
 }
 
+// Only the text/agent paths retry; with `nodes_ai` alone (PowerEdge's Copilot-only build) it is unused.
+#[allow(dead_code)]
 fn retryable(err: &N2linkError) -> bool {
     matches!(err, N2linkError::Timeout) || {
         let text = err.to_string();

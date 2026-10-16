@@ -78,6 +78,9 @@ It waits for each service to be really ready (wallets confirm `mutinynet` and ma
 
 Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "PowerEdge payouts"). Everything listens on 127.0.0.1 only.
 
+### Flow Library: templates the local AI retrieves and adapts
+Saved flows live in SQLite (`datadirs/n2link/library/`) in the Copilot's own draft form, so a template is exactly what the model would have drafted. The repo seeds three (`library/seed/`): the pay-me QR page, the pre-show treasury check and a door-revenue report. At draft time the local AI sees the library (name, description, example requests, nodes) and adapts a fitting template instead of drafting from nothing: asked for "every Friday at 16:30 check whether the treasury can cover 8 payouts", it returned the treasury-check template with the new schedule and count. Any editor tab can be saved as a template (`POST /flow-library/from-tab`); payout-path nodes are refused, secret fields are refused, wallet references are stripped and re-bound at deploy, and a template is accepted only if it would deploy on this runtime now. API: `GET/POST /flow-library`, `GET/DELETE /flow-library/{id}`. A library page with "deploy" and "ask the AI to adapt" buttons is planned for Saturday.
+
 ### Pay to enter (the business model, live)
 There are no accounts and no passwords. An organizer opens **`/poweredge-app/login`**, pays **1,000 test sats** to a fresh address of the Tether WDK treasury and gets a **24-hour pass**; the pass is the same session token a password login would give, so the guided app and the flow editor open unchanged. The fee lands in the same treasury that pays the network fees of every payout: revenue in, fees out, one balance (`scripts/demo-up.sh status` shows "Door revenue"). The demo button pays the door from the organizer wallet (capped at 5,000 test sats, one payment per 30 s, journaled). `scripts/enable-door.sh` turns the door on with a single break-glass user whose random password lives only in `secrets/`; there is no `admin:admin`. Paying proves payment, not identity: binding a pass to the paying key (a signature) is future work.
 
@@ -150,8 +153,3 @@ Prior work, not authored for this hackathon: n2link runtime/editor/Flow Copilot 
 
 ## License
 Recommended Apache-2.0 for the new package, subject to checking upstream dependency licenses. Preserve n2link/EdgeLinkd attribution.
-
-
-## Source reuse and Palimnex knowledge base
-
-Read [`reusecode.md`](reusecode.md) before editing third-party or existing project code. Read [`referencerepos.md`](referencerepos.md) for verified repository URLs, safe clone commands, pinned checkout metadata, and index exclusions. Both are mandatory references for local Codex.

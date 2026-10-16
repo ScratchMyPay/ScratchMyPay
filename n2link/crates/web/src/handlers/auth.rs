@@ -1316,7 +1316,10 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["user"]["username"], "ada");
         // The editor needs a list for a multi-permission role (a joined string disables Deploy).
-        assert_eq!(body["user"]["permissions"], serde_json::json!(["read", "settings.write", "flows.write", "credentials.write"]));
+        assert_eq!(
+            body["user"]["permissions"],
+            serde_json::json!(["read", "settings.write", "flows.write", "credentials.write"])
+        );
     }
 
     async fn discovery_doc(request: axum::extract::Request) -> Json<Value> {

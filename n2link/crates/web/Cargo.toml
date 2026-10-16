@@ -27,6 +27,7 @@ config = { workspace = true }
 reqwest = { workspace = true }
 poweredge = { path = "../poweredge", optional = true }
 qrcode = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }
 
 n2link-core = { path = "../core" }
 
@@ -37,7 +38,7 @@ credential_encryption = ["n2link-core/credential_encryption"]
 nodes_modbus = ["n2link-core/nodes_modbus"]
 runtime_scan = ["n2link-core/runtime_scan"]
 nodes_ai = ["n2link-core/nodes_ai"]
-nodes_rgb = ["n2link-core/nodes_rgb", "dep:poweredge", "dep:qrcode"]
+nodes_rgb = ["n2link-core/nodes_rgb", "nodes_ai", "dep:poweredge", "dep:qrcode", "dep:rusqlite"]  # PowerEdge needs the local-AI Copilot
 nodes_ai_text = ["n2link-core/nodes_ai_text"]
 nodes_ai_embeddings = ["n2link-core/nodes_ai_embeddings"]
 nodes_ai_agent = ["nodes_ai", "nodes_ai_text", "n2link-core/nodes_ai_agent"]

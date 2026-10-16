@@ -19,6 +19,7 @@ if [[ ! -f "$ROOT/n2link/target/ui_static/red/red.min.js" ]]; then
 fi
 
 export POWEREDGE_TEMPLATES_DIR="$ROOT/templates"
+export POWEREDGE_LIBRARY_SEED_DIR="$ROOT/library/seed"   # Flow Library seeds (loaded once, by name)
 export POWEREDGE_WALLET_TOKEN_FILE="$ROOT/secrets/wallet-api.token"
 export POWEREDGE_QVAC_KEY_FILE="$ROOT/secrets/qvac.api-key"
 export POWEREDGE_QVAC_URL="${POWEREDGE_QVAC_URL:-http://127.0.0.1:11435/v1}"

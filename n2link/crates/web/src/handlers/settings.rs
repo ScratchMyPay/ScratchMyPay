@@ -53,12 +53,11 @@ pub async fn get_settings(
         if actor.permissions.is_empty() {
             return Err(StatusCode::UNAUTHORIZED);
         }
-        settings.user =
-            Some(SettingsUser {
-                username: actor.username,
-                permissions: permissions_for_editor(&actor.permissions),
-                anonymous: false,
-            });
+        settings.user = Some(SettingsUser {
+            username: actor.username,
+            permissions: permissions_for_editor(&actor.permissions),
+            anonymous: false,
+        });
         settings.admin_auth = Some(AdminAuthSettings { auth_type: state.auth.login_kind().to_string() });
         settings.editor_theme.user_menu = true;
     }
@@ -184,7 +183,12 @@ async fn generate_plugins_html() -> String {
 pub fn permissions_for_editor(permissions: &str) -> serde_json::Value {
     if permissions.contains(',') {
         serde_json::Value::Array(
-            permissions.split(',').map(str::trim).filter(|p| !p.is_empty()).map(|p| serde_json::Value::String(p.to_owned())).collect(),
+            permissions
+                .split(',')
+                .map(str::trim)
+                .filter(|p| !p.is_empty())
+                .map(|p| serde_json::Value::String(p.to_owned()))
+                .collect(),
         )
     } else {
         serde_json::Value::String(permissions.to_owned())

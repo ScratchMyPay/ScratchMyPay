@@ -1,0 +1,82 @@
+{
+ "name": "Pay-me QR page",
+ "description": "A web page that shows a fresh RGB payment request from the crew wallet as a QR code. Each visit creates a new request. Used by crew or artists to get paid.",
+ "tags": [
+  "crew",
+  "qr",
+  "rgb",
+  "receive"
+ ],
+ "examples": [
+  "Make a page where the drummer can get a QR to be paid",
+  "RGB payment request shown as a QR code",
+  "Give the sound engineer a pay-me link"
+ ],
+ "draft": {
+  "version": 1,
+  "summary": "Pay-me page: a GET endpoint that creates an RGB payment request and shows it as a QR code",
+  "nodes": [
+   {
+    "ref": "req",
+    "type": "http in",
+    "name": "Pay me",
+    "x": 120,
+    "y": 80,
+    "config": {
+     "url": "/pay-me",
+     "method": "get",
+     "port": 1895,
+     "upload": false
+    }
+   },
+   {
+    "ref": "invoice",
+    "type": "rgb-invoice",
+    "name": "Payment request",
+    "x": 320,
+    "y": 80,
+    "config": {
+     "assetTicker": "TUSDT"
+    }
+   },
+   {
+    "ref": "qr",
+    "type": "qr-code",
+    "name": "QR",
+    "x": 500,
+    "y": 80,
+    "config": {
+     "format": "html"
+    }
+   },
+   {
+    "ref": "page",
+    "type": "http response",
+    "name": "Show page",
+    "x": 680,
+    "y": 80,
+    "config": {
+     "statusCode": "",
+     "headers": {}
+    }
+   }
+  ],
+  "wires": [
+   {
+    "from": "req",
+    "output": 0,
+    "to": "invoice"
+   },
+   {
+    "from": "invoice",
+    "output": 0,
+    "to": "qr"
+   },
+   {
+    "from": "qr",
+    "output": 0,
+    "to": "page"
+   }
+  ]
+ }
+}
