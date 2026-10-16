@@ -19,6 +19,7 @@ import bip39 from 'bip39'
 import WalletManagerBtc, { MempoolElectrumClient } from '@tetherto/wdk-wallet-btc'
 import { payoutCost, coverage, RGB_PAYOUT_VBYTES, RGB_WITNESS_SAT } from './costs.mjs'
 import { Door, DOOR_PRICE_SAT } from './door.mjs'
+import { withLink as linkWrapper } from './relink.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const env = (name, fallback) => process.env[name] || fallback
@@ -50,10 +51,22 @@ function readOrCreateSeed () {
 const token = fs.readFileSync(TOKEN_FILE, 'utf8').trim()
 if (token.length < 32) { log('error', 'wallet API token too short'); process.exit(2) }
 // Mutinynet uses testnet address/derivation parameters (tb1…, coin type 1).
-const wallet = new WalletManagerBtc(readOrCreateSeed(), { network: 'testnet', client: new MempoolElectrumClient({ ...ELECTRUM, network: 'testnet' }) })
+// Electrum link: the default policy gives up after 2 retries 1 s apart and then every call fails
+// with "Connection to server lost". Retry longer, and reconnect+retry once around every call.
+const electrum = new MempoolElectrumClient({ ...ELECTRUM, network: 'testnet', maxRetry: 20, retryPeriod: 3000, pingPeriod: 45_000 })
+const wallet = new WalletManagerBtc(readOrCreateSeed(), { network: 'testnet', client: electrum })
+const withLink = linkWrapper({ reconnect: () => electrum.reconnect(), log })
+setInterval(() => withLink(() => account.getBalance()).catch(e => log('warn', 'link watchdog', { error: String(e?.message || e).slice(0, 120) })), 60_000).unref()
 const account = await wallet.getAccount(0)
 const address = await account.getAddress()
-const door = new Door({ dbPath: DOOR_DB, getAccount: (i) => wallet.getAccount(i), priceSat: DOOR_PRICE })
+const door = new Door({
+  dbPath: DOOR_DB,
+  priceSat: DOOR_PRICE,
+  getAccount: async (i) => {
+    const acct = await wallet.getAccount(i)
+    return { getAddress: () => withLink(() => acct.getAddress()), getTransfers: (o) => withLink(() => acct.getTransfers(o)) }
+  },
+})
 
 const authorized = (req) => {
   const supplied = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
@@ -103,7 +116,7 @@ async function feeRates () {
 
 const routes = {
   '/health': async () => ({ ok: true, engine: 'Tether WDK wdk-wallet-btc', network: 'mutinynet' }),
-  '/balance': async () => ({ network: 'mutinynet', engine: 'Tether WDK', address, balanceSat: Number(await account.getBalance()), door: door.revenue() }),
+  '/balance': async () => ({ network: 'mutinynet', engine: 'Tether WDK', address, balanceSat: Number(await withLink(() => account.getBalance())), door: door.revenue() }),
   '/fees': async (url) => {
     const count = intParam(url, 'count', 1, 1000)
     const vbytes = intParam(url, 'vbytes', RGB_PAYOUT_VBYTES, 100_000)
@@ -115,13 +128,15 @@ const routes = {
     const speed = url.searchParams.get('speed') || 'normal'
     const rates = await feeRates()
     const cost = payoutCost({ feeRates: { normal: rates.normal, fast: rates.fast }, count })
-    const haveSat = Number(await account.getBalance())
+    const haveSat = Number(await withLink(() => account.getBalance()))
     return { network: 'mutinynet', engine: 'Tether WDK', address, cost, coverage: coverage({ haveSat, cost, speed }) }
   },
   '/door/passes': async () => ({ ...door.revenue(), passes: door.passes(20) }),
+  // Test hook (only with WDK_DEBUG=1): drop the Electrum socket as a flaky server would.
+  ...(process.env.WDK_DEBUG === '1' ? { '/debug/drop-link': async () => { await electrum.close(); log('warn', 'debug: electrum link dropped on purpose'); return { dropped: true } } } : {}),
   '/transfers': async (url) => {
     const limit = intParam(url, 'limit', 10, 100)
-    const transfers = await account.getTransfers({ limit })
+    const transfers = await withLink(() => account.getTransfers({ limit }))
     return { address, transfers }
   },
 }
