@@ -1,10 +1,10 @@
 # Licenses
 
-This repository is **source-available**. Original RGB2link components are under the
+This repository is **source-available**. Original ScratchMyPay components are under the
 **PolyForm Noncommercial License 1.0.0** (`LICENSE`). Third-party and upstream components keep
 their own licenses, listed below. Attribution requirements are in `NOTICE`.
 
-## Original RGB2link components — PolyForm Noncommercial 1.0.0
+## Original ScratchMyPay components — PolyForm Noncommercial 1.0.0
 
 | Component | Paths |
 |---|---|
@@ -39,5 +39,5 @@ written authorization from the copyright holders. Contact the project maintainer
 
 Where an original component is a modification of an Apache-2.0 file inside `n2link/`, the
 upstream Apache-2.0 notices stay in place and apply to the upstream portions; the PolyForm terms
-apply to the RGB2link additions. This split is documented here rather than per file; a per-file
+apply to the ScratchMyPay additions. This split is documented here rather than per file; a per-file
 header pass is on the post-event list.

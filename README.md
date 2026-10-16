@@ -182,7 +182,7 @@ The organizers compare the Friday 23:00 snapshot with Sunday 13:00. To make that
 
 This project is source-available under the **PolyForm Noncommercial License 1.0.0**.
 
-Original RGB2link components, including RGB workflow nodes, wallet integrations, MVM orchestration, and ScratchMyPay extensions, are available for permitted noncommercial uses, including qualifying research, education, experimentation, modification, and redistribution.
+Original ScratchMyPay components, including RGB workflow nodes, wallet integrations, MVM orchestration, and ScratchMyPay extensions, are available for permitted noncommercial uses, including qualifying research, education, experimentation, modification, and redistribution.
 
 Commercial use of these components requires separate written authorization from the respective copyright holders. This includes commercial production deployments, paid hosting, resale, and commercial integrations where the intended use is not permitted under the PolyForm Noncommercial License.
 

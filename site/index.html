@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScratchMyPay · Post-show payouts in agentic dollars</title>
+<meta name="description" content="ScratchMyPay: an organizer describes a crew payout in plain words, a local AI drafts it, a human approves, and it settles as an RGB asset on Bitcoin. Built on n2link, RGB, QVAC and Tether WDK.">
+<meta property="og:title" content="ScratchMyPay · Post-show payouts in agentic dollars">
+<meta property="og:description" content="Describe it. Approve it. It settles on Bitcoin. RGB + local AI (QVAC) + Tether WDK.">
+<meta property="og:image" content="screenshots/app-track-settled.png">
+<style>
+@font-face { font-family: "Inter"; font-weight: 400; font-display: swap; src: url("fonts/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-display: swap; src: url("fonts/inter-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 400; font-display: swap; src: url("fonts/space-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 700; font-display: swap; src: url("fonts/space-mono-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Anton"; font-weight: 400; font-display: swap; src: url("fonts/anton-latin-400-normal.woff2") format("woff2"); }
+:root {
+  --bg: #050505; --card: #0f0d0b; --ink: #F4EFE6; --muted: #a8a196; --line: #2a2622;
+  --btc: #F7931A; --mag: #FF1F8E; --cyan: #3CF2FF; --green: #39FF88; --onair: #ff2a2a; --tether: #50AF95;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Space Mono", ui-monospace, Menlo, monospace;
+  --cond: "Anton", "Bebas Neue", Impact, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; color: var(--ink); font: 17px/1.6 var(--sans);
+  background: radial-gradient(circle at 85% 0%, rgba(255,31,142,.14), transparent 40%),
+              radial-gradient(circle at 0% 60%, rgba(247,147,26,.12), transparent 45%), var(--bg); }
+a { color: var(--cyan); }
+header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; background: rgba(5,5,5,.92); border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(247,147,26,.35); backdrop-filter: blur(6px); }
+header::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,.035) 0 1px, transparent 1px 3px); }
+.brand { font: 400 24px/1 var(--cond); letter-spacing: .08em; color: var(--btc); text-decoration: none; text-shadow: 0 0 18px rgba(247,147,26,.45); }
+nav { display: flex; gap: 14px; flex-wrap: wrap; font: 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--btc); }
+.chip { font: 700 11px/1 var(--mono); letter-spacing: .06em; padding: 5px 9px; border-radius: 999px; border: 1px solid rgba(255,42,42,.55); color: #ff5a5a; white-space: nowrap; }
+main { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
+.hero { padding: 64px 0 40px; }
+.kicker { font: 700 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 14px 0 12px; font: 400 clamp(40px, 8vw, 84px)/0.95 var(--cond); text-transform: uppercase; letter-spacing: .02em; }
+h1 em { font-style: normal; color: var(--btc); text-shadow: 0 0 28px rgba(247,147,26,.4); }
+.lede { max-width: 720px; font-size: 19px; color: #ddd6ca; }
+.cta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 26px; }
+.btn { display: inline-block; padding: 13px 20px; border-radius: 6px; font: 700 14px/1 var(--mono); text-transform: uppercase; letter-spacing: .05em;
+  text-decoration: none; background: var(--btc); color: #050505; box-shadow: 5px 5px 0 var(--mag); }
+.btn.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+section { padding: 40px 0; border-top: 1px solid var(--line); }
+h2 { margin: 0 0 16px; font: 400 32px/1.05 var(--cond); text-transform: uppercase; letter-spacing: .03em; }
+h2 small { display: block; font: 700 12px/1.4 var(--mono); color: var(--muted); letter-spacing: .08em; margin-top: 6px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.card { background: linear-gradient(160deg, rgba(247,147,26,.07), transparent 60%), var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.card h3 { margin: 0 0 8px; font: 700 13px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.card p { margin: 0; color: #d4cdc1; font-size: 15px; }
+.tag { display: inline-block; font: 700 11px/1 var(--mono); padding: 4px 8px; border-radius: 4px; margin-bottom: 10px; }
+.tag.rgb { background: var(--btc); color: #050505; } .tag.qvac { background: var(--green); color: #050505; } .tag.wdk { background: var(--tether); color: #050505; }
+.steps { counter-reset: s; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.steps .card::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 28px; height: 28px; margin-bottom: 10px;
+  border-radius: 50%; background: var(--btc); color: #050505; font: 700 13px/1 var(--mono); }
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { padding: 10px 12px; font: 12px/1.4 var(--mono); color: var(--muted); }
+.wide { grid-column: 1 / -1; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 700 11px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+td.tx a { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+.table-wrap { overflow-x: auto; }
+.honest { border-left: 4px solid var(--btc); padding: 12px 16px; background: rgba(247,147,26,.05); border-radius: 6px; color: #ddd6ca; font-size: 15px; }
+footer { max-width: 1080px; margin: 0 auto; padding: 24px 16px 40px; border-top: 1px solid var(--line); color: var(--muted); font: 12px/1.6 var(--mono); }
+@media (max-width: 640px) { nav { display: none; } .hero { padding-top: 40px; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="#top">⚡ SCRATCHMYPAY</a>
+  <nav><a href="#how">How it works</a><a href="#stack">RGB · QVAC · WDK</a><a href="#proof">Live proof</a><a href="#screens">Screens</a><a href="https://github.com/ScratchMyPay/ScratchMyPay">GitHub</a></nav>
+  <span class="chip">● MUTINYNET · TEST MONEY</span>
+</header>
+<main id="top">
+  <div class="hero">
+    <div class="kicker">RGB Protocol Association · “Agentic Dollars on Bitcoin” · Turin, Oct 17–18, 2026</div>
+    <h1>Pay the crew <em>tonight.</em><br>In dollars. On Bitcoin.</h1>
+    <p class="lede">After a show, the organizer has to pay the sound engineer, the lighting crew and the artist. With ScratchMyPay they type it in plain words. A <b>local AI</b> drafts a validated payment flow, a person approves the exact plan, and it settles as an <b>RGB stablecoin transfer on Bitcoin</b>, exactly once, with a receipt both sides can check. Payout details never leave the organizer's computer.</p>
+    <div class="cta"><a class="btn" href="https://github.com/ScratchMyPay/ScratchMyPay">Source on GitHub</a><a class="btn secondary" href="#proof">See the live payouts</a></div>
+  </div>
+
+  <section id="how">
+    <h2>How it works<small>Describe → Review → Approve → Track</small></h2>
+    <div class="steps">
+      <div class="card"><h3>Describe</h3><p>“Pay the sound engineer 25 tUSDT for Saturday's show.” The crew member's payment request is pasted or scanned as a QR.</p></div>
+      <div class="card"><h3>Review</h3><p>QVAC, running on this computer, turns the sentence into a typed request; a pinned template compiles it into a flow that is validated before anything runs. The network cost comes live from Tether WDK.</p></div>
+      <div class="card"><h3>Approve</h3><p>A person approves the exact plan. The approval is bound to the plan's fingerprint and the flow revision; change either and it is void.</p></div>
+      <div class="card"><h3>Track</h3><p>Planned → approved → sending → sent → crew wallet checked it → settled. A durable journal guarantees it is paid at most once, even if the computer dies mid-send.</p></div>
+    </div>
+  </section>
+
+  <section id="stack">
+    <h2>Why RGB, QVAC and WDK<small>each one does a job the product needs</small></h2>
+    <div class="grid">
+      <div class="card"><span class="tag rgb">RGB</span><h3>Dollars that settle on Bitcoin</h3><p>A test stablecoin (TUSDT) issued on Mutinynet, witness invoices, consignments delivered to the crew wallet and validated client-side. Wrong-network invoices are refused; the crew wallet settles on its own once the payment confirms.</p></div>
+      <div class="card"><span class="tag qvac">QVAC</span><h3>AI that stays on the laptop</h3><p>Qwen3-8B via QVAC drafts payouts and builds receive-side flows in the editor (pay-me QR page, treasury check), adapting saved templates from a local library. It never touches the money path: it proposes, a person approves.</p></div>
+      <div class="card"><span class="tag wdk">WDK</span><h3>A treasury with a business model</h3><p>Tether WDK runs the treasury: live fee quotes on the Review screen, a pre-show “can we cover tonight's payouts?” check, and the pay-to-enter door: 1,000 sats buys a 24-hour pass. Revenue in, network fees out, one balance.</p></div>
+      <div class="card"><span class="tag" style="background:#fff;color:#050505">n2link</span><h3>Flows you can see</h3><p>Every payout is a visible flow in n2link, a Rust, Node-RED-compatible runtime. Payout nodes only run inside the managed tab, behind an approval gate; the deploy guard refuses anything else.</p></div>
+    </div>
+  </section>
+
+  <section id="proof">
+    <h2>Live proof on Mutinynet<small>test network · no real money · every row is a real transaction</small></h2>
+    <div class="table-wrap"><table>
+      <tr><th>When</th><th>What</th><th>Transaction</th></tr>
+      <tr><td>Oct 15, 19:48</td><td>First TUSDT payout, 25 tUSDT, organizer → crew</td><td class="tx"><a href="https://mutinynet.com/tx/ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1">ea4ce78b…5ed43af1</a></td></tr>
+      <tr><td>Oct 15, 20:20</td><td>First payout driven entirely from the app screens</td><td class="tx"><a href="https://mutinynet.com/tx/00d20ebd1de2c82838cb10fae3657cbf4752bb1c609574127fa0943d84b31111">00d20ebd…4b31111</a></td></tr>
+      <tr><td>Oct 15, 23:10</td><td>Crash test: service killed after broadcast, before journaling; restart refused to resend, reconciled, paid exactly once</td><td class="tx"><a href="https://mutinynet.com/tx/2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d">2a16fe35…51da0f2d</a></td></tr>
+      <tr><td>Oct 16, 00:30</td><td>Pay-to-enter: 1,000 sats to the WDK treasury bought a 24-hour pass</td><td class="tx"><a href="https://mutinynet.com/tx/e75fca81cf0fec0a4ef83dfc03f80d542bc12dd8b0360a809b5d68d68ae3af11">e75fca81…8ae3af11</a></td></tr>
+      <tr><td>Oct 16, 17:54</td><td>Payout under the ScratchMyPay brand, settled 45 s after approval</td><td class="tx"><a href="https://mutinynet.com/tx/ab3d8c63d25b19ea87e24d30ab7664187774399c2ab25cca55e0fa35b83119e8">ab3d8c63…b83119e8</a></td></tr>
+    </table></div>
+  </section>
+
+  <section id="screens">
+    <h2>Screens<small>captured from the live payout of Oct 16</small></h2>
+    <div class="shots">
+      <figure><img src="screenshots/app-describe.png" alt="Describe the payout in plain words" loading="lazy"><figcaption>Describe: plain words, local AI</figcaption></figure>
+      <figure><img src="screenshots/app-review.png" alt="Review the AI's plan" loading="lazy"><figcaption>Review: the plan, the checks, the WDK network cost</figcaption></figure>
+      <figure><img src="screenshots/app-approve.png" alt="Approve and send once" loading="lazy"><figcaption>Approve: a person signs off the exact plan</figcaption></figure>
+      <figure><img src="screenshots/app-track-settled.png" alt="Track to settled, receipt" loading="lazy"><figcaption>Track: settled, with the RGB proof hash</figcaption></figure>
+      <figure><img src="screenshots/app-crew-request.png" alt="Crew payment request with QR" loading="lazy"><figcaption>Crew: a payment request and its QR</figcaption></figure>
+      <figure><img src="screenshots/door-paid.png" alt="Pay to enter" loading="lazy"><figcaption>Pay to enter: 1,000 sats, 24-hour pass</figcaption></figure>
+      <figure class="wide"><img src="screenshots/editor-payouts.png" alt="The payout flow in the n2link editor" loading="lazy"><figcaption>The payout as a flow in the n2link editor: RGB nodes in orange, approval gate before any send</figcaption></figure>
+      <figure class="wide"><img src="screenshots/editor-treasury.png" alt="Pre-show treasury check with Tether WDK" loading="lazy"><figcaption>Pre-show treasury check, built by the local AI from one sentence (Tether WDK nodes in green)</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Honest notes</h2>
+    <p class="honest">This is a hackathon build on Mutinynet with test money. Approval is a typed name and a checkbox, not a signature. The pay-to-enter door proves payment, not identity. Prior work is declared: the n2link runtime and the RGB Bill wallet adapter existed before the event; everything else was built from Oct 15 with the organizers' approval to start early. Full list in the <a href="https://github.com/ScratchMyPay/ScratchMyPay#readme">README</a>.</p>
+  </section>
+</main>
+<footer>
+  ScratchMyPay · team ScratchMyPay: Edwin Kestler (<a href="https://github.com/EdwinKestler">@EdwinKestler</a>) · Christian (<a href="https://github.com/cms">@cms</a>)<br>
+  Built on <a href="https://github.com/n2link/n2link">n2link</a>, RGB (rgb-lib), QVAC and Tether WDK · Source-available under the PolyForm Noncommercial License 1.0.0; upstream components keep their own licenses (see LICENSES.md).
+</footer>
+</body>
+</html>
