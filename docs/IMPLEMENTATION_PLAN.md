@@ -52,7 +52,7 @@ A **live** product, demoed at the desk in ~3 minutes, that a non-technical user 
 - **ADR-011:** Pure crate `poweredge` (compiler/registry/validator); deterministic `ElementId` = first 8 bytes of `sha256(template_digest ‖ canonical_intent ‖ slot)` as 16-hex.
 - **ADR-012:** Approval recorded by sidecar journal, bound to `{flow_revision, environment, wallet_id, asset_id, plan_digest, amount, recipient, expiry, actor}`; `approval-gate` node only waits for it.
 - **ADR-013 (new):** Guided app is a static page served by n2link (`/app`), calling only (a) the template-draft route and (b) HTTP endpoints exposed by the deployed `rgb-payment-v1` flow. It never talks to the wallet sidecar directly.
-- **ADR-014 (accepted 2026-10-15):** One public hackathon repo = `n2link/RGB2linkPowerEdge` with n2link brought in as `git subtree --squash` at `78d7ba1` under `n2link/` (single declared prior-work commit). New code: `n2link/crates/poweredge`, `n2link/node-plugins/n2link-nodes-rgb`, `services/wallet-owner`, `app/`, `templates/`. Palimnex: exclude `n2link/` from this project's index (n2link keeps its own).
+- **ADR-014 (accepted 2026-10-15):** One public hackathon repo = `ScratchMyPay/ScratchMyPay` (transferred 2026-10-16 from `n2link/RGB2linkPowerEdge`, history intact) with n2link brought in as `git subtree --squash` at `78d7ba1` under `n2link/` (single declared prior-work commit). New code: `n2link/crates/poweredge`, `n2link/node-plugins/n2link-nodes-rgb`, `services/wallet-owner`, `app/`, `templates/`. Palimnex: exclude `n2link/` from this project's index (n2link keeps its own).
 
 ## 4. Tracks (run in parallel)
 

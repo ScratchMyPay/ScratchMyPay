@@ -23,7 +23,7 @@
 
 **Built for the hackathon** (organizer-approved early start on 2026-10-15): everything not listed above — tracked commit by commit and summarized in `docs/IMPLEMENTATION_STATUS.md`.
 
-### Working now (verified live on Mutinynet, 2026-10-15)
+### Working now (verified live on Mutinynet, Oct 15–16; evidence in `docs/IMPLEMENTATION_STATUS.md` and `artifacts/`)
 A plain-language request went from local AI to a real RGB transfer:
 "Pay the sound engineer 25 tUSDT for Saturday's show" → local QVAC (Qwen3-8B) intent → pinned template `rgb-payment-v1` → validated n2link flow → crew payment request → wallet-prepared plan → human approval → exactly-once send → **txid [`ea4ce78b…43af1`](https://mutinynet.com/tx/ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1)** → crew wallet imported the RGB consignment → **crew holds 25.000000 TUSDT (settled)**. Evidence: `artifacts/payouts/2026-10-15-first-live-payout.json`.
 
@@ -35,6 +35,12 @@ A plain-language request went from local AI to a real RGB transfer:
 | RGB nodes for n2link (`nodes_rgb`) | `n2link/crates/core/src/runtime/nodes/rgb_nodes/` |
 | Wallet-owner service + durable journal | `services/wallet-owner/` |
 | Tether WDK treasury service + WDK nodes | `services/wdk-btc/`, `n2link/crates/core/src/runtime/nodes/rgb_nodes/wdk.rs` |
+| Pay-to-enter door (1,000 sats → 24 h pass, WDK treasury, SQLite) | `services/wdk-btc/door.mjs`, `n2link/crates/web/poweredge-app/login.html`, `scripts/enable-door.sh` |
+| Flow Library (templates the local AI retrieves and adapts) | `n2link/crates/web/src/handlers/flow_library.rs`, `library/seed/` |
+| Flow Copilot on local QVAC (receive-side flows: pay-me QR page, treasury check) | `assistant-skills/`, `examples/flows/` |
+| Live crash-recovery run (killed after broadcast, paid exactly once) | `scripts/crash_recovery_demo.py`, `artifacts/payouts/2026-10-15-crash-recovery.json` |
+| One-command start-up, status and stop | `scripts/demo-up.sh` |
+| Editor theme + guided app look (Bitcoin orange, local fonts) | `n2link/assets/theme/`, `scripts/build-editor-theme.py` |
 
 ### Install and run (step by step)
 
@@ -42,8 +48,8 @@ Needs: Linux/macOS, Rust ≥ 1.88, Node.js LTS + npm, Python 3.12, git, ~6 GB di
 
 ```bash
 # 1. Clone WITH submodules (the n2link flow editor is the Node-RED client, pinned at 5.0.7)
-git clone --recursive https://github.com/n2link/RGB2linkPowerEdge.git
-cd RGB2linkPowerEdge
+git clone --recursive https://github.com/ScratchMyPay/ScratchMyPay.git
+cd ScratchMyPay
 git clone https://github.com/EdwinKestler/bill.git ../bill   # prior-work wallet adapter (pinned be3d237)
 git -C ../bill checkout be3d237
 
@@ -88,12 +94,21 @@ There are no accounts and no passwords. An organizer opens **`/poweredge-app/log
 
 ![Pay to enter](artifacts/screenshots/door-paid.png)
 
-### Screenshots
-| Guided app: describe the payout (local AI) | Flow editor: the managed payout flow (RGB nodes in orange) |
+### Screenshots (ScratchMyPay, Oct 16, real payout on Mutinynet)
+| Crew: payment request + QR | Organizer: describe in plain words |
 |---|---|
-| ![Guided app](artifacts/screenshots/app-describe.png) | ![Payout flow](artifacts/screenshots/editor-payouts.png) |
+| ![Crew request](artifacts/screenshots/app-crew-request.png) | ![Describe](artifacts/screenshots/app-describe.png) |
 
-Pre-show treasury check with Tether WDK (green nodes, read-only):
+| Review: the local AI's plan, checks, network cost from WDK | Approve: typed name + checkbox, then send once |
+|---|---|
+| ![Review](artifacts/screenshots/app-review.png) | ![Approve](artifacts/screenshots/app-approve.png) |
+
+| Track: journal states to SETTLED, receipt | Pay to enter: 1,000 sats to the WDK treasury |
+|---|---|
+| ![Track](artifacts/screenshots/app-track-settled.png) | ![Door](artifacts/screenshots/door-paid.png) |
+
+Flow editor: the managed payout flow (RGB nodes in orange) and the pre-show treasury check (Tether WDK, green):
+![Payout flow](artifacts/screenshots/editor-payouts.png)
 ![Treasury check](artifacts/screenshots/editor-treasury.png)
 
 ### Look and feel
@@ -150,8 +165,18 @@ Prompt → QVAC structured intent → registry selects `rgb-payment-v1` → para
 - `schemas/workflow-intent.schema.json` — proposed constrained QVAC output schema
 - `templates/rgb-payment-v1.template.json` — **illustrative template manifest, not deployable Node-RED flow**
 
-## Hackathon provenance (declared prior work)
-Prior work, not authored for this hackathon: n2link runtime/editor/Flow Copilot at `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (fork of oldrev/edgelinkd, Apache-2.0); RGB Bill wallet adapter at `be3d237`; Palimnex 2.9.0 tooling. Everything else is new work since 2026-10-15 (organizer-approved early start). The Friday 23:00 snapshot and this README list what existed at that point; commits after it are the in-event delta. Keep evidence (commit SHAs, tests, txids, QVAC runtime logs) and list anything mocked, simulated or hard-coded.
+## What exists at the Friday snapshot (declared)
+
+The organizers compare the Friday 23:00 snapshot with Sunday 13:00. To make that comparison honest, here is what existed and when it was made.
+
+**A. Prior work, not made for this hackathon (before 2026-10-15)**
+- **n2link** runtime, editor, Flow Copilot, credential storage, egress policy: `n2link/` at `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (fork of oldrev/edgelinkd, Apache-2.0), imported as one squashed commit `3454c90`.
+- **RGB Bill** wallet adapter (`EdwinKestler/bill` @ `be3d237`): rgb-lib-python plan → confirm → execute-once, proven on Mutinynet. Pinned dependency, not copied.
+- Palimnex 2.9.0 (code search / agent memory tooling).
+
+**B. Built on Oct 15–16, before the clock, with the organizers' written approval to start early** (every item has a commit and a live run in `docs/IMPLEMENTATION_STATUS.md`): the request format, pinned template, compiler and validator; the RGB and WDK nodes; the wallet-owner service with its crash-safe journal; the guided app and the crew view; QVAC drafting and the Copilot on QVAC; four live TUSDT payouts on Mutinynet including a crash-recovery run; the WDK treasury, fee quotes and pre-show check; the pay-to-enter door; the Flow Library; the editor theme; `demo-up`. Code: `.rs`, `.py`, `.mjs`, `.html` in their original folders (`n2link/crates/`, `services/`, `scripts/`, `library/`, `templates/`).
+
+**C. Planned for Oct 17–18 (the in-event delta):** wallets in Firecracker micro-VMs with a VM-level crash demo (`docs/SATURDAY_PLAN.md`), the Flow Library page, paying a whole crew in one RGB transaction, screenshots and evidence refresh, final README. Anything not listed in `IMPLEMENTATION_STATUS.md` with a test or a live run is not claimed.
 
 ## License
 
