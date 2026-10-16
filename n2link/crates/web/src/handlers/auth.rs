@@ -1315,7 +1315,8 @@ mod tests {
         let (status, body, _) = call(&router, "GET", "/settings", None, Some(token), "application/json").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["user"]["username"], "ada");
-        assert_eq!(body["user"]["permissions"], DEPLOYER_PERMISSIONS);
+        // The editor needs a list for a multi-permission role (a joined string disables Deploy).
+        assert_eq!(body["user"]["permissions"], serde_json::json!(["read", "settings.write", "flows.write", "credentials.write"]));
     }
 
     async fn discovery_doc(request: axum::extract::Request) -> Json<Value> {

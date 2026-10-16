@@ -54,7 +54,11 @@ pub async fn get_settings(
             return Err(StatusCode::UNAUTHORIZED);
         }
         settings.user =
-            Some(SettingsUser { username: actor.username, permissions: actor.permissions, anonymous: false });
+            Some(SettingsUser {
+                username: actor.username,
+                permissions: permissions_for_editor(&actor.permissions),
+                anonymous: false,
+            });
         settings.admin_auth = Some(AdminAuthSettings { auth_type: state.auth.login_kind().to_string() });
         settings.editor_theme.user_menu = true;
     }
@@ -173,6 +177,17 @@ async fn generate_plugins_html() -> String {
             "\n<!-- --- [red-plugin:n2link-config/config-editor] --- -->\n{}",
             include_str!("../../config-editor/config-editor.html")
         )
+    }
+}
+
+/// `"*"` and single permissions pass through; a comma-separated role becomes a JSON list.
+pub fn permissions_for_editor(permissions: &str) -> serde_json::Value {
+    if permissions.contains(',') {
+        serde_json::Value::Array(
+            permissions.split(',').map(str::trim).filter(|p| !p.is_empty()).map(|p| serde_json::Value::String(p.to_owned())).collect(),
+        )
+    } else {
+        serde_json::Value::String(permissions.to_owned())
     }
 }
 

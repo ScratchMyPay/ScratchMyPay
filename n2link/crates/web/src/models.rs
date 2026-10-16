@@ -216,7 +216,9 @@ pub struct AdminAuthSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SettingsUser {
     pub username: String,
-    pub permissions: String,
+    /// Node-RED's editor understands `"*"`, one permission, or a list. A role with several
+    /// permissions is sent as a list; a comma-joined string would disable Deploy in the editor.
+    pub permissions: serde_json::Value,
     #[serde(default)]
     pub anonymous: bool,
 }
