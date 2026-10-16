@@ -1,0 +1,17 @@
+RGB2link PowerEdge
+Copyright 2026 Edwin Kestler and the RGB2link PowerEdge contributors (team n2link)
+
+Required Notice: Copyright 2026 Edwin Kestler and the RGB2link PowerEdge contributors
+(https://github.com/n2link/RGB2linkPowerEdge)
+
+The original RGB2link components in this repository (RGB workflow nodes, wallet integrations,
+MVM orchestration and the PowerEdge extensions) are licensed under the PolyForm Noncommercial
+License 1.0.0 (see LICENSE). Commercial use requires separate written authorization from the
+copyright holders; contact the project maintainers.
+
+This repository incorporates third-party and upstream components distributed under their own
+licenses, which retain their original terms and attribution requirements. See LICENSES.md.
+
+Upstream notice carried from the n2link runtime (fork of oldrev/edgelinkd, Apache License 2.0):
+  Copyright Li Wei and other contributors.
+  See n2link/LICENSE and n2link/NOTICE.

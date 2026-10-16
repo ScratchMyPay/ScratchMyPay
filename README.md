@@ -152,4 +152,20 @@ Prompt → QVAC structured intent → registry selects `rgb-payment-v1` → para
 Prior work, not authored for this hackathon: n2link runtime/editor/Flow Copilot at `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (fork of oldrev/edgelinkd, Apache-2.0); RGB Bill wallet adapter at `be3d237`; Palimnex 2.9.0 tooling. Everything else is new work since 2026-10-15 (organizer-approved early start). The Friday 23:00 snapshot and this README list what existed at that point; commits after it are the in-event delta. Keep evidence (commit SHAs, tests, txids, QVAC runtime logs) and list anything mocked, simulated or hard-coded.
 
 ## License
-Recommended Apache-2.0 for the new package, subject to checking upstream dependency licenses. Preserve n2link/EdgeLinkd attribution.
+
+This project is source-available under the **PolyForm Noncommercial License 1.0.0**.
+
+Original RGB2link components, including RGB workflow nodes, wallet integrations, MVM orchestration, and PowerEdge extensions, are available for permitted noncommercial uses, including qualifying research, education, experimentation, modification, and redistribution.
+
+Commercial use of these components requires separate written authorization from the respective copyright holders. This includes commercial production deployments, paid hosting, resale, and commercial integrations where the intended use is not permitted under the PolyForm Noncommercial License.
+
+This project incorporates third-party and upstream components distributed under their own licenses, including the Apache License 2.0. Those components retain their original licensing terms and associated rights.
+
+See `LICENSE`, `LICENSES.md`, and `NOTICE` for applicable license terms and attribution requirements.
+
+For commercial licensing inquiries, contact the project maintainers.
+
+
+## Source reuse and Palimnex knowledge base
+
+Read [`reusecode.md`](reusecode.md) before editing third-party or existing project code. Read [`referencerepos.md`](referencerepos.md) for verified repository URLs, safe clone commands, pinned checkout metadata, and index exclusions. Both are mandatory references for local Codex.
