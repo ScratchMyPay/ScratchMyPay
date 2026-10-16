@@ -1,4 +1,4 @@
-# ScratchMyPay by n2link
+# ScratchMyPay
 
 > **ScratchMyPay** — post-show payouts in agentic dollars, built on n2link, RGB, QVAC and WDK. Repository codename until 2026-10-16: *RGB2link PowerEdge* (commit history and internal names keep it; see `docs/REBRAND_PLAN.md`).
 
@@ -8,7 +8,7 @@
 
 ## Hackathon submission — "Agentic Dollars on Bitcoin", Turin, Oct 17–18, 2026
 
-**Project:** ScratchMyPay (codename RGB2link PowerEdge) · **Team:** n2link
+**Project:** ScratchMyPay (codename RGB2link PowerEdge) · **Team:** ScratchMyPay
 **Members:** Edwin Kestler ([@EdwinKestler](https://github.com/EdwinKestler)) · [@cms](https://github.com/cms)
 
 **Idea.** Post-show payouts for live events. After a concert, an organizer has to pay the sound engineer, the stage crew and the artist. With ScratchMyPay they type it in plain words ("Pay the sound engineer 25 tUSDT for Saturday's show"); a local AI (QVAC) turns that into a validated payment workflow, shows a plain-language plan, and the organizer approves it. The payment settles as an RGB asset transfer on Bitcoin (Mutinynet test network), with a receipt both sides can verify. Payout details never leave the organizer's machine.
