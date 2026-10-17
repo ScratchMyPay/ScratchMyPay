@@ -142,7 +142,10 @@ async fn complete_inner(
 fn rejects_temperature(error: &str) -> bool {
     let e = error.to_ascii_lowercase();
     e.contains("temperature")
-        && (e.contains("unsupported") || e.contains("not supported") || e.contains("does not support"))
+        && (e.contains("unsupported")
+            || e.contains("not supported")
+            || e.contains("does not support")
+            || e.contains("deprecated"))
 }
 
 async fn complete_once(
@@ -168,6 +171,10 @@ mod temperature_tests {
             "ai provider returned 400 Bad Request: Unsupported parameter: 'temperature' is not supported with this model."
         ));
         assert!(rejects_temperature("this model does not support temperature"));
+        // Anthropic (claude-opus-5-5)
+        assert!(rejects_temperature(
+            "ai provider returned 400 Bad Request: `temperature` is deprecated for this model."
+        ));
         assert!(!rejects_temperature("ai provider returned 401 Unauthorized: invalid api key"));
         assert!(!rejects_temperature("Unsupported parameter: 'top_p'"));
     }
