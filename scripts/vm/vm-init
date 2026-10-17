@@ -10,6 +10,7 @@ mount -t devtmpfs dev /dev 2>/dev/null
 mount -t tmpfs -o size=64m,mode=1777 tmp /tmp
 mount --bind /etc/hosts.vm /etc/hosts
 ip link set lo up
+echo 0 > /proc/sys/kernel/ctrl-alt-del   # Ctrl-Alt-Del from the host = SIGINT to us = clean shutdown
 
 say() { echo "[vm-init] $*"; }
 halt() { say "$*"; sync; umount /data 2>/dev/null; echo b > /proc/sysrq-trigger; sleep 5; }
@@ -38,7 +39,7 @@ case "$ROLE" in
   *) halt "unknown role '$ROLE'" ;;
 esac
 mount -o ro,noexec,nodev,nosuid /dev/vdb /secrets || halt "no seeds disk"
-mount -o nodev,nosuid /dev/vdc /data || halt "no data disk"
+mount -o sync,nodev,nosuid /dev/vdc /data || halt "no data disk"   # sync: a VM kill loses at most the write in flight
 [[ -f /data/OWNER && "$(cat /data/OWNER)" == "vm:$ROLE" ]] || halt "data disk is not marked vm:$ROLE"
 say "role=$ROLE port=$PORT network=none (vsock only); seeds read-only; data $(du -sh /data | cut -f1)"
 
@@ -53,5 +54,8 @@ set -a
 . /secrets/env
 set +a
 cd /opt/poweredge/services/wallet-owner
-python3 -m poweredge_wallet --port "$PORT"
+python3 -m poweredge_wallet --port "$PORT" &
+SVC=$!
+trap 'say "shutdown requested"; kill -TERM "$SVC" 2>/dev/null; wait "$SVC"; halt "clean shutdown"' INT TERM
+wait "$SVC"
 halt "wallet service exited ($?)"

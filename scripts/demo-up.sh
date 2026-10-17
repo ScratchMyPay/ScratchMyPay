@@ -61,8 +61,18 @@ ready_wdk()       { curl -fsS --max-time 5 http://127.0.0.1:8713/health 2>/dev/n
 ready_n2link()    { curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:1888/poweredge-app/login 2>/dev/null; }
 
 # ------------------------------------------------------------------ start / wait
+in_vm() { [[ ( "$1" == payer || "$1" == recipient ) && -f "$ROOT/datadirs/$1.IN_VM" ]]; }   # keys in a box
+where() { if in_vm "$1"; then echo "micro-VM (no network card, vsock only)"; else echo "host process"; fi; }
+
 launch() {  # name — start detached in its own process group
   local name="$1" cmd
+  if in_vm "$name"; then   # the wallet's live data is on its VM disk: boot the VM, never the host service
+    if "ready_$name"; then ok "$name already running (micro-VM)"; return; fi
+    log "booting $name micro-VM (log artifacts/run/logs/vm-$name.log)"
+    "$ROOT/scripts/vm/boot.sh" up "$name" >>"$LOGS/vm-$name-boot.log" 2>&1 \
+      || { tail -n 15 "$LOGS/vm-$name-boot.log" >&2; die "$name micro-VM did not boot (log above)"; }
+    return
+  fi
   case "$name" in
     qvac)      cmd=("$ROOT/services/qvac/serve.sh") ;;
     recipient) cmd=("$ROOT/services/wallet-owner/run.sh" recipient) ;;
@@ -130,6 +140,7 @@ report() {
     else printf '%-10s %-6s %s%-8s%s %s\n' "$name" "$port" "$R" "DOWN" "$N" "$(pid_on_port "$port")"; fi
   done
   echo
+  echo "Keys:            organizer wallet in a $(where payer); crew wallet in a $(where recipient)"
   if ready_payer; then
     get http://127.0.0.1:8711/assets "$(token)" 30 | json "'\n'.join('Organizer funds: {:,.{p}f} {} spendable'.format(a['spendable'] / 10 ** a['precision'], a['ticker'], p=min(a['precision'], 2)) for a in d['assets']) or 'Organizer funds: no assets'" || warn "could not read organizer funds"
     get "http://127.0.0.1:8711/funds?fee_rate=2" "$(token)" 90 \
@@ -164,6 +175,7 @@ report() {
 # ------------------------------------------------------------------ stop
 stop_one() {  # name — only stops a process we recognise as ours
   local name="$1" spec port marker pid pgid
+  if in_vm "$name"; then "$ROOT/scripts/vm/boot.sh" down "$name" >/dev/null 2>&1; ok "$name micro-VM stopped (data stays on its disk)"; return; fi
   spec="$(spec_of "$name")"; port="$(field "$spec" 1)"; marker="$(field "$spec" 2)"
   pid="$(pid_on_port "$port")"
   if [[ -z "$pid" ]]; then rm -f "$PIDS/$name.pid"; log "$name not running"; return; fi

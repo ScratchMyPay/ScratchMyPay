@@ -97,31 +97,34 @@ up() {
 }
 JSON
   : > "$LOGS/vm-$role.log"
-  setsid "$VM/bin/firecracker" --no-api --config-file "$RUN/$role/vm.json" --level Warning \
+  rm -f "$RUN/$role/api.sock"
+  setsid "$VM/bin/firecracker" --api-sock "$RUN/$role/api.sock" --config-file "$RUN/$role/vm.json" --level Warning \
     >> "$LOGS/vm-$role.log" 2>&1 < /dev/null &
   echo $! > "$PIDS/vm-$role.pid"
   for _ in $(seq 1 50); do [[ -S "$uds" ]] && break; sleep 0.1; done
   bridge "$role"
   for i in $(seq 1 120); do
     health "$port" && break
-    alive "vm-$role" || { tail -20 "$LOGS/vm-$role.log"; die "VM exited during boot"; }
+    alive "vm-$role" || { tail -20 "$LOGS/vm-$role.log"; down "$role" >/dev/null; die "VM exited during boot"; }
     sleep 1
   done
-  health "$port" || { tail -20 "$LOGS/vm-$role.log"; die "no /health after 120 s"; }
+  health "$port" || { tail -20 "$LOGS/vm-$role.log"; down "$role" >/dev/null; die "no /health after 120 s"; }
   rm -f "$RUN/$role/seeds.ext4"   # Firecracker holds it open; no seed file stays on the host besides secrets/
   log "up in ${i}s: VM pid $(cat "$PIDS/vm-$role.pid"), API on 127.0.0.1:$port via vsock, no network card"
   if [[ $role == recipient ]] && alive vm-payer; then ROLE=payer bridge payer; fi   # delivery becomes VM -> VM
 }
 
-down() {
-  local role="$1"
-  for p in "vm-$role-bridge" "vm-$role"; do
-    if alive "$p"; then kill -TERM "$(cat "$PIDS/$p.pid")" 2>/dev/null || true; fi
-  done
-  for _ in $(seq 1 30); do alive "vm-$role" || break; sleep 0.2; done
-  alive "vm-$role" && kill -KILL "$(cat "$PIDS/vm-$role.pid")" 2>/dev/null || true
-  rm -f "$PIDS/vm-$role.pid" "$PIDS/vm-$role-bridge.pid" "$RUN/$role/seeds.ext4" "$RUN/$role/v.sock" "$RUN/$role/v.sock"_*
-  log "down"
+down() {   # clean: Ctrl-Alt-Del -> init stops the wallet, syncs, unmounts; hard kill only after 30 s
+  local role="$1" how="clean"
+  if alive "vm-$role" && [[ -S "$RUN/$role/api.sock" ]]; then
+    curl -s --max-time 5 --unix-socket "$RUN/$role/api.sock" -X PUT http://localhost/actions \
+      -H 'Content-Type: application/json' -d '{"action_type": "SendCtrlAltDel"}' >/dev/null || true
+    for _ in $(seq 1 150); do alive "vm-$role" || break; sleep 0.2; done
+  fi
+  if alive "vm-$role"; then how="HARD KILL (no clean exit)"; kill -KILL "$(cat "$PIDS/vm-$role.pid")" 2>/dev/null || true; fi
+  if alive "vm-$role-bridge"; then kill -TERM "$(cat "$PIDS/vm-$role-bridge.pid")" 2>/dev/null || true; fi
+  rm -f "$PIDS/vm-$role.pid" "$PIDS/vm-$role-bridge.pid" "$RUN/$role/seeds.ext4" "$RUN/$role/v.sock" "$RUN/$role/v.sock"_* "$RUN/$role/api.sock"
+  log "down ($how)"
 }
 
 return_home() {   # copy the VM's wallet data back to the host and hand ownership back
