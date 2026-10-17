@@ -47,7 +47,8 @@
 | One-command start-up, status and stop | `scripts/demo-up.sh` |
 | Keys in a box: Firecracker micro-VMs, vsock bridge, boot/return, `vm-status` node | `scripts/vm/`, `n2link/crates/core/src/runtime/nodes/rgb_nodes/vmbox.rs` |
 | Show-night dashboard: widget and data nodes, page | `rgb_nodes/dash.rs`, `rgb_nodes/stats.rs`, `n2link/crates/web/poweredge-app/dashboard.html` |
-| Rehearsal and evidence scripts | `scripts/e2e/`, `scripts/evidence.sh` |
+| Rehearsal and evidence scripts | `scripts/e2e/` (app payout, crash rehearsal, editor tabs, dashboard shots, `copilot-draft.mjs`, `set-http-port.mjs`, `redeploy-timing.mjs`), `scripts/evidence.sh` |
+| Swaps KaleidoSwap ↔ WDK: evaluation (research only) | `docs/SWAP_EVALUATION.md` |
 | Editor theme + guided app look (Bitcoin orange, local fonts) | `n2link/assets/theme/`, `scripts/build-editor-theme.py` |
 
 ### RGB operations used
@@ -62,7 +63,7 @@ Through `rgb-lib` 0.3.0b7 (Python), behind Bill's plan → confirm → execute-o
 - `qvac serve --openai` on 127.0.0.1:11435 with **Qwen3-8B**, local only (works with outbound network blocked).
 - **Strict JSON-schema output** (`response_format: json_schema`, schema generated from the pinned template registry) for the payout intent; the compiler and validator then decide, not the model.
 - A plain-language **explanation** of the plan, labelled "not authoritative", with the model name and latency shown in the app (badge "Local AI · QVAC · Qwen3-8B").
-- **Flow Copilot on QVAC:** drafts editor flows, retrieving and adapting Flow Library templates (treasury check, door revenue, keys in a box, show-night dashboard).
+- **Flow Copilot on QVAC:** drafts editor flows, retrieving and adapting Flow Library templates (treasury check, door revenue, keys in a box, show-night dashboard). For every `http in` it drafts, n2link sets host 127.0.0.1 and a free port and the sidebar shows **"Endpoints (after Deploy)"** with the exact request (live: "/pay-bassist" drafted in 9.2 s → `GET http://127.0.0.1:1896/pay-bassist`). Copilot can build pages that request money, never anything that sends it.
 
 ### WDK features used
 - `@tetherto/wdk-wallet-btc` 1.0.0-beta.17 on Mutinynet via Electrum (TLS), in its own micro-VM: **treasury balance**, **one fresh account per door attempt** (accounts 1000+) with **incoming-transfer detection** to issue the pass, **live fee rates**, payout cost (fee × measured 197 vB + 1,000-sat witness), "can the treasury cover tonight?" check, transfer history; treasury total includes the door revenue (read from the chain).

@@ -48,3 +48,17 @@ Back into the VMs afterwards: `scripts/demo-up.sh stop`, then `scripts/vm/boot.s
 - After a crash the Track screen waited forever: the organizer wallet now finishes in-flight payouts itself (20 s background check; reconcile never sends).
 - The timeline dropped prepared/approved ticks while unknown: fixed.
 - A VM shut down mid-refresh left rgb-lib's runtime lock; the host fallback then hung at start. The service now waits for the operation in progress before exiting, and clears the lock at start only when no other process owns the wallet.
+
+
+## Flow Copilot segment: "pay me" page (QVAC, ~1 min)
+
+1. **Reload the editor (F5) first.** An editor tab left open deploys its old copy of the flows and can undo changes made elsewhere (seen 19:44 on Oct 17).
+2. New empty tab → Flow Copilot sidebar → *"Make a web page at /pay-bassist that creates an RGB payment request and shows it as a QR code."*
+3. QVAC drafts 4 nodes (`http in` → `rgb-invoice` → `qr-code` → `http response`, ~9 s). n2link gives the `http in` host 127.0.0.1 and a free port; the sidebar shows **"Endpoints (after Deploy)"** with the exact link (e.g. `GET http://127.0.0.1:1896/pay-bassist`; if a port was taken it says which node holds it).
+4. Apply → Deploy (~0.3 s) → click the link: QR of a real Mutinynet RGB invoice from the crew wallet.
+5. What to say: *"Copilot can build anything that asks for money, never anything that sends it: sending only goes through the pinned template and a human approval."*
+6. Fallback prompt: *"Give the drummer a pay-me link."* To move an existing `http in` (host/port are not in the stock form): `cd scripts/e2e && node set-http-port.mjs --url /path --port 1897`.
+
+## Before the show: door demo button needs plain sats
+
+The organizer's plain (non-RGB) sats fund the door's demo button (1,199 sats per pass incl. fee). On Oct 17 at 19:05 only 711 were left. Top up from the Mutinynet faucet to the organizer address `tb1pncw03gkwd65gydgq2pq499xq09nsdymhp6eara5cq9de8m9mjdzs3dd26s`. RGB payouts are not affected (they are paid from RGB outputs). Scripts use the operator login and do not buy passes.
