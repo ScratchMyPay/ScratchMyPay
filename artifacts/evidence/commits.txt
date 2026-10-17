@@ -1,0 +1,67 @@
+2026-10-17 18:49 +0200  7c2e088  Edwin Kestler  Show-night dashboard, built as an n2link flow
+2026-10-17 18:40 +0200  cfe6bb7  Edwin Kestler  WDK treasury: /door/passes accepts ?limit= (default 20, max 500) for the dashboard's passes per hour
+2026-10-17 18:31 +0200  dbb43d0  Edwin Kestler  Wallet API: read-only payout statistics for the dashboard
+2026-10-17 18:25 +0200  56b8a72  Edwin Kestler  Docs: dashboard plan (options evaluated, recommended native ui-* nodes + page, phases, risks)
+2026-10-17 18:08 +0200  474082d  Edwin Kestler  Outbound network recorded and visible: egress observe + Settings pane (read-only for door passes)
+2026-10-17 17:54 +0200  42e965c  Edwin Kestler  Docs: keys in a box is ADR-028 (027 is the brand); Saturday acceptance list ticked with evidence
+2026-10-17 17:24 +0200  927eff4  Edwin Kestler  WDK treasury: treat 'close connect' as a dropped Electrum link (reconnect + retry once)
+2026-10-17 17:16 +0200  adb8be6  Edwin Kestler  Keys in a box made visible: vm-status node, Keys strip in the app, editor tab
+2026-10-17 16:35 +0200  a46aafd  Edwin Kestler  Rehearsal: demo run-sheet with measured timings; status
+2026-10-17 16:29 +0200  7db61d4  Edwin Kestler  Wallet service: wait for the operation in progress on shutdown; clear a provably stale rgb-lib runtime lock
+2026-10-17 16:15 +0200  b598de8  Edwin Kestler  Organizer wallet finishes in-flight payouts by itself; rehearsal of the VM crash moment
+2026-10-17 16:09 +0200  0cf578a  Edwin Kestler  Status refresh reconciles UNKNOWN_SUBMISSION by itself (never sends)
+2026-10-17 15:50 +0200  364245e  Edwin Kestler  Docs: keys in a box (README section + run steps, ADR-027, SECURITY reach table)
+2026-10-17 15:49 +0200  f198f96  Edwin Kestler  Keys in a box, part 6: all three keys in micro-VMs; door + payout live
+2026-10-17 15:44 +0200  3a9e592  Edwin Kestler  Keys in a box: WDK treasury VM support (Node 24 image, Electrum pinhole, door data disk)
+2026-10-17 15:42 +0200  f7df125  Edwin Kestler  Keys in a box, part 5: crash demo VM edition PASS, paid exactly once
+2026-10-17 15:38 +0200  3459929  Edwin Kestler  demo-up: re-point the organizer VM's delivery after start (crew in VM or on host)
+2026-10-17 15:35 +0200  95b7963  Edwin Kestler  Keys in a box, part 4: demo-up boots the VMs; clean VM shutdown; torn-store repair
+2026-10-17 15:25 +0200  bc303f8  Edwin Kestler  Keys in a box, part 3: crew wallet in its own VM; organizer VM -> crew VM delivery over vsock
+2026-10-17 15:22 +0200  9c069f9  Edwin Kestler  Keys in a box, part 2: organizer wallet in its micro-VM, live payout settled
+2026-10-17 15:18 +0200  609a8f3  Edwin Kestler  Keys in a box, part 1: Firecracker micro-VM with no network card (vsock only)
+2026-10-17 15:07 +0200  d3dc758  Edwin Kestler  Treasury balance includes door revenue (on-chain, per-attempt WDK accounts)
+2026-10-17 14:59 +0200  d43e838  Edwin Kestler  Status: phone payout via Rate waits on KaleidoSwap (RGB on Mutinynet not in this build)
+2026-10-17 14:13 +0200  ef24b89  Edwin Kestler  Live: crew paid in KaleidoSwap USDT through their RGB proxy; auto-refresh fix
+2026-10-17 13:50 +0200  71524ef  Edwin Kestler  Payouts through the RGB proxy (KaleidoSwap), same exactly-once send
+2026-10-17 13:42 +0200  fb1e548  Edwin Kestler  Bill dependency: repo moved to fork2checkbook/fork2checkbook; tested pin 1986826
+2026-10-17 13:17 +0200  10e6760  Edwin Kestler  RGB interop with KaleidoSwap: our wallet setup receives their USDT via their proxy
+2026-10-17 11:35 +0200  a8142ac  Christian C. Salvadó  AI chat node: also retry when temperature is deprecated (Anthropic)
+2026-10-17 10:50 +0200  94dd35c  Edwin Kestler  Cargo.lock: record rusqlite for n2link-web (Flow Library dependency)
+2026-10-17 10:50 +0200  5565e4f  Edwin Kestler  AI chat node: retry without temperature for reasoning models; surface errors
+2026-10-17 09:46 +0200  240f4e7  Edwin Kestler  Serve the editor/app on 0.0.0.0:1888; cap the door's demo payments
+2026-10-16 18:06 +0200  6f16847  Edwin Kestler  GitHub Pages: ScratchMyPay landing page; license texts rebranded
+2026-10-16 17:56 +0200  4c450d0  Edwin Kestler  README for the Friday snapshot: requirements check, new repo URL, live captures
+2026-10-16 17:46 +0200  fe0a6fa  Edwin Kestler  README: team members with names
+2026-10-16 17:44 +0200  c1ba7d8  Edwin Kestler  Team name: ScratchMyPay (ADR-028); n2link stays the engine and declared prior work
+2026-10-16 17:37 +0200  2773ab8  Edwin Kestler  Brand: ScratchMyPay (visible layer only)
+2026-10-16 11:52 +0200  b22f459  Edwin Kestler  License: PolyForm Noncommercial 1.0.0 for original RGB2link components
+2026-10-16 11:52 +0200  9b11509  Edwin Kestler  Flow Library (minimal): saved templates the local AI retrieves and adapts
+2026-10-16 11:19 +0200  bc9aeac  Edwin Kestler  Rebrand plan (visible layer): checklist, repo rename, organizer message template
+2026-10-16 11:12 +0200  cfb0a22  Edwin Kestler  WDK treasury: self-healing Electrum link
+2026-10-16 09:36 +0200  b4c91e0  Edwin Kestler  Fix: editor Deploy disabled for multi-permission roles (pass and operator)
+2026-10-16 00:34 +0200  453443a  Edwin Kestler  Pay-to-enter door: 1,000 sats to the WDK treasury buys a 24 h pass (no passwords)
+2026-10-16 00:11 +0200  93a87fe  Edwin Kestler  Saturday plan: wallets in Firecracker micro-VMs (keys in a box, crew VM, VM crash demo)
+2026-10-15 23:52 +0200  fed9e24  Edwin Kestler  PowerEdge look: Satoshi of Live Music theme for the editor and the guided app
+2026-10-15 23:12 +0200  215f36e  Edwin Kestler  Live crash-recovery run on Mutinynet: PASS (paid exactly once)
+2026-10-15 23:05 +0200  48d111b  Edwin Kestler  Pre-demo wallet check (/funds) + crew wallet auto-refresh fix
+2026-10-15 22:54 +0200  cd66241  Edwin Kestler  One-command demo start-up: scripts/demo-up.sh up|status|stop
+2026-10-15 22:43 +0200  77ed700  Edwin Kestler  Tether WDK treasury: read-only service, WDK nodes, fee on Review/Approve, pre-show check
+2026-10-15 22:18 +0200  cd589d0  Edwin Kestler  WDK spike: wdk-wallet-btc works on Mutinynet; wdk-wallet-rgb cannot join the sbc: payout path
+2026-10-15 21:47 +0200  81a8e00  Edwin Kestler  Flow Copilot (local QVAC) builds RGB flows: payment request as a QR page
+2026-10-15 21:30 +0200  9d92522  Edwin Kestler  Fix editor deploys (dropped properties) and guard the managed payout tab
+2026-10-15 21:14 +0200  4834abd  Edwin Kestler  QVAC visible in n2link: local ai-provider, Flow Copilot on QVAC, provenance in the flow
+2026-10-15 20:17 +0200  2070fa7  Edwin Kestler  Flow editor reproducible from a fresh clone: register Node-RED submodule
+2026-10-15 19:52 +0200  e5f1fcf  Edwin Kestler  QVAC-to-flow drafting, guided payout app, and the first real RGB payout
+2026-10-15 19:36 +0200  3c461bf  Edwin Kestler  RGB nodes for n2link (nodes_rgb) + any-asset invoices; template re-pinned
+2026-10-15 19:19 +0200  b790197  Edwin Kestler  wallet-owner service: Bill's adapter behind a durable payout journal
+2026-10-15 19:06 +0200  d4d3f64  Edwin Kestler  Issue TUSDT on Mutinynet; case-insensitive ticker binding
+2026-10-15 19:03 +0200  51a2606  Edwin Kestler  poweredge crate: WorkflowIntent, pinned registry, compiler, validator
+2026-10-15 18:50 +0200  4aad3b1  Edwin Kestler  QVAC intent smoke test + wallet funding evidence
+2026-10-15 18:26 +0200  1add0df  Edwin Kestler  Add local QVAC service and Mutinynet wallet provisioner
+2026-10-15 18:22 +0200  3454c90  Edwin Kestler  Import n2link 78d7ba1 as declared prior work (git subtree, squashed)
+2026-10-15 18:22 +0200  7094575  Edwin Kestler  Squashed 'n2link/' content from commit 78d7ba1
+2026-10-15 18:22 +0200  939bf5b  Edwin Kestler  Harden .gitignore for a public repo, add sanitized .env.example
+2026-10-15 18:15 +0200  ae58593  Edwin Kestler  Create static.yml
+2026-10-15 17:40 +0200  0720545  Edwin Kestler  Initialize Palimnex and pin the local n2link reference.
+2026-10-15 17:18 +0200  1493d31  Edwin Kestler  Add RGB2link PowerEdge design starter and agent contracts.
+2026-10-15 17:00 +0200  e995041  Edwin Kestler  first commit

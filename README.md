@@ -2,18 +2,18 @@
 
 > **ScratchMyPay** — post-show payouts in agentic dollars, built on n2link, RGB, QVAC and WDK. Repository codename until 2026-10-16: *RGB2link PowerEdge* (commit history and internal names keep it; see `docs/REBRAND_PLAN.md`).
 
-**Describe. Validate. Deploy.** A proposed AI-assisted, visual development environment for Bitcoin/RGB applications using the existing [n2link](https://github.com/n2link/n2link) Rust/Node-RED-compatible runtime, locally running QVAC, and verified workflow templates.
+**Describe. Approve. Paid exactly once.** An organizer types a payout in plain words; a local AI turns it into a validated n2link flow; a human approves; an RGB wallet that lives in its own micro-VM sends it exactly once on Bitcoin (Mutinynet test network), and the crew's wallet verifies it.
 
-> **Status: hackathon build in progress.** Work started 2026-10-15 with the organizers' approval to begin early on a public repository. Target: a complete, live, end-to-end product on Sunday 2026-10-18 13:00 CEST. Nothing below is claimed as working until `docs/IMPLEMENTATION_STATUS.md` records the test or live run that proves it.
+> **Status: submission build, Turin, Sunday 2026-10-18.** Every claim below has a test or a live run recorded in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) and evidence in [`artifacts/`](artifacts/). Test money only.
 
 ## Hackathon submission — "Agentic Dollars on Bitcoin", Turin, Oct 17–18, 2026
 
 **Project:** ScratchMyPay (codename RGB2link PowerEdge) · **Team:** ScratchMyPay
 **Members:** Edwin Kestler ([@EdwinKestler](https://github.com/EdwinKestler)) · Christian ([@cms](https://github.com/cms))
 
-**Idea.** Post-show payouts for live events. After a concert, an organizer has to pay the sound engineer, the stage crew and the artist. With ScratchMyPay they type it in plain words ("Pay the sound engineer 25 tUSDT for Saturday's show"); a local AI (QVAC) turns that into a validated payment workflow, shows a plain-language plan, and the organizer approves it. The payment settles as an RGB asset transfer on Bitcoin (Mutinynet test network), with a receipt both sides can verify. Payout details never leave the organizer's machine.
+**Idea.** Post-show payouts for live events. After a concert, an organizer has to pay the sound engineer, the stage crew and the artist. With ScratchMyPay they type it in plain words ("Pay the sound engineer 25 tUSDT for Saturday's show"); a local AI (QVAC) turns that into a validated payment workflow, shows a plain-language plan, and the organizer approves it. The payment settles as an RGB asset transfer on Bitcoin (Mutinynet test network), with a receipt both sides can verify. Payout details never leave the organizer's machine, and the keys never leave their micro-VMs.
 
-**Stack.** Rust: [n2link](https://github.com/n2link/n2link) (Node-RED-compatible runtime, editor, Flow Copilot). Python: `rgb-lib` 0.3.0b7 wallet service (FastAPI). Local AI: QVAC (`qvac serve --openai`, structured JSON output). Network: Mutinynet (`signetcustom`). Guided web app served by n2link. WDK: under evaluation (bonus).
+**Stack.** Rust: [n2link](https://github.com/n2link/n2link) (Node-RED-compatible runtime, editor, Flow Copilot) with our RGB, WDK, key-box and dashboard nodes; [Firecracker](https://firecracker-microvm.github.io/) micro-VMs for the keys. Python: `rgb-lib` 0.3.0b7 wallet service (FastAPI) on Bill / fork2checkbook. Local AI: QVAC (`qvac serve --openai`, Qwen3-8B, strict JSON-schema output). Tether WDK (`@tetherto/wdk-wallet-btc`) treasury and pay-to-enter door. Network: Mutinynet (`signetcustom`); interop with KaleidoSwap's USDT and RGB proxy.
 
 **Installed and working before the event (prior work, declared):**
 - n2link runtime, editor, Flow Copilot, credential storage, egress policy — `n2link/` at `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (fork of oldrev/edgelinkd, Apache-2.0), imported as one squashed commit.
@@ -21,11 +21,16 @@
 - Palimnex 2.9.0 (code search / agent memory tooling).
 - This repository's design docs, schemas and plan (`docs/`).
 
-**Built for the hackathon** (organizer-approved early start on 2026-10-15): everything not listed above — tracked commit by commit and summarized in `docs/IMPLEMENTATION_STATUS.md`.
+**Built for the hackathon:** everything else — see [Built during the hackathon](#built-during-the-hackathon) and, commit by commit, `docs/IMPLEMENTATION_STATUS.md`.
 
-### Working now (verified live on Mutinynet, Oct 15–16; evidence in `docs/IMPLEMENTATION_STATUS.md` and `artifacts/`)
-A plain-language request went from local AI to a real RGB transfer:
-"Pay the sound engineer 25 tUSDT for Saturday's show" → local QVAC (Qwen3-8B) intent → pinned template `rgb-payment-v1` → validated n2link flow → crew payment request → wallet-prepared plan → human approval → exactly-once send → **txid [`ea4ce78b…43af1`](https://mutinynet.com/tx/ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1)** → crew wallet imported the RGB consignment → **crew holds 25.000000 TUSDT (settled)**. Evidence: `artifacts/payouts/2026-10-15-first-live-payout.json`.
+### What is live (verified on Mutinynet, Oct 15–17)
+- **Plain words → paid exactly once.** "Pay the sound engineer 25 tUSDT for Saturday's show" → local QVAC (Qwen3-8B) intent → pinned template `rgb-payment-v1` → validated n2link flow → crew payment request → wallet-prepared plan → human approval → exactly-once send → crew wallet verified the RGB consignment → settled. First run: txid [`ea4ce78b…43af1`](https://mutinynet.com/tx/ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1) (`artifacts/payouts/2026-10-15-first-live-payout.json`). **16 payouts settled** so far (9 TUSDT, 7 USDT); approval → settled p50 77 s, p90 122 s.
+- **Interoperable RGB:** paid in KaleidoSwap's USDT through their RGB proxy, settled only after the crew's ACK.
+- **Keys in a box:** organizer wallet, crew wallet and WDK treasury each in a Firecracker micro-VM with no network card; payouts VM → VM; the organizer VM killed right after broadcasting, a new VM on the same disk, crew still paid exactly once.
+- **Pay to enter:** 1,000 test sats to the WDK treasury buys a 24-hour pass; revenue shows in the treasury.
+- **Show-night dashboard**, built as an n2link flow; **outbound network recorded** (egress observe) and visible read-only in Settings.
+
+**Where it is in the repo:**
 
 | Piece | Where |
 |---|---|
@@ -40,7 +45,41 @@ A plain-language request went from local AI to a real RGB transfer:
 | Flow Copilot on local QVAC (receive-side flows: pay-me QR page, treasury check) | `assistant-skills/`, `examples/flows/` |
 | Live crash-recovery run (killed after broadcast, paid exactly once) | `scripts/crash_recovery_demo.py`, `artifacts/payouts/2026-10-15-crash-recovery.json` |
 | One-command start-up, status and stop | `scripts/demo-up.sh` |
+| Keys in a box: Firecracker micro-VMs, vsock bridge, boot/return, `vm-status` node | `scripts/vm/`, `n2link/crates/core/src/runtime/nodes/rgb_nodes/vmbox.rs` |
+| Show-night dashboard: widget and data nodes, page | `rgb_nodes/dash.rs`, `rgb_nodes/stats.rs`, `n2link/crates/web/poweredge-app/dashboard.html` |
+| Rehearsal and evidence scripts | `scripts/e2e/`, `scripts/evidence.sh` |
 | Editor theme + guided app look (Bitcoin orange, local fonts) | `n2link/assets/theme/`, `scripts/build-editor-theme.py` |
+
+### RGB operations used
+Through `rgb-lib` 0.3.0b7 (Python), behind Bill's plan → confirm → execute-once adapter and our wallet-owner service:
+- **Issue** a NIA asset (`issue_asset_nia`: our TUSDT, precision 6) and fund colorable outputs; **go online** against Mutinynet's Esplora (`go_online`).
+- **Receive:** witness invoices (`witness_receive`, `sbc:` = Mutinynet), with or without **RGB proxy transport endpoints** (`rpcs://proxy.kaleidoswap.com/json-rpc`).
+- **Send** once (`send`, 1,000-sat witness output, fee rate 2 sat/vB), consignment exported and hashed (SHA-256) into the receipt; delivered either **directly** (VM → VM over vsock, `provide_out_of_band_consignment` on the crew side) or **through the RGB proxy** (`consignment.post`, then `ack.get`; settled only on ACK).
+- **Verify and settle:** the crew wallet validates the consignment and refreshes to SETTLED (`refresh`, `list_transfers`); balances via `list_assets`, `get_asset_balance`, `list_unspents`, `get_btc_balance`.
+- **Recover:** after a crash, reconcile from the wallet's own transfer record (never re-send). Assets used: **TUSDT** (ours) and **USDT** (KaleidoSwap's Mutinynet faucet).
+
+### QVAC features used
+- `qvac serve --openai` on 127.0.0.1:11435 with **Qwen3-8B**, local only (works with outbound network blocked).
+- **Strict JSON-schema output** (`response_format: json_schema`, schema generated from the pinned template registry) for the payout intent; the compiler and validator then decide, not the model.
+- A plain-language **explanation** of the plan, labelled "not authoritative", with the model name and latency shown in the app (badge "Local AI · QVAC · Qwen3-8B").
+- **Flow Copilot on QVAC:** drafts editor flows, retrieving and adapting Flow Library templates (treasury check, door revenue, keys in a box, show-night dashboard).
+
+### WDK features used
+- `@tetherto/wdk-wallet-btc` 1.0.0-beta.17 on Mutinynet via Electrum (TLS), in its own micro-VM: **treasury balance**, **one fresh account per door attempt** (accounts 1000+) with **incoming-transfer detection** to issue the pass, **live fee rates**, payout cost (fee × measured 197 vB + 1,000-sat witness), "can the treasury cover tonight?" check, transfer history; treasury total includes the door revenue (read from the chain).
+- n2link nodes: `wdk-balance`, `wdk-fee-quote`, `wdk-transfers`, `door-stats`. **Not used:** WDK sending (the treasury is read-only) and `wdk-wallet-rgb` (it cannot join Mutinynet `sbc:` payouts, `docs/WDK_SPIKE.md`).
+
+### Built during the hackathon
+**Oct 15–16 (organizer-approved early start, before the clock):** the request format, pinned template, compiler and validator; the RGB and WDK nodes; the wallet-owner service with its crash-safe journal; the guided app and the crew view; QVAC drafting and the Copilot on QVAC; live TUSDT payouts including a crash-recovery run; the WDK treasury, fee quotes and pre-show check; the pay-to-enter door; the Flow Library; the editor theme; `demo-up`.
+
+**Oct 17, at the venue (the Friday → Sunday delta):**
+- KaleidoSwap interop: their USDT received through their RGB proxy; **payouts through the proxy**, settled on ACK.
+- **Keys in a box:** Firecracker micro-VMs for all three keys (no network card, vsock pinholes, single owner per wallet, clean shutdown, fallback to host processes), VM crash demo, `vm-status` node, Keys strip in the app.
+- Payouts that finish themselves after a crash (background reconcile; never re-sends), clean shutdown and stale-lock recovery in the wallet service.
+- **Show-night dashboard:** `ui-stat` / `ui-chart` / `ui-table` widget nodes, `rgb-funds` / `payout-stats` / `door-stats` data nodes, payout statistics API, dashboard page.
+- Treasury balance including door revenue; outbound network recorded (egress observe) and visible in Settings; Electrum reconnect fix; AI chat node fix.
+- Three rehearsals with scripts (`scripts/e2e/`) and a run-sheet (`docs/DEMO_RUNSHEET.md`).
+
+**Oct 18:** final README and evidence (`artifacts/evidence/`).
 
 ### Install and run (step by step)
 
@@ -87,7 +126,7 @@ It waits for each service to be really ready (wallets confirm `mutinynet` and ma
 Open **http://127.0.0.1:1888/poweredge-app** (guided app) and **http://127.0.0.1:1888/** (flow editor, tab "ScratchMyPay payouts"). Everything listens on 127.0.0.1 only.
 
 ### Flow Library: templates the local AI retrieves and adapts
-Saved flows live in SQLite (`datadirs/n2link/library/`) in the Copilot's own draft form, so a template is exactly what the model would have drafted. The repo seeds three (`library/seed/`): the pay-me QR page, the pre-show treasury check and a door-revenue report. At draft time the local AI sees the library (name, description, example requests, nodes) and adapts a fitting template instead of drafting from nothing: asked for "every Friday at 16:30 check whether the treasury can cover 8 payouts", it returned the treasury-check template with the new schedule and count. Any editor tab can be saved as a template (`POST /flow-library/from-tab`); payout-path nodes are refused, secret fields are refused, wallet references are stripped and re-bound at deploy, and a template is accepted only if it would deploy on this runtime now. API: `GET/POST /flow-library`, `GET/DELETE /flow-library/{id}`. A library page with "deploy" and "ask the AI to adapt" buttons is planned for Saturday.
+Saved flows live in SQLite (`datadirs/n2link/library/`) in the Copilot's own draft form, so a template is exactly what the model would have drafted. The repo seeds three (`library/seed/`): the pay-me QR page, the pre-show treasury check and a door-revenue report. At draft time the local AI sees the library (name, description, example requests, nodes) and adapts a fitting template instead of drafting from nothing: asked for "every Friday at 16:30 check whether the treasury can cover 8 payouts", it returned the treasury-check template with the new schedule and count. Any editor tab can be saved as a template (`POST /flow-library/from-tab`); payout-path nodes are refused, secret fields are refused, wallet references are stripped and re-bound at deploy, and a template is accepted only if it would deploy on this runtime now. API: `GET/POST /flow-library`, `GET/DELETE /flow-library/{id}`. Five templates are seeded now (also "Keys in a box: health check" and "Show-night dashboard"); a library page with "deploy" buttons was not built (the Copilot and the API are the way in).
 
 ### Interoperable RGB: KaleidoSwap's USDT through their proxy (live, Oct 17)
 ScratchMyPay pays crew in the hackathon's shared **USDT** (`rgb:lX~ToKsO-…-E9PA_h0`, KaleidoSwap's Mutinynet faucet), not only in our own TUSDT. Crew invoices name the **RGB proxy** (`rpcs://proxy.kaleidoswap.com/json-rpc`), so any RGB wallet can receive a payout: ours, KaleidoSwap's, or Rate on a phone. Bill's exactly-once send and our journal are unchanged; only delivery changed: the organizer uploads the consignment to the proxy with the exact witness output, the crew wallet fetches it, validates it and ACKs, and the payout is **SETTLED only after that ACK**. Live: organizer funded with 100 USDT from KaleidoSwap's faucet, then a 1 USDT payout driven from the app settled in under two minutes (txid `748c5891…85622e5`, journal and screenshots in `artifacts/payouts/2026-10-17-usdt-via-kaleidoswap-proxy.json`). Only allowlisted proxies are used (`POWEREDGE_RGB_PROXY`); `POWEREDGE_INVOICE_TRANSPORT=direct` restores the old direct hand-over.
@@ -156,37 +195,41 @@ The flow editor and the guided app share one look taken from our [Satoshi of Liv
 - **Approval is a typed name + checkbox** on the organizer's own machine; there is no multi-user login or signature on the approval.
 - **The door checks payment, not identity.** Anyone who pays 1,000 test sats gets a 24-hour pass bound to that browser; passes are not bound to a key yet. The "pay from the organizer wallet" button exists so the whole loop runs on one machine; a real organizer would pay from their own wallet.
 - **A plan approved before a wallet-service restart must be prepared again** (fail-closed by design).
+- **Outbound network is recorded, not blocked** (n2link egress `observe`). `enforce` with allow rules is the production setting.
+- **Dashboard history is in memory**: line charts start empty after an n2link restart; per-hour bars come from the wallet journal and the door database, so they show the whole day.
 - **WDK** (Tether Wallet Development Kit): used as a **read-only treasury** on Mutinynet (`@tetherto/wdk-wallet-btc`): balance, live fee rates, cost of tonight's payouts, history. It shows the network cost on the Review/Approve screens and powers the pre-show treasury check (`examples/flows/treasury-check.json`). WDK does not send in this build, and WDK's RGB wallet is not used: it cannot join Mutinynet (`sbc:`) TUSDT payouts (see `docs/WDK_SPIKE.md`).
 
-## Product promise
+## Design notes (from the original plan)
+
+### Product promise
 A developer asks: “Create a testnet RGB payment API with explicit approval, a receipt, and local AI interpretation.” Local QVAC selects a pinned, validated template and fills typed parameters. An independent validator rejects unsupported nodes, unsafe bindings, policy bypasses and unsupported wallet/network combinations. The editor displays the proposed flow. The user approves a versioned deployment. n2link runs the workflow against a privileged, isolated wallet service; immutable audit records and a reconciliation process prove the outcome.
 
-## Non-goals
+### Non-goals
 - Not an Ethereum-style on-chain smart-contract deployment platform: RGB is client-side validated, anchored to Bitcoin single-use seals.
 - Not a production self-custody wallet or permissionless signing agent in v0.
 - Not Bitcoin Core inside the n2link Wasmi plugin sandbox: `bitcoind`, `electrs`, wallets and QVAC are native processes or containers.
 - Not an autonomous authorization system: QVAC cannot sign, transfer funds or deploy arbitrary executables.
 - No claims of offline Bitcoin finality.
 
-## Existing source and reuse
+### Existing source and reuse
 - [n2link/n2link](https://github.com/n2link/n2link): Rust runtime, integrated editor, Node-RED-compatible flows, auth, credential storage, egress controls, experimental Wasmi sandbox. It is a fork of oldrev/edgelinkd (Apache-2.0); retain provenance, LICENSE and NOTICE.
 - [fork2checkbook/fork2checkbook](https://github.com/fork2checkbook/fork2checkbook) (formerly EdwinKestler/bill): proven on-chain RGB `rgb-lib-python` wallet path on Mutinynet and byte-exact BLE artifact transport. Extract adapter patterns; **do not copy wallet state, credentials, seed or device-specific paths**.
 - WDK/UTEXO remains optional, separately isolated and behind compatibility tests.
 
-## Sunday deliverable (M0 + M1 + M2, built in parallel)
+### Sunday deliverable (M0 + M1 + M2, built in parallel)
 **M0**: reproducible environment; exact n2link/Bill revisions recorded. **M1**: local QVAC selects an allowlisted template and emits typed parameters; a deterministic compiler and validator generate a valid n2link flow shown in the editor and in the guided app. **M2**: a real isolated RGB wallet pair on Mutinynet: invoice, one human-approved send, recipient import, settlement and receipt. **UX**: a guided app (Describe → Review → Approve → Track) a non-technical user can complete without the flow editor. M1 and M2 are developed in parallel tracks; the only hard rule is that no real send is wired up without the approval gate and journal in place. **M3** (capsules) is post-event.
 
-## Quick start for local Codex
+### For contributors: quick start for local Codex
 1. Create a working feature branch of n2link; capture base SHA, compiler and platform. Keep existing runtime behavior and tests intact.
 2. Copy or mount this specification into your checkout, **without overriding existing `AGENTS.md`**. Read `AGENTS.md`, `docs/DESIGN.md`, `docs/ROADMAP.md` and `prompt.md`.
 3. Begin with `prompt.md`; inspect real extension points before editing. First response from Codex must document findings, a minimal plan, risks and chosen module boundaries.
 4. Build in small, frequent commits pushed to the public repo; run baseline and targeted tests. Test networks only (Mutinynet/regtest); never mainnet.
 5. See `docs/ACCEPTANCE.md` for exit gates and `docs/SECURITY.md` for fail-closed requirements.
 
-## Suggested demo
+### Suggested demo
 Prompt → QVAC structured intent → registry selects `rgb-payment-v1` → parameter binding → validator → plain-language review + editor preview → user-approved deployment → invoice → authorized wallet send → recipient import/refresh → receipt. The full chain runs live in the 3-minute judge demo on Mutinynet.
 
-## File map
+### File map
 - `docs/DESIGN.md` — architecture, data/control planes and contracts
 - `docs/ROADMAP.md` — dependency-aware milestone plan
 - `docs/SECURITY.md` — threats and explicit trust boundaries
@@ -210,7 +253,7 @@ The organizers compare the Friday 23:00 snapshot with Sunday 13:00. To make that
 
 **B. Built on Oct 15–16, before the clock, with the organizers' written approval to start early** (every item has a commit and a live run in `docs/IMPLEMENTATION_STATUS.md`): the request format, pinned template, compiler and validator; the RGB and WDK nodes; the wallet-owner service with its crash-safe journal; the guided app and the crew view; QVAC drafting and the Copilot on QVAC; four live TUSDT payouts on Mutinynet including a crash-recovery run; the WDK treasury, fee quotes and pre-show check; the pay-to-enter door; the Flow Library; the editor theme; `demo-up`. Code: `.rs`, `.py`, `.mjs`, `.html` in their original folders (`n2link/crates/`, `services/`, `scripts/`, `library/`, `templates/`).
 
-**C. Planned for Oct 17–18 (the in-event delta):** wallets in Firecracker micro-VMs with a VM-level crash demo (`docs/SATURDAY_PLAN.md`), the Flow Library page, paying a whole crew in one RGB transaction, screenshots and evidence refresh, final README. Anything not listed in `IMPLEMENTATION_STATUS.md` with a test or a live run is not claimed.
+**C. Built at the venue, Oct 17 (the in-event delta):** see [Built during the hackathon](#built-during-the-hackathon). Planned but **not** built: the Flow Library page, paying a whole crew in one RGB transaction, the phone payout via KaleidoSwap's Rate wallet (its RGB account is mainnet-only in the current build). Anything not listed in `IMPLEMENTATION_STATUS.md` with a test or a live run is not claimed.
 
 ## License
 

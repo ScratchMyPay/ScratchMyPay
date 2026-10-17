@@ -1,0 +1,59 @@
+{
+ "capturedAt": "2026-10-17T17:03:59.363Z",
+ "prompt": "Pay the sound engineer 1 USDT for Sunday's demo",
+ "note": "draft only: nothing approved or sent",
+ "status": 200,
+ "body": {
+  "ok": true,
+  "draftId": "7bddac777ded716e5e02005b",
+  "review": {
+   "recipient": "sound engineer",
+   "amount": "1",
+   "amountBaseUnits": 1000000,
+   "assetTicker": "USDT",
+   "assetName": "Tether USD",
+   "assetId": "rgb:lX~ToKsO-Iup7dJ5-UM794sA-9WD21ge-VHYzBGb-E9PA_h0",
+   "memo": "Sunday's demo",
+   "network": "mutinynet",
+   "networkFee": {
+    "engine": "Tether WDK",
+    "feeRateSatVb": 1,
+    "feeSat": 197,
+    "witnessSat": 1000,
+    "perPayoutSat": 1197,
+    "vbytes": 197
+   }
+  },
+  "ai": {
+   "engine": "QVAC",
+   "model": "poweredge-intent",
+   "modelLabel": "Qwen3-8B",
+   "latencyMs": 1504,
+   "local": true,
+   "explanation": "The sound engineer is being paid 1 USDT for their work on Sunday's demo. The payment is requested as a post-show payout."
+  },
+  "template": {
+   "id": "rgb-payment-v1",
+   "version": "1.0.0",
+   "digest": "b57078da5be6a63b0faa224b7bd0e63d7c44947cbdf4ed8d06f964c1fc7cea24"
+  },
+  "flow": {
+   "digest": "503d8dbf48127247b2aaf35718fa80a1cc699f6b51476b138e5e8c3464e583b6",
+   "intentDigest": "45d30b02bcd8ad8a22ae73594ab602fcd9b7d0cb31a066227f473cd178182cbb",
+   "nodes": 19
+  },
+  "intent": {
+   "version": 1,
+   "template_id": "rgb-payment-v1",
+   "template_version": "1.0.0",
+   "environment": "mutinynet",
+   "parameters": {
+    "amount": "1",
+    "asset_ticker": "USDT",
+    "memo": "Sunday's demo",
+    "recipient_label": "sound engineer"
+   },
+   "rationale": "The sound engineer is being paid 1 USDT for their work on Sunday's demo. The payment is requested as a post-show payout."
+  }
+ }
+}

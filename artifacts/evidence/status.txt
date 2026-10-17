@@ -1,0 +1,21 @@
+
+SERVICE    PORT   STATE    PID
+qvac       11435  ready    270977
+recipient  8712   ready    304257
+wdk        8713   ready    358103
+payer      8711   ready    362031
+n2link     1888   ready    362052
+
+Keys:            organizer wallet in a micro-VM (no network card, vsock only); crew wallet in a micro-VM (no network card, vsock only); WDK treasury in a micro-VM (no network card, vsock only)
+Organizer funds: 999,867.00 TUSDT spendable
+Organizer funds: 93.00 USDT spendable
+Organizer sats:  711 plain + 38,329 on RGB outputs; 3 free RGB outputs; ~27 payouts at 2 sat/vB
+Crew funds:      158.00 TUSDT spendable
+Crew funds:      8.00 USDT spendable
+Door revenue:    42,000 sats from 20 passes (29 active) at 1,000 sats each
+WDK treasury:    143,000 sats; 5 payouts need 5,985 sats -> OK
+
+App:    http://127.0.0.1:1888/poweredge-app   (door: /poweredge-app/login)
+Editor: http://127.0.0.1:1888/
+From other machines: http://192.168.6.198:1888/poweredge-app/login
+From other machines: http://100.108.148.119:1888/poweredge-app/login

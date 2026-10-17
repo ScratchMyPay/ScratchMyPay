@@ -1,0 +1,6 @@
+payer      VM running (pid 349094)
+recipient  VM running (pid 304247)
+wdk        VM running (pid 358094)
+# host processes holding keys or seeds (expected: none)
+none
+# host processes with secrets/ open (expected: none)

@@ -1,0 +1,38 @@
+{
+ "organizer": {
+  "assets": [
+   {
+    "asset_id": "rgb:I7olLl3y-c49Ha7C-v82SFEj-BU33dvn-4mGtCIL-MNRyWm8",
+    "ticker": "TUSDT",
+    "name": "PowerEdge Test USD",
+    "precision": 6,
+    "spendable": 999867000000
+   },
+   {
+    "asset_id": "rgb:lX~ToKsO-Iup7dJ5-UM794sA-9WD21ge-VHYzBGb-E9PA_h0",
+    "ticker": "USDT",
+    "name": "Tether USD",
+    "precision": 6,
+    "spendable": 93000000
+   }
+  ]
+ },
+ "crew": {
+  "assets": [
+   {
+    "asset_id": "rgb:I7olLl3y-c49Ha7C-v82SFEj-BU33dvn-4mGtCIL-MNRyWm8",
+    "ticker": "TUSDT",
+    "name": "PowerEdge Test USD",
+    "precision": 6,
+    "spendable": 158000000
+   },
+   {
+    "asset_id": "rgb:lX~ToKsO-Iup7dJ5-UM794sA-9WD21ge-VHYzBGb-E9PA_h0",
+    "ticker": "USDT",
+    "name": "Tether USD",
+    "precision": 6,
+    "spendable": 8000000
+   }
+  ]
+ }
+}

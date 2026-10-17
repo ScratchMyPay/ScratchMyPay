@@ -1,0 +1,753 @@
+{
+ "plans": [
+  {
+   "plan_id": "7638916a-03bd-4acf-85ad-7cd41003dc99",
+   "created_at": 1792248369.115674,
+   "updated_at": 1792248421.0609846,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "25",
+   "recipient_label": "sound engineer",
+   "memo": "Saturday's show",
+   "txid": "55e9c5132e7207627ed34bf29ea58a28996eb029fd177aa2af8827f87976dcde",
+   "approved_by": "Organizer"
+  },
+  {
+   "plan_id": "61dc4808-675b-4e8c-a6b0-c7d825e28111",
+   "created_at": 1792247458.7351494,
+   "updated_at": 1792247508.237312,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "fallback rehearsal",
+   "txid": "eb18437efc014c3ad8f69f0e321e26b63a48657cd8003c9ec0293af7e0385cb7",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "487b1b1a-2e19-4074-b402-02e0bff06ea2",
+   "created_at": 1792246806.214676,
+   "updated_at": 1792246929.1936035,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "crash rehearsal",
+   "txid": "30ea73a4c534c3fd61cd3f6490f7a78469356f9ab14c8e828c28d8aea51334e2",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "4d943bab-051e-434e-9e90-938631500788",
+   "created_at": 1792246310.3679657,
+   "updated_at": 1792246633.3161318,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "crash rehearsal",
+   "txid": "0a95eeaef6b4a9cf960b00bf65d4d96caa5b0bdc56f4ebbc7e46d3e3642b6468",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "a92dbf17-ae41-486d-8059-55685f4f92cd",
+   "created_at": 1792244812.4606192,
+   "updated_at": 1792244891.7013705,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "for all keys in boxes",
+   "txid": "7c9e7ef2a2cc66e278d35bf1a796ba37e98e20f7c418545eaab332003259baca",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "adb0fd6a-205d-4b9a-b7d9-5f3e4e247369",
+   "created_at": 1792244384.8138711,
+   "updated_at": 1792244485.7038393,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "1",
+   "recipient_label": "crash-recovery test",
+   "memo": "live crash-recovery run",
+   "txid": "a5202013fede3cf99fd62c397b9fe6f0dc56a9b6bc877eeb3f654f62b61263a2",
+   "approved_by": "Gus (crash demo)"
+  },
+  {
+   "plan_id": "cd0186f9-8edf-4346-a2e5-902486ecf6ca",
+   "created_at": 1792243496.9040506,
+   "updated_at": 1792243530.878262,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "VM to VM delivery",
+   "txid": "205962dcf318fb1e115bf3b9ce24d28400018902131e97aa28badb081a92cc2f",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "014bc0f7-957b-4565-b231-58e84b6b2062",
+   "created_at": 1792243215.6220055,
+   "updated_at": 1792243295.0883842,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "VM rehearsal",
+   "txid": "b845523af3c761f45a860e83e42cb131a4d7317727e7ddd41a114cf1ed01a8b4",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "a530d9c0-a0c5-4f50-8ab3-424f7496f4c8",
+   "created_at": 1792239049.8746378,
+   "updated_at": 1792239160.5298066,
+   "state": "SETTLED",
+   "asset_ticker": "USDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "Saturday load-in",
+   "txid": "748c589170543e3cb24593a780cf156d9bbc4a68fc2cfb8dacb31d7bd85622e5",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "a0e6fdeb-b022-4fb5-a4ee-72546f5ae8cc",
+   "created_at": 1792236038.7299595,
+   "updated_at": 1792236096.5521562,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "25",
+   "recipient_label": "sound engineer",
+   "memo": "Saturday's show",
+   "txid": "482b5d4185bf00e059554a3a061b1c9c0a13d1088e3c91d883046b37d53c79e8",
+   "approved_by": "Organizer"
+  },
+  {
+   "plan_id": "3c1fdb4f-79b3-4a88-81c6-f9b3a0fcb47c",
+   "created_at": 1792224173.488309,
+   "updated_at": 1792224287.6934848,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "25",
+   "recipient_label": "sound engineer",
+   "memo": "",
+   "txid": "f197ace5fe767b72bcb9198c9dcb2fe481c45b3ec5c9a6291c66dab0c2901ad3",
+   "approved_by": "Organizer"
+  },
+  {
+   "plan_id": "6fc0ff0d-d37d-470f-803c-a4bd4a82e302",
+   "created_at": 1792166090.3392096,
+   "updated_at": 1792166127.2557085,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "1",
+   "recipient_label": "sound engineer",
+   "memo": "Friday rehearsal",
+   "txid": "ab3d8c63d25b19ea87e24d30ab7664187774399c2ab25cca55e0fa35b83119e8",
+   "approved_by": "Gus (organizer)"
+  },
+  {
+   "plan_id": "90460217-c480-46b6-9a7d-155501fb578b",
+   "created_at": 1792098632.818434,
+   "updated_at": 1792098682.535183,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "1",
+   "recipient_label": "crash-recovery test",
+   "memo": "live crash-recovery run",
+   "txid": "2a16fe355d6df60e8e8399596fe350deeb27f3779256325157230fbb51da0f2d",
+   "approved_by": "Gus (crash demo)"
+  },
+  {
+   "plan_id": "bc0f537f-c09a-47b7-bb30-cfee18eaefc4",
+   "created_at": 1792089392.8458183,
+   "updated_at": 1792089460.2379367,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "5",
+   "recipient_label": "lighting tech",
+   "memo": "load-out payment",
+   "txid": "8dd1afcfa5ccc0d4a77ab92ab66f5f6aee243340428b75f27af75e3388c4d4a6",
+   "approved_by": "Organizer"
+  },
+  {
+   "plan_id": "5c716433-93d7-416c-a9f4-7d171693b870",
+   "created_at": 1792088523.0116553,
+   "updated_at": 1792088604.5330064,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "25",
+   "recipient_label": "sound engineer",
+   "memo": "Saturday's show",
+   "txid": "00d20ebd1de2c82838cb10fae3657cbf4752bb1c609574127fa0943d84b31111",
+   "approved_by": "Organizer"
+  },
+  {
+   "plan_id": "db71215b-c18c-47cc-b7c9-f16073ea17e6",
+   "created_at": 1792086498.7900667,
+   "updated_at": 1792086544.2522452,
+   "state": "SETTLED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "25",
+   "recipient_label": "sound engineer",
+   "memo": "Saturday's show",
+   "txid": "ea4ce78b91770ab2b283e1bdf0ab299a7827a859f38d7c0609f1dc4c5ed43af1",
+   "approved_by": "Edwin (organizer)"
+  },
+  {
+   "plan_id": "17d078af-ffdc-4379-b26d-5841612b75df",
+   "created_at": 1792085237.3045464,
+   "updated_at": 1792085237.3045464,
+   "state": "PLANNED",
+   "asset_ticker": "TUSDT",
+   "amount_display": "25",
+   "recipient_label": "sound engineer",
+   "memo": "Saturday's show (live plan smoke, not executed)",
+   "txid": null,
+   "approved_by": null
+  }
+ ],
+ "stats72h": {
+  "since": 1791997200,
+  "hours": 72,
+  "buckets": [
+   {
+    "hour": 1791997200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792000800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792004400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792008000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792011600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792015200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792018800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792022400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792026000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792029600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792033200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792036800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792040400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792044000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792047600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792051200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792054800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792058400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792062000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792065600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792069200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792072800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792076400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792080000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792083600,
+    "prepared": 2,
+    "settled": 1,
+    "failed": 0,
+    "volume": {
+     "TUSDT": 25.0
+    }
+   },
+   {
+    "hour": 1792087200,
+    "prepared": 2,
+    "settled": 2,
+    "failed": 0,
+    "volume": {
+     "TUSDT": 30.0
+    }
+   },
+   {
+    "hour": 1792090800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792094400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792098000,
+    "prepared": 1,
+    "settled": 1,
+    "failed": 0,
+    "volume": {
+     "TUSDT": 1.0
+    }
+   },
+   {
+    "hour": 1792101600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792105200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792108800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792112400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792116000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792119600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792123200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792126800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792130400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792134000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792137600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792141200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792144800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792148400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792152000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792155600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792159200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792162800,
+    "prepared": 1,
+    "settled": 1,
+    "failed": 0,
+    "volume": {
+     "TUSDT": 1.0
+    }
+   },
+   {
+    "hour": 1792166400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792170000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792173600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792177200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792180800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792184400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792188000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792191600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792195200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792198800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792202400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792206000,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792209600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792213200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792216800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792220400,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792224000,
+    "prepared": 1,
+    "settled": 1,
+    "failed": 0,
+    "volume": {
+     "TUSDT": 25.0
+    }
+   },
+   {
+    "hour": 1792227600,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792231200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792234800,
+    "prepared": 1,
+    "settled": 1,
+    "failed": 0,
+    "volume": {
+     "TUSDT": 25.0
+    }
+   },
+   {
+    "hour": 1792238400,
+    "prepared": 1,
+    "settled": 1,
+    "failed": 0,
+    "volume": {
+     "USDT": 1.0
+    }
+   },
+   {
+    "hour": 1792242000,
+    "prepared": 4,
+    "settled": 4,
+    "failed": 0,
+    "volume": {
+     "USDT": 3.0,
+     "TUSDT": 1.0
+    }
+   },
+   {
+    "hour": 1792245600,
+    "prepared": 4,
+    "settled": 4,
+    "failed": 0,
+    "volume": {
+     "USDT": 3.0,
+     "TUSDT": 25.0
+    }
+   },
+   {
+    "hour": 1792249200,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   },
+   {
+    "hour": 1792252800,
+    "prepared": 0,
+    "settled": 0,
+    "failed": 0,
+    "volume": {}
+   }
+  ],
+  "totals": {
+   "prepared": 17,
+   "settled": 16,
+   "failed": 0,
+   "inFlight": 0,
+   "volume": {
+    "TUSDT": 133.0,
+    "USDT": 7.0
+   }
+  },
+  "settleSeconds": {
+   "n": 16,
+   "p50": 47.6,
+   "p90": 121.6
+  }
+ }
+}

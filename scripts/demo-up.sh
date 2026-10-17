@@ -152,7 +152,7 @@ report() {
   fi
   if ready_wdk; then
     get "http://127.0.0.1:8713/door/passes" "$(token)" 30 \
-      | json "'Door revenue:    {:,} sats from {} passes ({} active) at {:,} sats each'.format(d['revenueSat'], len(d['passes']) if isinstance(d['passes'], list) else d['passes'], d['activePasses'], d['priceSat'])" \
+      | json "'Door revenue:    {:,} sats from {} passes ({} active) at {:,} sats each'.format(d['revenueSat'], d['revenueSat'] // max(1, d['priceSat']), d['activePasses'], d['priceSat'])" \
       || warn "could not read door revenue"
     get "http://127.0.0.1:8713/check?count=$PAYOUTS_TONIGHT" "$(token)" 30 \
       | json "(lambda c, a: 'WDK treasury:    {:,} sats; {} payouts need {:,} sats -> {}'.format(c['haveSat'], c['payoutsTonight'], c['needSat'], 'OK' if c['enough'] else 'TOP UP (short {:,} sats; fund {})'.format(c['shortSat'], a)))(d['coverage'], d['address'])" \

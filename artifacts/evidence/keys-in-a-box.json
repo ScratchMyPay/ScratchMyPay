@@ -1,0 +1,95 @@
+{
+ "organizer": {
+  "instance": {
+   "id": "smp-payer",
+   "state": "Running",
+   "vmm_version": "1.17.0",
+   "app_name": "Firecracker"
+  },
+  "networkInterfaces": 0,
+  "drives": [
+   {
+    "id": "seeds",
+    "readOnly": true,
+    "root": false
+   },
+   {
+    "id": "data",
+    "readOnly": false,
+    "root": false
+   },
+   {
+    "id": "rootfs",
+    "readOnly": true,
+    "root": true
+   }
+  ],
+  "machine": {
+   "vcpu_count": 2,
+   "mem_size_mib": 768
+  },
+  "vsockCid": 3
+ },
+ "crew": {
+  "instance": {
+   "id": "smp-recipient",
+   "state": "Running",
+   "vmm_version": "1.17.0",
+   "app_name": "Firecracker"
+  },
+  "networkInterfaces": 0,
+  "drives": [
+   {
+    "id": "seeds",
+    "readOnly": true,
+    "root": false
+   },
+   {
+    "id": "rootfs",
+    "readOnly": true,
+    "root": true
+   },
+   {
+    "id": "data",
+    "readOnly": false,
+    "root": false
+   }
+  ],
+  "machine": {
+   "vcpu_count": 2,
+   "mem_size_mib": 768
+  },
+  "vsockCid": 4
+ },
+ "treasury": {
+  "instance": {
+   "id": "smp-wdk",
+   "state": "Running",
+   "vmm_version": "1.17.0",
+   "app_name": "Firecracker"
+  },
+  "networkInterfaces": 0,
+  "drives": [
+   {
+    "id": "seeds",
+    "readOnly": true,
+    "root": false
+   },
+   {
+    "id": "data",
+    "readOnly": false,
+    "root": false
+   },
+   {
+    "id": "rootfs",
+    "readOnly": true,
+    "root": true
+   }
+  ],
+  "machine": {
+   "vcpu_count": 2,
+   "mem_size_mib": 768
+  },
+  "vsockCid": 5
+ }
+}

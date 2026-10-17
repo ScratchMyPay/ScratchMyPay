@@ -114,12 +114,12 @@ JSON
   echo $! > "$PIDS/vm-$role.pid"
   for _ in $(seq 1 50); do [[ -S "$uds" ]] && break; sleep 0.1; done
   bridge "$role"
-  for i in $(seq 1 120); do
+  for i in $(seq 1 "${VM_HEALTH_TIMEOUT:-180}"); do   # a rate-limited indexer can slow the first wallet sync
     health "$port" && break
     alive "vm-$role" || { tail -20 "$LOGS/vm-$role.log"; down "$role" >/dev/null; die "VM exited during boot"; }
     sleep 1
   done
-  health "$port" || { tail -20 "$LOGS/vm-$role.log"; down "$role" >/dev/null; die "no /health after 120 s"; }
+  health "$port" || { tail -20 "$LOGS/vm-$role.log"; down "$role" >/dev/null; die "no /health after ${VM_HEALTH_TIMEOUT:-180} s"; }
   rm -f "$RUN/$role/seeds.ext4"   # Firecracker holds it open; no seed file stays on the host besides secrets/
   log "up in ${i}s: VM pid $(cat "$PIDS/vm-$role.pid"), API on 127.0.0.1:$port via vsock, no network card"
   if [[ $role == recipient ]] && alive vm-payer; then ROLE=payer bridge payer; fi   # delivery becomes VM -> VM

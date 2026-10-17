@@ -1,0 +1,22 @@
+{
+ "balance": {
+  "network": "mutinynet",
+  "engine": "Tether WDK",
+  "address": "tb1q83x7zca8jdeqc6jpdh9d3ykzcs4pzj4jy2q9wc",
+  "balanceSat": 100000,
+  "doorSat": 43000,
+  "totalSat": 143000,
+  "treasury": {
+   "mainSat": 100000,
+   "doorSat": 43000,
+   "doorAccounts": 42,
+   "totalSat": 143000
+  },
+  "door": {
+   "passes": 42,
+   "activePasses": 29,
+   "revenueSat": 42000,
+   "priceSat": 1000
+  }
+ }
+}

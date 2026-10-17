@@ -1,0 +1,5 @@
+# egress decisions by purpose / protocol / port (from artifacts/run/logs/n2link.log)
+    140 egress decision mode=observe action=permit purpose=http-node protocol=http port=8713
+     97 egress decision mode=observe action=permit purpose=http-node protocol=http port=8711
+     44 egress decision mode=observe action=permit purpose=http-node protocol=http port=8712
+      5 egress decision mode=observe action=permit purpose=mqtt protocol=mqtt port=1883
