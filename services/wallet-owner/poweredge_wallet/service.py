@@ -427,6 +427,14 @@ class WalletService:
     def status(self, plan_id: str, *, refresh: bool) -> dict[str, Any]:
         with self._lock:
             row = self._get(plan_id)
+            if refresh and row.state_enum is State.UNKNOWN_SUBMISSION:
+                # The app tells the person "the wallet is checking; don't retry": make that true.
+                # reconcile() never sends; it reads the wallet's own record of what it broadcast.
+                try:
+                    self.reconcile(plan_id)
+                except ServiceError as exc:   # ambiguous: stays UNKNOWN_SUBMISSION for manual review
+                    LOG.warning("plan %s: automatic reconcile left it unresolved: %s", plan_id, exc)
+                row = self._get(plan_id)
             delivering = self._delivers(row)
             if refresh and delivering and row.state_enum is State.BROADCAST:
                 # Delivery failed earlier (e.g. indexer race): retry. Never re-sends.

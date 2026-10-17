@@ -179,6 +179,38 @@ def test_crash_after_broadcast_before_journal_reconciles_without_resending(payer
     assert len(payer.backend.sends) == 1  # never sent twice
 
 
+def test_status_refresh_reconciles_unknown_submission_by_itself(payer, recipient):
+    """The app's Track screen only polls status(refresh=True): after a crash it must resolve on its own."""
+    recipient_service = recipient.service()
+    payer.deliver = lambda payload: recipient_service.import_consignment(payload)
+    payer.crash_at = "after_broadcast"
+    service = payer.service()
+    plan = approved(service)
+    with pytest.raises(SimulatedCrash):
+        service.execute(plan["plan_id"], flow_revision=REVISION, idempotency_key="key-000001")
+
+    payer.crash_at = None
+    restarted = payer.service()
+    first = restarted.status(plan["plan_id"], refresh=False)
+    assert first["state"] == State.UNKNOWN_SUBMISSION.value          # a plain read changes nothing
+    polled = restarted.status(plan["plan_id"], refresh=True)
+    assert polled["state"] in (State.DELIVERED.value, State.SETTLED.value)
+    assert polled["txid"] == payer.backend.transfers[0].txid
+    assert len(payer.backend.sends) == 1                              # reconciled, never re-sent
+    assert any("reconciled from wallet" in e["detail"] for e in polled["events"])
+
+
+def test_status_refresh_with_no_send_evidence_marks_failed_not_resent(payer):
+    payer.crash_at = "before_send"
+    service = payer.service()
+    plan = approved(service)
+    with pytest.raises(SimulatedCrash):
+        service.execute(plan["plan_id"], flow_revision=REVISION, idempotency_key="key-000001")
+    payer.crash_at = None
+    polled = payer.service().status(plan["plan_id"], refresh=True)
+    assert polled["state"] == State.FAILED.value and len(payer.backend.sends) == 0
+
+
 def test_ambiguous_send_error_becomes_unknown_then_reconciles_to_broadcast(payer):
     payer.backend.fail_send_after_broadcast = True
     service = payer.service()
