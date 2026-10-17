@@ -38,7 +38,8 @@ fn run_dir() -> PathBuf {
 
 /// Minimal HTTP/1.1 GET over any stream; reads exactly Content-Length (Firecracker keeps connections alive).
 async fn http_get<S: AsyncRead + AsyncWrite + Unpin>(mut stream: S, uri: &str) -> Option<(u16, String)> {
-    let request = format!("GET {uri} HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\nConnection: close\r\n\r\n");
+    let request =
+        format!("GET {uri} HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\nConnection: close\r\n\r\n");
     stream.write_all(request.as_bytes()).await.ok()?;
     let mut buf = Vec::with_capacity(4096);
     let mut chunk = [0u8; 4096];
@@ -248,7 +249,13 @@ impl VmStatusNode {
         };
         let up = boxes.iter().filter(|b| b["running"] == true).count();
         let (fill, shape, text) = if self.which == "all" {
-            let fill = if up == boxes.len() { StatusFill::Green } else if up == 0 { StatusFill::Red } else { StatusFill::Yellow };
+            let fill = if up == boxes.len() {
+                StatusFill::Green
+            } else if up == 0 {
+                StatusFill::Red
+            } else {
+                StatusFill::Yellow
+            };
             (fill, StatusShape::Dot, format!("{up}/{} boxes running · keys in VMs", boxes.len()))
         } else {
             let b = &boxes[0];
@@ -259,7 +266,11 @@ impl VmStatusNode {
             } else {
                 StatusFill::Yellow
             };
-            (fill, if b["running"] == true { StatusShape::Dot } else { StatusShape::Ring }, b["summary"].as_str().unwrap_or("").to_owned())
+            (
+                fill,
+                if b["running"] == true { StatusShape::Dot } else { StatusShape::Ring },
+                b["summary"].as_str().unwrap_or("").to_owned(),
+            )
         };
         {
             let mut guard = msg.write().await;
@@ -295,8 +306,17 @@ impl FlowNodeBehavior for VmStatusNode {
     async fn run(self: Arc<Self>, stop_token: CancellationToken) {
         while !stop_token.is_cancelled() {
             let cancel = stop_token.child_token();
-            with_uow(self.as_ref(), cancel.child_token(), |node, msg| async move { node.handle(msg, cancel).await })
-                .await;
+            with_uow(self.as_ref(), cancel.child_token(), |node, msg| async move {
+                // Read-only node: on Deploy/stop, drop the in-flight call instead of holding
+                // the whole redeploy until it times out (wallet calls may take minutes).
+                let stop = cancel.clone();
+                tokio::select! {
+                    biased;
+                    _ = stop.cancelled() => Ok(()),
+                    result = node.handle(msg, cancel) => result,
+                }
+            })
+            .await;
         }
     }
 }
@@ -312,7 +332,9 @@ mod tests {
             let mut req = [0u8; 512];
             let _ = server.read(&mut req).await;
             server
-                .write_all(b"HTTP/1.1 200 \r\nConnection: keep-alive\r\nContent-Length: 19\r\n\r\n{\"state\":\"Running\"}")
+                .write_all(
+                    b"HTTP/1.1 200 \r\nConnection: keep-alive\r\nContent-Length: 19\r\n\r\n{\"state\":\"Running\"}",
+                )
                 .await
                 .unwrap();
             // keep the connection open: a reader that waits for EOF would hang here

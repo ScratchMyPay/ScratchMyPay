@@ -49,7 +49,9 @@ fn now_ms() -> i64 {
 pub fn dashboard_snapshot() -> Value {
     let reg = registry().lock().expect("dashboard registry");
     let mut widgets: Vec<&Widget> = reg.values().collect();
-    widgets.sort_by(|a, b| (a.group.as_str(), a.order, a.title.as_str()).cmp(&(b.group.as_str(), b.order, b.title.as_str())));
+    widgets.sort_by(|a, b| {
+        (a.group.as_str(), a.order, a.title.as_str()).cmp(&(b.group.as_str(), b.order, b.title.as_str()))
+    });
     let list: Vec<Value> = widgets
         .into_iter()
         .map(|w| {
@@ -101,7 +103,12 @@ async fn msg_path(msg: &MsgHandle, path: &str) -> Value {
     for part in parts {
         value = match value {
             Value::Object(mut map) => map.remove(part).unwrap_or(Value::Null),
-            Value::Array(mut items) => part.parse::<usize>().ok().filter(|i| *i < items.len()).map(|i| items.swap_remove(i)).unwrap_or(Value::Null),
+            Value::Array(mut items) => part
+                .parse::<usize>()
+                .ok()
+                .filter(|i| *i < items.len())
+                .map(|i| items.swap_remove(i))
+                .unwrap_or(Value::Null),
             _ => Value::Null,
         };
     }
@@ -120,7 +127,11 @@ fn parse_columns(spec: &str) -> Vec<(String, String)> {
 }
 
 fn short(text: &str, max: usize) -> String {
-    if text.chars().count() <= max { text.to_owned() } else { format!("{}…", text.chars().take(max).collect::<String>()) }
+    if text.chars().count() <= max {
+        text.to_owned()
+    } else {
+        format!("{}…", text.chars().take(max).collect::<String>())
+    }
 }
 
 /// Apply one message to a widget; returns the status text for the node.
@@ -188,8 +199,14 @@ macro_rules! ui_node {
                 let mode = text_of(&get("mode"));
                 let template = Widget {
                     kind: $kind,
-                    title: { let t = text_of(&get("title")); if t.is_empty() { config.name.clone() } else { t } },
-                    group: { let g = text_of(&get("group")); if g.is_empty() { "Dashboard".into() } else { g } },
+                    title: {
+                        let t = text_of(&get("title"));
+                        if t.is_empty() { config.name.clone() } else { t }
+                    },
+                    group: {
+                        let g = text_of(&get("group"));
+                        if g.is_empty() { "Dashboard".into() } else { g }
+                    },
                     order: int_of(&get("order"), 0),
                     unit: text_of(&get("unit")),
                     mode: if $kind == "chart" && mode != "append" { "replace".into() } else { mode },
@@ -200,7 +217,10 @@ macro_rules! ui_node {
                     cap: int_of(&get("points"), DEFAULT_POINTS as i64).clamp(2, 2000) as usize,
                     updated_at: 0,
                 };
-                let property = { let p = text_of(&get("property")); if p.is_empty() { "payload".into() } else { p } };
+                let property = {
+                    let p = text_of(&get("property"));
+                    if p.is_empty() { "payload".into() } else { p }
+                };
                 let sub_property = text_of(&get("subProperty"));
                 Ok(Box::new($ty { id: base.id.to_string(), base, template, property, sub_property }))
             }
@@ -228,8 +248,12 @@ macro_rules! ui_node {
                 registry().lock().expect("dashboard registry").insert(self.id.clone(), self.template.clone());
                 while !stop_token.is_cancelled() {
                     let cancel = stop_token.child_token();
-                    with_uow(self.as_ref(), cancel.child_token(), |node, msg| async move { node.handle(msg, cancel).await })
-                        .await;
+                    with_uow(
+                        self.as_ref(),
+                        cancel.child_token(),
+                        |node, msg| async move { node.handle(msg, cancel).await },
+                    )
+                    .await;
                 }
                 registry().lock().expect("dashboard registry").remove(&self.id);
             }
@@ -247,8 +271,18 @@ mod tests {
 
     fn widget(kind: &'static str, mode: &str) -> Widget {
         Widget {
-            kind, title: "t".into(), group: "g".into(), order: 0, unit: "sats".into(), mode: mode.into(),
-            columns: vec![], value: Value::Null, sub: Value::Null, history: VecDeque::new(), cap: 3, updated_at: 0,
+            kind,
+            title: "t".into(),
+            group: "g".into(),
+            order: 0,
+            unit: "sats".into(),
+            mode: mode.into(),
+            columns: vec![],
+            value: Value::Null,
+            sub: Value::Null,
+            history: VecDeque::new(),
+            cap: 3,
+            updated_at: 0,
         }
     }
 

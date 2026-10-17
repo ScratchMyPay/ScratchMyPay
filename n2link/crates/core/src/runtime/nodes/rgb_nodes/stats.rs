@@ -37,7 +37,13 @@ fn flow_of<N: FlowNodeBehavior + ?Sized>(node: &N) -> crate::Result<Flow> {
     node.flow().ok_or_else(|| N2linkError::invalid_operation("dashboard node has no flow"))
 }
 
-async fn failed<N: FlowNodeBehavior + ?Sized>(node: &N, msg: MsgHandle, step: &str, err: CallError, cancel: CancellationToken) -> crate::Result<()> {
+async fn failed<N: FlowNodeBehavior + ?Sized>(
+    node: &N,
+    msg: MsgHandle,
+    step: &str,
+    err: CallError,
+    cancel: CancellationToken,
+) -> crate::Result<()> {
     set_payload(&msg, err.to_json(step), Some(err.status)).await;
     node.report_status(status(StatusFill::Red, StatusShape::Ring, err.code.clone()), cancel.clone()).await;
     node.fan_out_one(Envelope { port: 0, msg }, cancel).await
@@ -46,7 +52,10 @@ async fn failed<N: FlowNodeBehavior + ?Sized>(node: &N, msg: MsgHandle, step: &s
 /// 12345678 -> "12,345,678"
 pub(crate) fn thousands(n: f64) -> String {
     let rounded = if n.fract().abs() < 1e-9 { format!("{n:.0}") } else { format!("{n:.2}") };
-    let (int, frac) = rounded.split_once('.').map(|(i, f)| (i.to_owned(), format!(".{f}"))).unwrap_or((rounded.clone(), String::new()));
+    let (int, frac) = rounded
+        .split_once('.')
+        .map(|(i, f)| (i.to_owned(), format!(".{f}")))
+        .unwrap_or((rounded.clone(), String::new()));
     let (sign, digits) = int.strip_prefix('-').map(|d| ("-", d)).unwrap_or(("", int.as_str()));
     let mut out = String::new();
     for (i, ch) in digits.chars().enumerate() {
@@ -63,17 +72,17 @@ pub(crate) fn hourly_series(buckets: &[Value], keys: &[&str]) -> Value {
     let labels: Vec<Value> = buckets.iter().map(|b| json!(b["hour"].as_i64().unwrap_or(0) * 1000)).collect();
     let mut series = Map::new();
     for key in keys {
-        series.insert((*key).to_owned(), Value::Array(buckets.iter().map(|b| json!(b[*key].as_f64().unwrap_or(0.0))).collect()));
+        series.insert(
+            (*key).to_owned(),
+            Value::Array(buckets.iter().map(|b| json!(b[*key].as_f64().unwrap_or(0.0))).collect()),
+        );
     }
     json!({ "labels": labels, "series": series })
 }
 
 fn volume_series(buckets: &[Value]) -> Value {
-    let mut tickers: Vec<String> = buckets
-        .iter()
-        .filter_map(|b| b["volume"].as_object())
-        .flat_map(|m| m.keys().cloned())
-        .collect();
+    let mut tickers: Vec<String> =
+        buckets.iter().filter_map(|b| b["volume"].as_object()).flat_map(|m| m.keys().cloned()).collect();
     tickers.sort();
     tickers.dedup();
     let labels: Vec<Value> = buckets.iter().map(|b| json!(b["hour"].as_i64().unwrap_or(0) * 1000)).collect();
@@ -112,8 +121,17 @@ macro_rules! run_impl {
             async fn run(self: Arc<Self>, stop_token: CancellationToken) {
                 while !stop_token.is_cancelled() {
                     let cancel = stop_token.child_token();
-                    with_uow(self.as_ref(), cancel.child_token(), |node, msg| async move { node.handle(msg, cancel).await })
-                        .await;
+                    with_uow(self.as_ref(), cancel.child_token(), |node, msg| async move {
+                        // Read-only node: on Deploy/stop, drop the in-flight call instead of holding
+                        // the whole redeploy until it times out (wallet calls may take minutes).
+                        let stop = cancel.clone();
+                        tokio::select! {
+                            biased;
+                            _ = stop.cancelled() => Ok(()),
+                            result = node.handle(msg, cancel) => result,
+                        }
+                    })
+                    .await;
                 }
             }
         }
@@ -144,7 +162,12 @@ struct RgbFundsNode {
 }
 
 impl RgbFundsNode {
-    fn build(_f: &Flow, base: BaseFlowNodeState, config: &RedFlowNodeConfig, _o: Option<&config::Config>) -> crate::Result<Box<dyn FlowNodeBehavior>> {
+    fn build(
+        _f: &Flow,
+        base: BaseFlowNodeState,
+        config: &RedFlowNodeConfig,
+        _o: Option<&config::Config>,
+    ) -> crate::Result<Box<dyn FlowNodeBehavior>> {
         let raw = FundsConfig::deserialize(&config.rest)?;
         let which = if raw.wallet.is_empty() { "organizer".to_owned() } else { raw.wallet };
         if which != "organizer" && which != "crew" {
@@ -157,7 +180,12 @@ impl RgbFundsNode {
         }
         .unwrap_or(FUNDS_EVERY_DEFAULT)
         .max(60);
-        Ok(Box::new(RgbFundsNode { base, which, funds_every: std::time::Duration::from_secs(every), funds_cache: std::sync::Mutex::new(None) }))
+        Ok(Box::new(RgbFundsNode {
+            base,
+            which,
+            funds_every: std::time::Duration::from_secs(every),
+            funds_cache: std::sync::Mutex::new(None),
+        }))
     }
 
     async fn handle(&self, msg: MsgHandle, cancel: CancellationToken) -> crate::Result<()> {
@@ -226,13 +254,22 @@ struct PayoutStatsNode {
 }
 
 impl PayoutStatsNode {
-    fn build(_f: &Flow, base: BaseFlowNodeState, config: &RedFlowNodeConfig, _o: Option<&config::Config>) -> crate::Result<Box<dyn FlowNodeBehavior>> {
+    fn build(
+        _f: &Flow,
+        base: BaseFlowNodeState,
+        config: &RedFlowNodeConfig,
+        _o: Option<&config::Config>,
+    ) -> crate::Result<Box<dyn FlowNodeBehavior>> {
         let num = |k: &str, d: i64| match config.rest.get(k) {
             Some(Value::Number(n)) => n.as_i64().unwrap_or(d),
             Some(Value::String(s)) => s.trim().parse().unwrap_or(d),
             _ => d,
         };
-        Ok(Box::new(PayoutStatsNode { base, hours: num("hours", 24).clamp(1, 168), limit: num("limit", 10).clamp(1, 50) }))
+        Ok(Box::new(PayoutStatsNode {
+            base,
+            hours: num("hours", 24).clamp(1, 168),
+            limit: num("limit", 10).clamp(1, 50),
+        }))
     }
 
     async fn handle(&self, msg: MsgHandle, cancel: CancellationToken) -> crate::Result<()> {
@@ -268,7 +305,8 @@ impl PayoutStatsNode {
         });
         let text = format!(
             "{} settled · {} failed · p50 {}",
-            totals["settled"], totals["failed"],
+            totals["settled"],
+            totals["failed"],
             p50.as_f64().map(|s| format!("{s:.0} s")).unwrap_or_else(|| "—".into())
         );
         set_payload(&msg, payload, None).await;

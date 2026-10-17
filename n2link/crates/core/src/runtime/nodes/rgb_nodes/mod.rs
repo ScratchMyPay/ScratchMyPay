@@ -7,11 +7,11 @@
 //! The payout plan travels in `msg.poweredge = {planId, planDigest, flowRevision}`.
 
 mod client;
-mod qr;
-mod wdk;
-pub mod vmbox;
 pub mod dash;
+mod qr;
 mod stats;
+pub mod vmbox;
+mod wdk;
 
 use std::sync::Arc;
 use std::time::Duration;

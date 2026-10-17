@@ -121,11 +121,16 @@ macro_rules! wdk_run {
             async fn run(self: Arc<Self>, stop_token: CancellationToken) {
                 while !stop_token.is_cancelled() {
                     let cancel = stop_token.child_token();
-                    with_uow(
-                        self.as_ref(),
-                        cancel.child_token(),
-                        |node, msg| async move { node.handle(msg, cancel).await },
-                    )
+                    with_uow(self.as_ref(), cancel.child_token(), |node, msg| async move {
+                        // Read-only node: on Deploy/stop, drop the in-flight call instead of holding
+                        // the whole redeploy until it times out (wallet calls may take minutes).
+                        let stop = cancel.clone();
+                        tokio::select! {
+                            biased;
+                            _ = stop.cancelled() => Ok(()),
+                            result = node.handle(msg, cancel) => result,
+                        }
+                    })
                     .await;
                 }
             }
@@ -164,7 +169,10 @@ mod balance_status_tests {
 
     #[test]
     fn shows_total_with_door_revenue_and_falls_back_to_main() {
-        assert_eq!(balance_status(&json!({"balanceSat": 100000, "doorSat": 18000, "totalSat": 118000})), "118000 sats (door 18000)");
+        assert_eq!(
+            balance_status(&json!({"balanceSat": 100000, "doorSat": 18000, "totalSat": 118000})),
+            "118000 sats (door 18000)"
+        );
         assert_eq!(balance_status(&json!({"balanceSat": 5, "doorSat": 0, "totalSat": 5})), "5 sats");
         assert_eq!(balance_status(&json!({"balanceSat": 7})), "7 sats");
     }
@@ -374,7 +382,11 @@ impl DoorStatsNode {
         _o: Option<&config::Config>,
     ) -> crate::Result<Box<dyn FlowNodeBehavior>> {
         let raw = DoorStatsConfig::deserialize(&config.rest)?;
-        Ok(Box::new(DoorStatsNode { base, wallet: require_wallet(&raw.wallet, "door-stats")?, hours: raw.hours.clamp(1, 168) }))
+        Ok(Box::new(DoorStatsNode {
+            base,
+            wallet: require_wallet(&raw.wallet, "door-stats")?,
+            hours: raw.hours.clamp(1, 168),
+        }))
     }
 
     async fn handle(&self, msg: MsgHandle, cancel: CancellationToken) -> crate::Result<()> {
@@ -384,7 +396,10 @@ impl DoorStatsNode {
             Err(err) => return wdk_fail(self, msg, "door-stats", err, cancel).await,
         };
         let balance = wdk.call(Method::GET, "/balance", None).await.ok();
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
         let passes = list["passes"].as_array().cloned().unwrap_or_default();
         let sold = balance.as_ref().map(|b| b["door"]["passes"].clone()).unwrap_or_else(|| json!(passes.len()));
         let payload = json!({
@@ -395,11 +410,8 @@ impl DoorStatsNode {
             "treasury": balance.as_ref().map(|b| b["treasury"].clone()),
             "perHour": super::stats::passes_per_hour(&passes, self.hours as i64, now),
         });
-        let text = format!(
-            "{} passes · {} sats",
-            sold,
-            super::stats::thousands(list["revenueSat"].as_f64().unwrap_or(0.0))
-        );
+        let text =
+            format!("{} passes · {} sats", sold, super::stats::thousands(list["revenueSat"].as_f64().unwrap_or(0.0)));
         put_wdk(&msg, "door", payload.clone(), payload).await;
         self.report_status(status(StatusFill::Green, StatusShape::Dot, text), cancel.clone()).await;
         self.fan_out_one(Envelope { port: 0, msg }, cancel).await
