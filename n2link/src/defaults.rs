@@ -180,7 +180,7 @@ max_headers = 128
 requests_per_minute = 30
 max_concurrency = 2
 queue_timeout_ms = 1000
-request_timeout_ms = 70000
+request_timeout_ms = 190000  # above the Copilot's 180 s provider timeout
 max_response_bytes = 2097152
 
 [api_protection.fleet]
