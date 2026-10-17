@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import fcntl
 import os
 import secrets
 import sys
@@ -70,6 +71,34 @@ def _auto_refresh(service: WalletService, interval: float) -> None:
             LOG.warning("auto-refresh failed: %s", exc)
 
 
+def clear_stale_runtime_lock(data_dir: Path) -> list[Path]:
+    """Remove rgb-lib's rgb_runtime.lock when it is provably stale.
+
+    rgb-lib holds that file for the duration of an operation and waits, indefinitely, while it exists.
+    If the process that held it stopped mid-operation (e.g. a VM shut down during a refresh), the file
+    stays and the next start hangs. Bill's per-wallet process lock (an exclusive flock) tells us whether
+    any other process owns this wallet: if we can take it, nobody can be inside the runtime, so the file
+    is stale. If we cannot take it, another process owns the wallet and we leave everything alone.
+    """
+    data_dir = data_dir.resolve()
+    stale = sorted(data_dir.glob("*/rgb_runtime.lock"))
+    if not stale:
+        return []
+    owner_lock = data_dir.parent / f".{data_dir.name}.rgb-bill.lock"
+    with owner_lock.open("a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return []
+        try:
+            for path in stale:
+                LOG.warning("removing stale rgb-lib runtime lock %s (no other process owns this wallet)", path)
+                path.unlink(missing_ok=True)
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    return stale
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description="PowerEdge wallet-owner service")
@@ -89,6 +118,9 @@ def main() -> int:
         return 2
 
     token = _token(Path(os.environ.get("WALLET_API_TOKEN_FILE", REPO_ROOT / "secrets" / "wallet-api.token")))
+    data_dir = os.environ.get(f"RGB_DATA_DIR_{os.environ.get('BILL_ROLE', '')}")
+    if data_dir:
+        clear_stale_runtime_lock(Path(data_dir))
     for attempt in range(6):
         try:
             settings, adapter, ops, errors, _backend = open_wallet()
@@ -122,6 +154,13 @@ def main() -> int:
     LOG.info("wallet-owner ready: role=%s bill_role=%s port=%d peer=%s crash_at=%s",
              role, settings.role.value, args.port, peer or "-", config.crash_at or "-")
     uvicorn.run(create_app(service, token), host=args.host, port=args.port, log_level="info")
+    # Shutting down: let a wallet operation in progress (e.g. the background refresh) finish, so rgb-lib
+    # releases its runtime lock. Holding the service lock also stops a new one from starting.
+    LOG.info("shutting down: waiting for any wallet operation in progress")
+    if service._lock.acquire(timeout=20):
+        LOG.info("wallet idle; exiting cleanly")
+    else:
+        LOG.warning("a wallet operation did not finish within 20 s; exiting anyway")
     return 0
 
 
