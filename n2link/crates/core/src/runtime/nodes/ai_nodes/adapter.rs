@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 use crate::N2linkError;
 use crate::runtime::egress::{EgressPolicy, EgressPurpose};
+use crate::runtime::engine::Engine;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ProviderKind {
@@ -352,6 +353,15 @@ async fn anthropic_complete(
     let headers = [("x-api-key", settings.api_key.clone()), ("anthropic-version", "2023-06-01".to_owned())];
     let headers: Vec<(&str, String)> = headers.iter().map(|(k, v)| (*k, v.clone())).collect();
     let value = send_json(client, policy, settings, &url, &headers, body, request.timeout).await?;
+    // Thinking counts against max_tokens and is skipped below, so a cut-off reply can still carry text.
+    match value.get("stop_reason").and_then(Value::as_str) {
+        Some("max_tokens") => {
+            let limit = request.max_tokens.unwrap_or(1024);
+            return Err(N2linkError::invalid_operation(&format!("{} ({limit} tokens)", Engine::AI_REPLY_TRUNCATED)));
+        }
+        Some("refusal") => return Err(N2linkError::invalid_operation(Engine::AI_REPLY_REFUSED)),
+        _ => {}
+    }
     let mut collected = String::new();
     if let Some(content) = value.get("content").and_then(Value::as_array) {
         for part in content {
@@ -912,6 +922,41 @@ mod tests {
         let reply = complete(&client(), &settings, &request()).await.unwrap();
         assert_eq!(reply.text, "hello-claude");
         assert_eq!(reply.model, "claude-test");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn anthropic_reports_a_reply_cut_off_at_max_tokens() {
+        let app = Router::new().route(
+            "/v1/messages",
+            post(|| async {
+                Json(json!({
+                    "model": "claude-test",
+                    "stop_reason": "max_tokens",
+                    "content": [{ "type": "thinking", "thinking": "" }, { "type": "text", "text": "{\"nodes\": [" }]
+                }))
+            }),
+        );
+        let (base, task) = serve(app).await;
+        let settings =
+            ProviderSettings { kind: ProviderKind::Anthropic, base_url: base, api_key: "k".into(), organization: None };
+        let err = complete(&client(), &settings, &request()).await.unwrap_err().to_string();
+        assert!(err.starts_with(Engine::AI_REPLY_TRUNCATED), "{err}");
+        assert!(err.ends_with("(32 tokens)"), "{err}");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn anthropic_reports_a_refusal() {
+        let app = Router::new().route(
+            "/v1/messages",
+            post(|| async { Json(json!({ "model": "claude-test", "stop_reason": "refusal", "content": [] })) }),
+        );
+        let (base, task) = serve(app).await;
+        let settings =
+            ProviderSettings { kind: ProviderKind::Anthropic, base_url: base, api_key: "k".into(), organization: None };
+        let err = complete(&client(), &settings, &request()).await.unwrap_err().to_string();
+        assert_eq!(err, Engine::AI_REPLY_REFUSED);
         task.abort();
     }
 
