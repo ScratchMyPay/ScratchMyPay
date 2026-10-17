@@ -2011,6 +2011,7 @@ dependencies = [
  "poweredge",
  "qrcode",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2",
