@@ -27,7 +27,7 @@ written authorization from the copyright holders. Contact the project maintainer
 |---|---|---|
 | n2link runtime and editor (fork of oldrev/edgelinkd), prior work at `78d7ba1` | `n2link/` (everything not listed above) | Apache License 2.0 — `n2link/LICENSE`, `n2link/NOTICE` |
 | Node-RED editor client (built from source, submodule) | `n2link/3rd-party/node-red/` | Apache License 2.0 |
-| RGB Bill wallet adapter (prior work, separate repository, pinned `be3d237`) | cloned next to this repo | as set in that repository |
+| RGB Bill wallet adapter, now fork2checkbook (prior work, separate repository, declared `be3d237`, tested pin `1986826`) | cloned next to this repo | as set in that repository |
 | rgb-lib / rgb-lib-python 0.3.0b7 (RGB-Tools) | Python dependency | MIT |
 | RGB protocol libraries (rgb-protocol, via rgb-lib) | transitive | Apache License 2.0 / MIT, per crate |
 | Tether WDK `@tetherto/wdk-wallet-btc` 1.0.0-beta.17 | `services/wdk-btc/node_modules` (not committed) | Apache License 2.0 |

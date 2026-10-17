@@ -13,7 +13,7 @@ Only what has been run and observed goes here. "Planned" lives in `IMPLEMENTATIO
 | Node | v24.15.0 |
 | Python (wallet) | Bill venv: `rgb-lib==0.3.0b7`, `tetherto-qvac-sdk==0.21.0` |
 | n2link | subtree `n2link/` = `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (`0.4.0-rc.1`), commit `3454c90` |
-| Bill (dependency) | `EdwinKestler/bill@be3d237` |
+| Bill (dependency) | `fork2checkbook/fork2checkbook@1986826` (formerly `EdwinKestler/bill`, declared `be3d237`; wallet-owner tests 29/29 against a clean checkout of `1986826`) |
 
 ## Ledger
 

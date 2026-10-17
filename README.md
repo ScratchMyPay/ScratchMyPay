@@ -17,7 +17,7 @@
 
 **Installed and working before the event (prior work, declared):**
 - n2link runtime, editor, Flow Copilot, credential storage, egress policy — `n2link/` at `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (fork of oldrev/edgelinkd, Apache-2.0), imported as one squashed commit.
-- RGB Bill (`EdwinKestler/bill` @ `be3d237`): `rgb-lib-python` wallet adapter with plan → confirm → execute-once, proven on Mutinynet; QVAC SDK smoke test. Used as a pinned dependency, not copied.
+- RGB Bill, now **fork2checkbook** (`fork2checkbook/fork2checkbook`, formerly `EdwinKestler/bill`; declared at `be3d237`, used at `1986826`): `rgb-lib-python` wallet adapter with plan → confirm → execute-once, proven on Mutinynet; QVAC SDK smoke test. Used as a pinned dependency, not copied.
 - Palimnex 2.9.0 (code search / agent memory tooling).
 - This repository's design docs, schemas and plan (`docs/`).
 
@@ -50,8 +50,8 @@ Needs: Linux/macOS, Rust ≥ 1.88, Node.js LTS + npm, Python 3.12, git, ~6 GB di
 # 1. Clone WITH submodules (the n2link flow editor is the Node-RED client, pinned at 5.0.7)
 git clone --recursive https://github.com/ScratchMyPay/ScratchMyPay.git
 cd ScratchMyPay
-git clone https://github.com/EdwinKestler/bill.git ../bill   # prior-work wallet adapter (pinned be3d237)
-git -C ../bill checkout be3d237
+git clone https://github.com/fork2checkbook/fork2checkbook.git ../bill   # prior-work wallet adapter (formerly EdwinKestler/bill)
+git -C ../bill checkout 1986826   # tested pin; wallet layer behaves as at be3d237
 
 # 2. Build n2link with the RGB nodes; build.rs also builds the flow editor with npm
 scripts/setup-editor.sh           # = submodule check + cargo build --features nodes_rgb
@@ -136,7 +136,7 @@ A developer asks: “Create a testnet RGB payment API with explicit approval, a 
 
 ## Existing source and reuse
 - [n2link/n2link](https://github.com/n2link/n2link): Rust runtime, integrated editor, Node-RED-compatible flows, auth, credential storage, egress controls, experimental Wasmi sandbox. It is a fork of oldrev/edgelinkd (Apache-2.0); retain provenance, LICENSE and NOTICE.
-- [EdwinKestler/bill](https://github.com/EdwinKestler/bill): proven on-chain RGB `rgb-lib-python` wallet path on Mutinynet and byte-exact BLE artifact transport. Extract adapter patterns; **do not copy wallet state, credentials, seed or device-specific paths**.
+- [fork2checkbook/fork2checkbook](https://github.com/fork2checkbook/fork2checkbook) (formerly EdwinKestler/bill): proven on-chain RGB `rgb-lib-python` wallet path on Mutinynet and byte-exact BLE artifact transport. Extract adapter patterns; **do not copy wallet state, credentials, seed or device-specific paths**.
 - WDK/UTEXO remains optional, separately isolated and behind compatibility tests.
 
 ## Sunday deliverable (M0 + M1 + M2, built in parallel)
@@ -171,7 +171,7 @@ The organizers compare the Friday 23:00 snapshot with Sunday 13:00. To make that
 
 **A. Prior work, not made for this hackathon (before 2026-10-15)**
 - **n2link** runtime, editor, Flow Copilot, credential storage, egress policy: `n2link/` at `78d7ba107ed3ade008a9fcc5ab192755c11b8299` (fork of oldrev/edgelinkd, Apache-2.0), imported as one squashed commit `3454c90`.
-- **RGB Bill** wallet adapter (`EdwinKestler/bill` @ `be3d237`): rgb-lib-python plan → confirm → execute-once, proven on Mutinynet. Pinned dependency, not copied.
+- **RGB Bill** wallet adapter (`fork2checkbook/fork2checkbook`, formerly `EdwinKestler/bill`; declared at `be3d237`, tested pin `1986826`, whose wallet layer `web/rgb/` only adds an optional wallet label and splits wallet opening into load + go-online): rgb-lib-python plan → confirm → execute-once, proven on Mutinynet. Pinned dependency, not copied.
 - Palimnex 2.9.0 (code search / agent memory tooling).
 
 **B. Built on Oct 15–16, before the clock, with the organizers' written approval to start early** (every item has a commit and a live run in `docs/IMPLEMENTATION_STATUS.md`): the request format, pinned template, compiler and validator; the RGB and WDK nodes; the wallet-owner service with its crash-safe journal; the guided app and the crew view; QVAC drafting and the Copilot on QVAC; four live TUSDT payouts on Mutinynet including a crash-recovery run; the WDK treasury, fee quotes and pre-show check; the pay-to-enter door; the Flow Library; the editor theme; `demo-up`. Code: `.rs`, `.py`, `.mjs`, `.html` in their original folders (`n2link/crates/`, `services/`, `scripts/`, `library/`, `templates/`).
