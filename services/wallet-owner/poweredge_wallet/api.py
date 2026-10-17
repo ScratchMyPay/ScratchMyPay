@@ -77,6 +77,16 @@ def create_app(service: WalletService, token: str) -> FastAPI:
         return JSONResponse(status_code=exc.status,
                             content={"error": {"code": exc.code, "message": str(exc)}})
 
+    @app.exception_handler(Exception)
+    async def unexpected_error(_: Request, exc: Exception) -> JSONResponse:
+        # Never a bare 500: callers (the door, n2link nodes) always get a code and a reason.
+        if "429" in str(exc):
+            return JSONResponse(status_code=503, content={"error": {
+                "code": "indexer_busy",
+                "message": "Mutinynet's indexer is rate-limiting this wallet; try again in a minute (nothing was sent)"}})
+        LOG.exception("unexpected error")
+        return JSONResponse(status_code=500, content={"error": {"code": "internal", "message": str(exc)[:300]}})
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {"ok": True, "role": service.capabilities()["role"]}

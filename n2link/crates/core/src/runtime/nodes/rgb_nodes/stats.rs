@@ -127,12 +127,20 @@ crate::node_hints!("rgb-funds", caps = ["wallet", "network"], input = "any", out
 struct FundsConfig {
     #[serde(default)]
     wallet: String,
+    #[serde(default, rename = "fundsEverySeconds")]
+    funds_every: Option<Value>,
 }
+
+/// `/funds` makes the wallet sync with Mutinynet's public indexer, which rate-limits (HTTP 429) and then
+/// blocks real payments too. Balances of RGB assets (`/assets`) are local and stay live every tick.
+const FUNDS_EVERY_DEFAULT: u64 = 300;
 
 #[flow_node("rgb-funds", red_name = "rgb-funds", inputs = 1, outputs = 1)]
 struct RgbFundsNode {
     base: BaseFlowNodeState,
     which: String,
+    funds_every: std::time::Duration,
+    funds_cache: std::sync::Mutex<Option<(std::time::Instant, Value)>>,
 }
 
 impl RgbFundsNode {
@@ -142,7 +150,14 @@ impl RgbFundsNode {
         if which != "organizer" && which != "crew" {
             return Err(N2linkError::invalid_operation("rgb-funds: wallet must be organizer or crew"));
         }
-        Ok(Box::new(RgbFundsNode { base, which }))
+        let every = match raw.funds_every {
+            Some(Value::Number(n)) => n.as_u64(),
+            Some(Value::String(s)) => s.trim().parse().ok(),
+            _ => None,
+        }
+        .unwrap_or(FUNDS_EVERY_DEFAULT)
+        .max(60);
+        Ok(Box::new(RgbFundsNode { base, which, funds_every: std::time::Duration::from_secs(every), funds_cache: std::sync::Mutex::new(None) }))
     }
 
     async fn handle(&self, msg: MsgHandle, cancel: CancellationToken) -> crate::Result<()> {
@@ -160,7 +175,24 @@ impl RgbFundsNode {
             }
         }
         // Bitcoin side (sats). The organizer's /funds also estimates how many payouts it can still afford.
-        let funds = wallet.call(Method::GET, "/funds?fee_rate=2", None).await.ok();
+        let cached = self
+            .funds_cache
+            .lock()
+            .expect("funds cache")
+            .as_ref()
+            .filter(|(at, _)| at.elapsed() < self.funds_every)
+            .map(|(_, v)| v.clone());
+        let funds = match cached {
+            Some(v) => Some(v),
+            None => {
+                let fresh = wallet.call(Method::GET, "/funds?fee_rate=2", None).await.ok();
+                if let Some(v) = &fresh {
+                    *self.funds_cache.lock().expect("funds cache") = Some((std::time::Instant::now(), v.clone()));
+                }
+                // keep showing the last good numbers if the indexer is busy
+                fresh.or_else(|| self.funds_cache.lock().expect("funds cache").as_ref().map(|(_, v)| v.clone()))
+            }
+        };
         let plain = funds.as_ref().and_then(|f| f["btc"]["vanilla"]["spendable"].as_f64());
         let colored = funds.as_ref().and_then(|f| f["btc"]["colored"]["spendable"].as_f64());
         let payload = json!({

@@ -904,6 +904,9 @@ pub async fn door_pay(Extension(state): Extension<Arc<WebState>>, Json(body): Js
                 release_demo_budget(amount); // nothing was spent
             }
             let value: Value = reply.json().await.unwrap_or(Value::Null);
+            if !status.is_success() && value.get("error").is_none() {
+                return fail(status, "wallet_error", &format!("the organizer wallet answered HTTP {} without details", status.as_u16()));
+            }
             (status, Json(value)).into_response()
         }
         Err(e) => {

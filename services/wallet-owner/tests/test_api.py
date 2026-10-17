@@ -45,3 +45,13 @@ def test_wrong_role_and_unknown_plan_codes(recipient):
     assert client.post("/plans", headers=AUTH, json=plan_request()).json()["error"]["code"] == "wrong_wallet"
     missing = client.get("/plans/00000000-0000-0000-0000-000000000000", headers=AUTH)
     assert missing.status_code == 404 and missing.json()["error"]["code"] == "unknown_plan"
+
+
+def test_unexpected_errors_answer_json_and_rate_limits_say_so(payer):
+    service = payer.service()
+    def boom(**_):
+        raise RuntimeError("esplora: HTTP 429 Too Many Requests")
+    service.pay_small_sats = boom
+    client = TestClient(create_app(service, TOKEN), raise_server_exceptions=False)
+    r = client.post("/btc/pay-small", headers=AUTH, json={"address": "tb1q" + "a" * 38, "amount_sat": 1000})
+    assert r.status_code == 503 and r.json()["error"]["code"] == "indexer_busy"
