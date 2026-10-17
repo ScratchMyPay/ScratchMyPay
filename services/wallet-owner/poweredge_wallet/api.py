@@ -131,6 +131,14 @@ def create_app(service: WalletService, token: str) -> FastAPI:
     def deliver(plan_id: str) -> dict[str, Any]:
         return service.deliver(plan_id)
 
+    @app.get("/plans", dependencies=guarded)
+    def recent_plans(limit: int = 10) -> dict[str, Any]:
+        return {"plans": service.recent_plans(limit=min(max(limit, 1), 50))}
+
+    @app.get("/stats", dependencies=guarded)
+    def stats(hours: int = 24) -> dict[str, Any]:
+        return service.stats(hours=min(max(hours, 1), 168))
+
     @app.get("/plans/{plan_id}", dependencies=guarded)
     def status(plan_id: str, refresh: bool = False) -> dict[str, Any]:
         return service.status(plan_id, refresh=refresh)

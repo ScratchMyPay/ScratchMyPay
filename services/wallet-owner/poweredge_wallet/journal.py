@@ -118,6 +118,22 @@ class Plan:
         return State(self.row["state"])
 
 
+def _amount(display: str | None) -> float:
+    try:
+        return float(str(display or "0").replace(",", ""))
+    except ValueError:
+        return 0.0
+
+
+def _percentile(values: list[float], pct: int) -> float | None:
+    """Nearest-rank percentile; None when there is nothing to measure."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, -(-pct * len(ordered) // 100))
+    return round(ordered[rank - 1], 1)
+
+
 class Journal:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -150,6 +166,71 @@ class Journal:
         if recovered:
             LOG.warning("recovered %d in-flight submission(s) as UNKNOWN_SUBMISSION", len(recovered))
         return recovered
+
+    def recent(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Newest payouts first, for a dashboard table (no invoice, no local paths)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT plan_id, created_at, updated_at, state, asset_ticker, amount_display, recipient_label,"
+                " memo, txid, approved_by FROM plans ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def stats(self, hours: int = 24, now: float | None = None) -> dict[str, Any]:
+        """Per-hour payout counts and volume, plus time from approval to settled (p50/p90).
+
+        prepared: plans created in that hour; settled / volume: by the hour they settled;
+        failed: FAILED or EXPIRED, by the hour they ended. Read-only.
+        """
+        now = time.time() if now is None else now
+        start = (int(now) // 3600 - hours + 1) * 3600
+        with self._lock:
+            plans = [dict(r) for r in self._db.execute(
+                "SELECT plan_id, created_at, updated_at, state, asset_ticker, amount_display FROM plans"
+                " WHERE updated_at >= ? OR created_at >= ?", (start, start))]
+            marks = self._db.execute(
+                "SELECT plan_id, to_state, MIN(at) AS at FROM events WHERE to_state IN ('APPROVED', 'SETTLED')"
+                " AND at >= ? - 86400 GROUP BY plan_id, to_state", (start,)).fetchall()
+        approved = {m["plan_id"]: m["at"] for m in marks if m["to_state"] == "APPROVED"}
+        settled = {m["plan_id"]: m["at"] for m in marks if m["to_state"] == "SETTLED"}
+        buckets = [{"hour": start + i * 3600, "prepared": 0, "settled": 0, "failed": 0, "volume": {}}
+                   for i in range(hours)]
+
+        def bucket(t: float) -> dict[str, Any] | None:
+            i = int((t - start) // 3600)
+            return buckets[i] if 0 <= i < hours else None
+
+        totals = {"prepared": 0, "settled": 0, "failed": 0, "inFlight": 0, "volume": {}}
+        waits = []
+        for p in plans:
+            if (b := bucket(p["created_at"])) is not None:
+                b["prepared"] += 1
+                totals["prepared"] += 1
+            state = p["state"]
+            if state == "SETTLED" and p["plan_id"] in settled:
+                if (b := bucket(settled[p["plan_id"]])) is not None:
+                    amount = _amount(p["amount_display"])
+                    ticker = p["asset_ticker"] or "?"
+                    b["settled"] += 1
+                    b["volume"][ticker] = round(b["volume"].get(ticker, 0) + amount, 6)
+                    totals["settled"] += 1
+                    totals["volume"][ticker] = round(totals["volume"].get(ticker, 0) + amount, 6)
+                    if p["plan_id"] in approved:
+                        waits.append(settled[p["plan_id"]] - approved[p["plan_id"]])
+            elif state in ("FAILED", "EXPIRED"):
+                if (b := bucket(p["updated_at"])) is not None:
+                    b["failed"] += 1
+                    totals["failed"] += 1
+            elif state in ("APPROVED", "SUBMITTING", "BROADCAST", "DELIVERED", "UNKNOWN_SUBMISSION"):
+                totals["inFlight"] += 1
+        return {
+            "since": start,
+            "hours": hours,
+            "buckets": buckets,
+            "totals": totals,
+            "settleSeconds": {"n": len(waits), "p50": _percentile(waits, 50), "p90": _percentile(waits, 90)},
+        }
 
     def in_flight(self, max_age_seconds: float = 86_400) -> list[str]:
         """Payouts that left (or may have left) the wallet and are not settled yet, newest first.

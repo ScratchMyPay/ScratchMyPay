@@ -461,6 +461,12 @@ class WalletService:
                         break
         return {**self._view(row), "events": self._journal.events(plan_id)}
 
+    def recent_plans(self, limit: int = 10) -> list[dict[str, Any]]:
+        return self._journal.recent(limit)
+
+    def stats(self, hours: int = 24) -> dict[str, Any]:
+        return self._journal.stats(hours)
+
     def has_pending_incoming(self) -> bool:
         """True while any incoming transfer waits for the counterparty or for confirmations.
 
