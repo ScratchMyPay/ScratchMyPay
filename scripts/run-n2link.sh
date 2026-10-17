@@ -28,4 +28,8 @@ export POWEREDGE_QVAC_MODEL_LABEL="${POWEREDGE_QVAC_MODEL_LABEL:-Qwen3-8B}"   # 
 export POWEREDGE_PAYER_URL="${POWEREDGE_PAYER_URL:-http://127.0.0.1:8711}"
 export POWEREDGE_RECIPIENT_URL="${POWEREDGE_RECIPIENT_URL:-http://127.0.0.1:8712}"
 
-exec "$BIN" run --home "$HOME_DIR" --bind 127.0.0.1:1888 "$HOME_DIR/flows.json"
+# Bind: all interfaces by default so a laptop on the venue network or Tailscale can open the app.
+# Wallets, QVAC, WDK and the flow endpoints stay on 127.0.0.1; only the editor/app port is exposed,
+# and it is behind the pay-to-enter door (scripts/enable-door.sh). N2LINK_BIND=127.0.0.1:1888 to close it.
+export POWEREDGE_DOOR_DEMO_DAILY_SAT="${POWEREDGE_DOOR_DEMO_DAILY_SAT:-10000}"
+exec "$BIN" run --home "$HOME_DIR" --bind "${N2LINK_BIND:-0.0.0.0:1888}" "$HOME_DIR/flows.json"

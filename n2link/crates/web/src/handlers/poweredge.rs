@@ -799,6 +799,36 @@ pub struct DoorPay {
 /// Demo only: pay the door from the organizer wallet (a capped, rate-limited plain-sats send).
 /// In a real deployment the organizer pays from their own wallet; this button exists so the
 /// whole loop runs on one laptop.
+/// Sats the demo button may spend per UTC day (`POWEREDGE_DOOR_DEMO_DAILY_SAT`, default 10,000;
+/// 0 turns the button off). The button is reachable before a pass, so on a shared network it
+/// must not be able to drain the organizer wallet.
+fn demo_budget() -> &'static Mutex<(u64, u64)> {
+    static SPENT: OnceLock<Mutex<(u64, u64)>> = OnceLock::new(); // (utc day, sats spent)
+    SPENT.get_or_init(|| Mutex::new((0, 0)))
+}
+
+fn reserve_demo_budget(amount: u64) -> Result<(), String> {
+    let cap: u64 = std::env::var("POWEREDGE_DOOR_DEMO_DAILY_SAT").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(10_000);
+    if cap == 0 {
+        return Err("the demo payment button is turned off on this server; pay from your own Mutinynet wallet".to_owned());
+    }
+    let day = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0);
+    let mut spent = demo_budget().lock().expect("demo budget");
+    if spent.0 != day {
+        *spent = (day, 0);
+    }
+    if spent.1 + amount > cap {
+        return Err(format!("today's demo budget ({cap} sats) is used up; pay from your own Mutinynet wallet"));
+    }
+    spent.1 += amount;
+    Ok(())
+}
+
+fn release_demo_budget(amount: u64) {
+    let mut spent = demo_budget().lock().expect("demo budget");
+    spent.1 = spent.1.saturating_sub(amount);
+}
+
 pub async fn door_pay(Extension(state): Extension<Arc<WebState>>, Json(body): Json<DoorPay>) -> Response {
     let s = match settings() {
         Ok(s) => s,
@@ -824,13 +854,22 @@ pub async fn door_pay(Extension(state): Extension<Arc<WebState>>, Json(body): Js
         Ok(c) => c,
         Err(response) => return response,
     };
+    if let Err(message) = reserve_demo_budget(amount) {
+        return fail(StatusCode::TOO_MANY_REQUESTS, "demo_budget_spent", &message);
+    }
     let payload = json!({"address": address, "amount_sat": amount, "fee_rate": 2, "purpose": format!("door pass #{}", body.attempt_id)});
     match client.post(&url).bearer_auth(&s.wallet_token).json(&payload).timeout(Duration::from_secs(180)).send().await {
         Ok(reply) => {
             let status = StatusCode::from_u16(reply.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            if !status.is_success() {
+                release_demo_budget(amount); // nothing was spent
+            }
             let value: Value = reply.json().await.unwrap_or(Value::Null);
             (status, Json(value)).into_response()
         }
-        Err(e) => fail(StatusCode::BAD_GATEWAY, "wallet_unavailable", &format!("organizer wallet not reachable: {e}")),
+        Err(e) => {
+            release_demo_budget(amount);
+            fail(StatusCode::BAD_GATEWAY, "wallet_unavailable", &format!("organizer wallet not reachable: {e}"))
+        }
     }
 }

@@ -148,8 +148,17 @@ report() {
       || warn "could not read WDK treasury"
   fi
   echo
-  echo "App:    http://127.0.0.1:1888/poweredge-app"
+  echo "App:    http://127.0.0.1:1888/poweredge-app   (door: /poweredge-app/login)"
   echo "Editor: http://127.0.0.1:1888/"
+  local bind ip
+  bind="$(ss -ltnH 'sport = :1888' 2>/dev/null | awk '{print $4}' | head -1)"
+  if [[ "$bind" == 0.0.0.0:* || "$bind" == "*:"* || "$bind" == "[::]:"* ]]; then
+    for ip in $(ip -4 -br addr 2>/dev/null | awk '$2=="UP"||$2=="UNKNOWN"{print $3}' | cut -d/ -f1 | grep -vE '^(127\.|172\.(1[6-9]|2[0-9]|3[01])\.)'); do
+      echo "From other machines: http://$ip:1888/poweredge-app/login"
+    done
+  else
+    echo "n2link listens on $bind only (set N2LINK_BIND=0.0.0.0:1888 to open it)"
+  fi
 }
 
 # ------------------------------------------------------------------ stop
