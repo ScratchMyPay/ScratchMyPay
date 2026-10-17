@@ -1,0 +1,61 @@
+{
+ "what": "Payout organizer VM -> crew VM with direct delivery: the consignment crossed a real VM boundary over vsock (no proxy, no host wallet process)",
+ "network": "mutinynet (test money only)",
+ "path": "organizer VM PEER_URL 127.0.0.1:8712 -> guest vsock out -> host vsock-bridge --relay -> crew VM vsock 8712 -> crew wallet /consignments/import",
+ "host_wallet_processes": 0,
+ "invoice_transport": "direct (crew VM API, transport=direct; no endpoints)",
+ "payout": {
+  "plan_id": "cd0186f9-8edf-4346-a2e5-902486ecf6ca",
+  "state": "SETTLED",
+  "amount_display": "1",
+  "asset_ticker": "USDT",
+  "recipient_label": "sound engineer",
+  "memo": "VM to VM delivery",
+  "txid": "205962dcf318fb1e115bf3b9ce24d28400018902131e97aa28badb081a92cc2f",
+  "consignment_sha256": "5d312eecb053b8aad88f807a016c50e01832bdd0a6ebc93442605660abc829e8",
+  "approved_by": "Gus (organizer)"
+ },
+ "journal": [
+  {
+   "at": "2026-10-17T13:24:56+00:00",
+   "from": null,
+   "to": "PLANNED",
+   "detail": "plan created"
+  },
+  {
+   "at": "2026-10-17T13:24:58+00:00",
+   "from": "PLANNED",
+   "to": "APPROVED",
+   "detail": "approved by Gus (organizer)"
+  },
+  {
+   "at": "2026-10-17T13:24:58+00:00",
+   "from": "APPROVED",
+   "to": "SUBMITTING",
+   "detail": "about to broadcast"
+  },
+  {
+   "at": "2026-10-17T13:24:59+00:00",
+   "from": "SUBMITTING",
+   "to": "BROADCAST",
+   "detail": "txid 205962dcf318fb1e115bf3b9ce24d28400018902131e97aa28badb081a92cc2f"
+  },
+  {
+   "at": "2026-10-17T13:25:15+00:00",
+   "from": "BROADCAST",
+   "to": "DELIVERED",
+   "detail": "recipient imported: {'17': 'waiting_confirmations'}"
+  },
+  {
+   "at": "2026-10-17T13:25:30+00:00",
+   "from": "DELIVERED",
+   "to": "SETTLED",
+   "detail": "payer transfer SETTLED; recipient imported"
+  }
+ ],
+ "screenshots": [
+  "artifacts/screenshots/vm2vm-app-review.png",
+  "artifacts/screenshots/vm2vm-app-approve.png",
+  "artifacts/screenshots/vm2vm-app-track-settled.png"
+ ]
+}

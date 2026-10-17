@@ -57,6 +57,20 @@ seeds_disk() {   # read-only disk: mnemonic, API token, env with VM paths; built
   rm -rf "$dir"
 }
 
+bridge() {   # host side of a VM's vsock: API in, pinholes out, organizer -> crew delivery
+  local role="$1" port uds="$RUN/$1/v.sock" peer=(); port="$(port_of "$role")"
+  if alive "vm-$role-bridge"; then kill -TERM "$(cat "$PIDS/vm-$role-bridge.pid")" 2>/dev/null || true; sleep 0.3; fi
+  if [[ $role == payer ]]; then
+    if alive vm-recipient; then peer=(--relay "$uds:8712=$RUN/recipient/v.sock:8712")   # VM -> VM
+    else peer=(--pinhole "$uds:8712=127.0.0.1:8712"); fi                                # crew on the host
+  fi
+  setsid python3 "$ROOT/scripts/vm/vsock-bridge.py" --expose "127.0.0.1:$port=$uds:$port" \
+    --pinhole "$uds:10001=mutinynet.com:443" --pinhole "$uds:10002=proxy.kaleidoswap.com:443" "${peer[@]}" \
+    >> "$LOGS/vm-$role-bridge.log" 2>&1 < /dev/null &
+  echo $! > "$PIDS/vm-$role-bridge.pid"
+  log "bridge: API 127.0.0.1:$port; pinholes mutinynet.com, proxy.kaleidoswap.com${peer:+; delivery ${peer[0]#--}}"
+}
+
 up() {
   local role="$1" port; port="$(port_of "$role")"
   [[ -x "$VM/bin/firecracker" && -f "$VM/vmlinux" ]] || die "run scripts/vm/setup.sh first"
@@ -86,16 +100,8 @@ JSON
   setsid "$VM/bin/firecracker" --no-api --config-file "$RUN/$role/vm.json" --level Warning \
     >> "$LOGS/vm-$role.log" 2>&1 < /dev/null &
   echo $! > "$PIDS/vm-$role.pid"
-  local peer=()
-  if [[ $role == payer ]]; then
-    if alive vm-recipient; then peer=(--relay "$uds:8712=$RUN/recipient/v.sock:8712")
-    else peer=(--pinhole "$uds:8712=127.0.0.1:8712"); fi   # crew still on the host
-  fi
   for _ in $(seq 1 50); do [[ -S "$uds" ]] && break; sleep 0.1; done
-  setsid python3 "$ROOT/scripts/vm/vsock-bridge.py" --expose "127.0.0.1:$port=$uds:$port" \
-    --pinhole "$uds:10001=mutinynet.com:443" --pinhole "$uds:10002=proxy.kaleidoswap.com:443" "${peer[@]}" \
-    >> "$LOGS/vm-$role-bridge.log" 2>&1 < /dev/null &
-  echo $! > "$PIDS/vm-$role-bridge.pid"
+  bridge "$role"
   for i in $(seq 1 120); do
     health "$port" && break
     alive "vm-$role" || { tail -20 "$LOGS/vm-$role.log"; die "VM exited during boot"; }
@@ -104,6 +110,7 @@ JSON
   health "$port" || { tail -20 "$LOGS/vm-$role.log"; die "no /health after 120 s"; }
   rm -f "$RUN/$role/seeds.ext4"   # Firecracker holds it open; no seed file stays on the host besides secrets/
   log "up in ${i}s: VM pid $(cat "$PIDS/vm-$role.pid"), API on 127.0.0.1:$port via vsock, no network card"
+  if [[ $role == recipient ]] && alive vm-payer; then ROLE=payer bridge payer; fi   # delivery becomes VM -> VM
 }
 
 down() {
@@ -139,6 +146,7 @@ case "$CMD" in
   up) up "$ROLE" ;;
   down) down "$ROLE" ;;
   return) return_home "$ROLE" ;;
+  rebridge) alive "vm-$ROLE" || die "VM not running"; bridge "$ROLE" ;;
   status)
     for r in payer recipient; do
       if alive "vm-$r"; then s="VM running (pid $(cat "$PIDS/vm-$r.pid"))"; elif [[ -f "$ROOT/datadirs/$r.IN_VM" ]]; then s="VM owns data, stopped"; else s="host"; fi

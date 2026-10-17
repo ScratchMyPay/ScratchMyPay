@@ -17,6 +17,7 @@ const { values: a } = parseArgs({ options: {
   who: { type: 'string', default: 'sound engineer' },
   why: { type: 'string', default: 'the Saturday load-in' },
   prefix: { type: 'string', default: '' },
+  invoice: { type: 'string', default: '' },   // pay this invoice instead of requesting one in the crew tab
   chrome: { type: 'string', default: '/usr/bin/google-chrome' },
 } })
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -36,17 +37,20 @@ if (page.url().endsWith('/login')) {
 }
 await page.waitForFunction(() => document.querySelector('#ai-badge')?.textContent?.includes('QVAC'), null, { timeout: 60000 })
 
-// crew: payment request
+// crew: payment request (or a given invoice)
+if (!a.invoice) {
 await page.click('#tab-crew'); await page.fill('#crew-name', a.who); await page.fill('#crew-amount', a.amount)
 await page.click('#crew-go')
 await page.waitForFunction(() => document.querySelector('#crew-invoice')?.value?.startsWith('rgb:'), null, { timeout: 120000 })
 const invoice = await page.inputValue('#crew-invoice')
 log('crew invoice ' + invoice.slice(0, 40) + '… proxy: ' + invoice.includes('endpoints='))
 await page.waitForTimeout(600); await shot('app-crew-request')
+}
 
 // organizer: describe -> review
 await page.click('#tab-org'); await page.fill('#prompt', `Pay the ${a.who} ${a.amount} ${a.ticker} for ${a.why}`)
-await page.click('#paste-latest'); await page.waitForTimeout(400); await shot('app-describe')
+if (a.invoice) await page.fill('#invoice', a.invoice); else await page.click('#paste-latest')
+await page.waitForTimeout(400); await shot('app-describe')
 await page.click('#go-draft')
 await page.waitForSelector('#go-setup:not([disabled])', { timeout: 180000 }); await page.waitForTimeout(600)
 await shot('app-review'); log('review: ' + (await page.textContent('#r-headline')).trim())
