@@ -83,13 +83,13 @@ Go only if **all** are true; otherwise fall back to the Wasm-sandbox story (belo
 
 ## Acceptance tests
 
-- [ ] `scripts/vm/smoke.sh`: boots one VM, hits `/health` over the bridge, destroys it. Under 30 s.
-- [ ] From the host: `ps aux | grep -c mnemonic` is 0 and no host process has `secrets/` open (`lsof +D secrets` empty while a payout runs).
-- [ ] Full screen-driven payout settles through the VMs; journal shows the normal chain of states.
-- [ ] `crash_recovery_demo.py --vm` PASS; evidence lists the destroyed VM's id and the new one's.
-- [ ] `demo-up.sh stop --vm` leaves no `firecracker` processes and no tap devices.
-- [ ] `demo-up.sh` (no `--vm`) still works unchanged: this is Sunday's fallback if anything in the VM path misbehaves.
-- [ ] n2link tests 75/75, wallet-owner 26/26, clippy clean (the VM work should not touch Rust code except `baseUrl` defaults).
+- [x] `scripts/vm/smoke.sh`: boots one VM, hits `/health` over the bridge, destroys it. Under 30 s. **PASS 1.3–1.4 s.**
+- [x] From the host: `ps aux | grep -c mnemonic` is 0 and no host process has `secrets/` open (`lsof +D secrets` empty while a payout runs). **Checked 15:50, all three keys in VMs.**
+- [x] Full screen-driven payout settles through the VMs; journal shows the normal chain of states. **Via the KaleidoSwap proxy and VM → VM; `artifacts/payouts/2026-10-17-vm-*.json`.**
+- [x] `crash_recovery_demo.py --vm` PASS; evidence lists the destroyed VM's id and the new one's. **Also through the app: `scripts/e2e/rehearse-crash.sh`.**
+- [x] `demo-up.sh stop --vm` leaves no `firecracker` processes and no tap devices. **`demo-up.sh stop` (VM-aware, no flag needed); VMs have no tap at all.**
+- [x] `demo-up.sh` (no `--vm`) still works unchanged: this is Sunday's fallback if anything in the VM path misbehaves. **Rehearsed: `boot.sh return` all three → host payout 48 s → back.**
+- [x] n2link tests 75/75, wallet-owner 26/26, clippy clean (the VM work should not touch Rust code except `baseUrl` defaults). **Now: n2link-web 86/86 + vmbox 3/3, wallet-owner 44/44, wdk-btc 11/11, clippy clean; Rust gained the read-only `vm-status` node by decision.**
 
 ## Fallbacks
 

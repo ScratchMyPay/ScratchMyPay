@@ -21,7 +21,7 @@ Adversaries: malicious or accidental user prompt, poisoned template, hostile Git
 - Encryption-at-rest is not equivalent to a protected signer; document actual deployment key protection.
 - Verify existing n2link credential, egress, ingress and Wasmi boundaries before changing them; retain upstream regression tests.
 
-## Keys in a box: what the AI can and cannot reach (ADR-027)
+## Keys in a box: what the AI can and cannot reach (ADR-028)
 
 Everything the AI touches runs on the host; every key runs in its own Firecracker micro-VM with no network card.
 

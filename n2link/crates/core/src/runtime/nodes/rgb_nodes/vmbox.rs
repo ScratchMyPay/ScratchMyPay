@@ -1,4 +1,4 @@
-//! Keys in a box (read-only): live facts about the Firecracker micro-VMs that hold the keys (ADR-027).
+//! Keys in a box (read-only): live facts about the Firecracker micro-VMs that hold the keys (ADR-028).
 //!
 //! - `vm-status`: for the organizer, crew or treasury box (or all three) reports what Firecracker itself
 //!   says (state, version, vCPUs, memory, network interfaces, read-only disks), how long the VM has run,
