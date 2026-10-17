@@ -148,6 +148,28 @@ struct WdkBalanceNode {
     wallet: String,
 }
 
+/// Status text for the treasury: total (main + door revenue) when the service reports it.
+fn balance_status(body: &serde_json::Value) -> String {
+    match (body["totalSat"].as_u64(), body["doorSat"].as_u64()) {
+        (Some(total), Some(door)) if door > 0 => format!("{total} sats (door {door})"),
+        (Some(total), _) => format!("{total} sats"),
+        _ => format!("{} sats", body["balanceSat"].as_u64().unwrap_or(0)),
+    }
+}
+
+#[cfg(test)]
+mod balance_status_tests {
+    use super::balance_status;
+    use serde_json::json;
+
+    #[test]
+    fn shows_total_with_door_revenue_and_falls_back_to_main() {
+        assert_eq!(balance_status(&json!({"balanceSat": 100000, "doorSat": 18000, "totalSat": 118000})), "118000 sats (door 18000)");
+        assert_eq!(balance_status(&json!({"balanceSat": 5, "doorSat": 0, "totalSat": 5})), "5 sats");
+        assert_eq!(balance_status(&json!({"balanceSat": 7})), "7 sats");
+    }
+}
+
 impl WdkBalanceNode {
     fn build(
         _f: &Flow,
@@ -163,11 +185,10 @@ impl WdkBalanceNode {
         let wdk = wdk_from_flow(&flow_of(self)?, &self.wallet)?;
         match wdk.call(Method::GET, "/balance", None).await {
             Ok(body) => {
-                let sats = body["balanceSat"].as_u64().unwrap_or(0);
+                let text = balance_status(&body);
                 put_wdk(&msg, "balance", body.clone(), json!({"ok": true, "step": "wdk-balance", "balance": body}))
                     .await;
-                self.report_status(status(StatusFill::Green, StatusShape::Dot, format!("{sats} sats")), cancel.clone())
-                    .await;
+                self.report_status(status(StatusFill::Green, StatusShape::Dot, text), cancel.clone()).await;
                 self.fan_out_one(Envelope { port: 0, msg }, cancel).await
             }
             Err(err) => wdk_fail(self, msg, "wdk-balance", err, cancel).await,

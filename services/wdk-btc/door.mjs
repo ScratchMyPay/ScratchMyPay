@@ -119,6 +119,22 @@ export class Door {
     return { passes: r.passes, activePasses: active, revenueSat: r.sat, priceSat: this.priceSat }
   }
 
+  /**
+   * Door money actually on chain: the balance of every door account that issued a pass.
+   * Same treasury seed (accounts 1000+), so it is treasury money; the main account alone misses it.
+   * Cached for `maxAgeMs` so a polling screen does not cost one Electrum call per pass.
+   */
+  async doorBalance ({ maxAgeMs = 30_000 } = {}) {
+    if (this._doorCache && this.now() - this._doorCache.at < maxAgeMs) return this._doorCache.value
+    const rows = this.db.prepare(`SELECT DISTINCT a.account_index AS i FROM passes p
+                                  JOIN attempts a ON a.id = p.attempt_id ORDER BY a.account_index`).all()
+    let sat = 0
+    for (const { i } of rows) sat += Number(await (await this.getAccount(i)).getBalance())
+    const value = { doorSat: sat, doorAccounts: rows.length }
+    this._doorCache = { at: this.now(), value }
+    return value
+  }
+
   passes (limit = 20) {
     return this.db.prepare(`SELECT p.id, p.address, p.txid, p.paid_sat AS paidSat, p.issued_at AS issuedAt, p.expires_at AS expiresAt, a.label
                             FROM passes p JOIN attempts a ON a.id = p.attempt_id ORDER BY p.id DESC LIMIT ?`).all(limit)

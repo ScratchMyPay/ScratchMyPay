@@ -64,9 +64,20 @@ const door = new Door({
   priceSat: DOOR_PRICE,
   getAccount: async (i) => {
     const acct = await wallet.getAccount(i)
-    return { getAddress: () => withLink(() => acct.getAddress()), getTransfers: (o) => withLink(() => acct.getTransfers(o)) }
+    return {
+      getAddress: () => withLink(() => acct.getAddress()),
+      getTransfers: (o) => withLink(() => acct.getTransfers(o)),
+      getBalance: () => withLink(() => acct.getBalance()),
+    }
   },
 })
+
+/** Treasury money = main account (0) + door accounts (1000+), both under the same WDK seed. */
+async function treasury () {
+  const mainSat = Number(await withLink(() => account.getBalance()))
+  const { doorSat, doorAccounts } = await door.doorBalance()
+  return { mainSat, doorSat, doorAccounts, totalSat: mainSat + doorSat }
+}
 
 const authorized = (req) => {
   const supplied = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
@@ -116,7 +127,11 @@ async function feeRates () {
 
 const routes = {
   '/health': async () => ({ ok: true, engine: 'Tether WDK wdk-wallet-btc', network: 'mutinynet' }),
-  '/balance': async () => ({ network: 'mutinynet', engine: 'Tether WDK', address, balanceSat: Number(await withLink(() => account.getBalance())), door: door.revenue() }),
+  // balanceSat stays the main account (older clients); totalSat includes the door's revenue.
+  '/balance': async () => {
+    const t = await treasury()
+    return { network: 'mutinynet', engine: 'Tether WDK', address, balanceSat: t.mainSat, doorSat: t.doorSat, totalSat: t.totalSat, treasury: t, door: door.revenue() }
+  },
   '/fees': async (url) => {
     const count = intParam(url, 'count', 1, 1000)
     const vbytes = intParam(url, 'vbytes', RGB_PAYOUT_VBYTES, 100_000)
@@ -128,8 +143,8 @@ const routes = {
     const speed = url.searchParams.get('speed') || 'normal'
     const rates = await feeRates()
     const cost = payoutCost({ feeRates: { normal: rates.normal, fast: rates.fast }, count })
-    const haveSat = Number(await withLink(() => account.getBalance()))
-    return { network: 'mutinynet', engine: 'Tether WDK', address, cost, coverage: coverage({ haveSat, cost, speed }) }
+    const t = await treasury()
+    return { network: 'mutinynet', engine: 'Tether WDK', address, cost, treasury: t, coverage: coverage({ haveSat: t.totalSat, cost, speed }) }
   },
   '/door/passes': async () => ({ ...door.revenue(), passes: door.passes(20) }),
   // Test hook (only with WDK_DEBUG=1): drop the Electrum socket as a flaky server would.

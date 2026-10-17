@@ -9,9 +9,29 @@ function fakeWallet () {
     getAccount: async (index) => ({
       getAddress: async () => `tb1qdoor${index}`,
       getTransfers: async () => transfers.get(index) || [],
+      getBalance: async () => BigInt((transfers.get(index) || []).reduce((s, t) => s + Number(t.value), 0)),
     }),
   }
 }
+
+test('door balance: on-chain money of paid door accounts only, cached', async () => {
+  let t = 1_000_000
+  const w = fakeWallet()
+  let calls = 0
+  const getAccount = async (i) => { calls++; return w.getAccount(i) }
+  const door = new Door({ dbPath: ':memory:', getAccount, now: () => t })
+  const a = await door.start(); const b = await door.start(); await door.start()   // third never pays
+  w.transfers.set(FIRST_DOOR_ACCOUNT, [{ hash: 'x1', value: 1000n, height: 1 }])
+  w.transfers.set(FIRST_DOOR_ACCOUNT + 1, [{ hash: 'x2', value: 1500n, height: 1 }])   // overpaid
+  await door.check(a.id); await door.check(b.id)
+  calls = 0
+  assert.deepEqual(await door.doorBalance(), { doorSat: 2500, doorAccounts: 2 })
+  assert.equal(calls, 2)                                                        // unpaid account not read
+  w.transfers.set(FIRST_DOOR_ACCOUNT, [])                                        // e.g. swept to main
+  assert.equal((await door.doorBalance()).doorSat, 2500)                         // cached
+  t += 31_000
+  assert.equal((await door.doorBalance()).doorSat, 1500)                         // refreshed from chain
+})
 
 test('each attempt gets its own treasury address; payment issues a 24h pass', async () => {
   let t = 1_000_000
