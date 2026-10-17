@@ -156,7 +156,7 @@
                     resetDraft();
                     return;
                 }
-                RED.view.importNodes(pending.draft.nodes, {
+                RED.view.importNodes(belowExisting(pending.draft.nodes, pending.workspaceId), {
                     addFlow: false,
                     touchImport: true,
                     generateIds: false,
@@ -165,9 +165,24 @@
                     applyNodeDefaults: true,
                     eventContext: {source: "n2link-flow-copilot"}
                 });
+                // A touch import skips the drag that normally marks the flow changed; without this
+                // the Deploy button stays disabled.
+                RED.nodes.dirty(true);
                 RED.notify("Flow Copilot draft added. Review it, then use Deploy when ready.", "success");
                 resetDraft();
             });
+
+            // Move a draft below the nodes already on the tab so it never lands on top of them.
+            function belowExisting(nodes, workspaceId) {
+                var bottom = null;
+                RED.nodes.eachNode(function(node) {
+                    if (node.z === workspaceId) { bottom = Math.max(bottom === null ? node.y : bottom, node.y); }
+                });
+                if (bottom === null || nodes.length === 0) { return nodes; }
+                var top = Math.min.apply(null, nodes.map(function(node) { return node.y || 0; }));
+                var shift = Math.max(0, bottom + 80 - top);
+                return nodes.map(function(node) { return $.extend({}, node, {y: (node.y || 0) + shift}); });
+            }
 
             clear.on("click", function() {
                 prompt.val("");
