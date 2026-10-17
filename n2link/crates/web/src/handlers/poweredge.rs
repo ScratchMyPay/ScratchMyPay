@@ -293,6 +293,26 @@ pub async fn get_app() -> Html<&'static str> {
     Html(APP_HTML)
 }
 
+/// What a door pass may do: the deployer set plus `config.read`, so the organizer can SEE the outbound
+/// network policy (Settings -> n2link) that records every connection. Never `config.write`: changing the
+/// policy stays with the config file on the machine.
+pub(crate) const DOOR_PASS_PERMISSIONS: &str = "read,settings.write,flows.write,credentials.write,config.read";
+
+#[cfg(test)]
+mod door_pass_permission_tests {
+    use super::DOOR_PASS_PERMISSIONS;
+    use crate::handlers::auth::{DEPLOYER_PERMISSIONS, allows};
+
+    #[test]
+    fn door_pass_is_deployer_plus_config_read_and_never_config_write() {
+        assert!(DOOR_PASS_PERMISSIONS.starts_with(DEPLOYER_PERMISSIONS));
+        assert!(allows(DOOR_PASS_PERMISSIONS, "config.read"));
+        assert!(!allows(DOOR_PASS_PERMISSIONS, "config.write"));
+        assert!(!allows(DOOR_PASS_PERMISSIONS, "runtime.restart"));
+        assert!(allows(DOOR_PASS_PERMISSIONS, "flows.write"));
+    }
+}
+
 /// Keys in a box: live, read-only status of the three micro-VMs (organizer, crew, treasury) for the app.
 pub async fn get_keys() -> Response {
     let boxes = n2link_core::runtime::nodes::vm_all_boxes().await;
@@ -787,7 +807,7 @@ pub async fn door_check(
                             .rev()
                             .collect::<String>()
                     );
-                    state.auth.issue_with_ttl(&who, super::auth::DEPLOYER_PERMISSIONS, PASS_TTL).token
+                    state.auth.issue_with_ttl(&who, DOOR_PASS_PERMISSIONS, PASS_TTL).token
                 })
                 .clone()
         };

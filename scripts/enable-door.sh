@@ -5,6 +5,10 @@
 #
 #   scripts/enable-door.sh          enable (creates secrets/operator.password on first run)
 #   scripts/enable-door.sh --off    remove the [admin] section again (open editor, loopback only)
+#
+# With the door on, n2link also records every outbound connection (egress mode "observe": logged,
+# never blocked) and shows the policy in Settings -> "n2link". Door-pass users (role deployer) can
+# read it; changing it needs config.write, which no user here has: only the config file can.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOML="$ROOT/datadirs/n2link/n2linkd.toml"
@@ -22,8 +26,25 @@ p.write_text(s)
 EOF
 }
 
+set_key() {  # set_key <section> <key> <toml value>: replace the key inside that section (must exist)
+  python3 - "$TOML" "$1" "$2" "$3" <<'EOF'
+import re, sys, pathlib
+path, section, key, value = sys.argv[1:5]
+p = pathlib.Path(path); s = p.read_text()
+m = re.search(rf"(?ms)^\[{re.escape(section)}\]\n(.*?)(?=^\[|\Z)", s)
+if not m:
+    sys.exit(f"[{section}] not found in {path}")
+body, n = re.subn(rf"(?m)^{re.escape(key)}\s*=.*$", f"{key} = {value}", m.group(1), count=1)
+if n == 0:
+    body = f"{key} = {value}\n" + body
+p.write_text(s[:m.start(1)] + body + s[m.end(1):])
+EOF
+}
+
 if [[ "${1:-}" == "--off" ]]; then
-  strip_admin; echo "door off: n2link admin auth removed from $TOML (restart n2link)"; exit 0
+  strip_admin
+  set_key config_editor enabled false   # n2link refuses to start with the pane on and login off
+  echo "door off: n2link admin auth removed from $TOML (restart n2link)"; exit 0
 fi
 
 if [[ ! -f "$PASS_FILE" ]]; then
@@ -46,4 +67,7 @@ password = "$HASH"
 role = "deployer"
 # --- end PowerEdge door ---
 EOF
-echo "door on: admin auth enabled with user 'operator' (deployer). Restart n2link: scripts/demo-up.sh stop && scripts/demo-up.sh"
+set_key egress mode '"observe"'          # record every outbound connection, block nothing
+set_key config_editor enabled true      # Settings -> "n2link": read-only for door-pass users
+echo "door on: admin auth enabled with user 'operator' (deployer); egress observe; config pane on (read-only for deployers)."
+echo "Restart n2link: scripts/demo-up.sh stop && scripts/demo-up.sh"

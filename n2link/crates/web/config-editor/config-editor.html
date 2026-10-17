@@ -26,7 +26,7 @@
 
             var root = $('<div id="red-ui-settings-tab-n2link-config" class="n2link-config-pane"></div>');
             $('<h3>Outbound network policy</h3>').appendTo(root);
-            $('<p class="n2link-config-help">Edits only the [egress] section. Secrets and unrelated configuration are never returned to the browser.</p>').appendTo(root);
+            $('<p class="n2link-config-help">Edits only the [egress] section. Secrets and unrelated configuration are never returned to the browser. Reading needs config.read; changing it needs config.write (administrator).</p>').appendTo(root);
             var status = $('<div class="n2link-config-status">Not loaded</div>').appendTo(root);
             var form = $('<div></div>').appendTo(root);
             var revision = "";
@@ -121,9 +121,16 @@
             }
 
             function load() {
+                root.find("input, select, button").prop("disabled", false);
                 return $.getJSON(RED.settings.apiRootUrl + "runtime/config/egress")
                     .done(populate)
-                    .fail(function(xhr) { failure(xhr, "Configuration could not be read"); });
+                    .fail(function(xhr) {
+                        // Never show defaults as if they were the live setting.
+                        var body = xhr.responseJSON || {};
+                        status.text("Could not load the live policy (" + (body.message || ("HTTP " + xhr.status)) + "). The fields below are NOT the current setting.");
+                        root.find("input, select, button").prop("disabled", true);
+                        failure(xhr, "Configuration could not be read");
+                    });
             }
 
             function validate() {

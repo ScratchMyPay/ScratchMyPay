@@ -33,6 +33,7 @@ Everything the AI touches runs on the host; every key runs in its own Firecracke
 | WDK treasury (and the door) | micro-VM `wdk` | mutinynet.com:443 (fees), electrum.mutinynet.com:50002 | anything else |
 
 - A seed exists on the host only in `secrets/` (git-ignored, 0600). `boot.sh` copies it into a read-only seed disk in a private tmp dir and unlinks that file as soon as the VM has it open; no host process keeps `secrets/` open or carries a mnemonic in its arguments (checked live, `docs/IMPLEMENTATION_STATUS.md` 2026-10-17 15:50).
+- Outbound network from the host side: n2link's egress policy is `observe` (every connection recorded, none blocked); door-pass sessions can read the policy (`config.read`) but never change it (`config.write` is administrator-only and no browser session has it). `enforce` with allow rules is the production setting; not switched on for the hackathon because it would also need rules for the local AI and wallet calls.
 - One live copy per wallet: while `datadirs/<role>.IN_VM` exists, `run.sh` and the WDK server refuse to start on the host.
 - Not claimed: a compromised host can still read `secrets/` and the VM disk images. The VM boundary protects the keys from the AI-facing processes and from the network, not from root on the same laptop; a real deployment puts each VM on its own machine or the seed in a hardware signer.
 

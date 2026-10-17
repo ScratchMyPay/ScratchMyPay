@@ -99,6 +99,9 @@ The organizer wallet, the crew wallet and the WDK treasury each run in their own
 
 **See it:** the guided app shows a live **Keys in a box** strip (organizer, crew, treasury: green = running in its micro-VM, red = VM down, the key stays on its disk). In the flow editor, the read-only **`vm-status`** node (palette category "Keys in a box") reports what Firecracker itself says about each box: running, **0 network interfaces**, read-only root and seed disks, vCPUs, memory, uptime, and the only destinations its bridge allows; the Flow Library template **"Keys in a box: health check"** watches all three every 30 s (also deployed as the editor tab "Keys in a box"). There is deliberately no node that starts or stops a VM: the AI can see the boxes, not open them.
 
+**Outbound network, recorded:** with the door on (`scripts/enable-door.sh`), n2link's egress policy runs in **observe** mode: every outbound connection a flow makes is recorded (`egress decision …` in the n2link log), nothing is blocked. The live policy is visible to door-pass users in the editor under **Settings → n2link → Outbound network policy**; changing it needs `config.write`, which no browser session has (only the config file on the machine can).
+![Outbound network policy in Settings](artifacts/screenshots/egress-settings.png)
+
 ![Keys in a box in the app](artifacts/screenshots/keys-app-strip.png)
 ![Keys in a box in the flow editor](artifacts/screenshots/keys-editor-tab.png)
 
