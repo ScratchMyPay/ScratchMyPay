@@ -33,9 +33,11 @@ http.server.HTTPServer(("127.0.0.1", 8711), H).serve_forever()
 PY
   halt "smoke server exited"
 fi
+OUTS=(--out 127.0.0.2:443=10001 --out 127.0.0.3:443=10002)
 case "$ROLE" in
   payer) PORT=8711; PEER=(--out 127.0.0.1:8712=8712) ;;
   recipient) PORT=8712; PEER=() ;;
+  wdk) PORT=8713; PEER=(); OUTS=(--out 127.0.0.2:443=10001 --out 127.0.0.4:50002=10003) ;;
   *) halt "unknown role '$ROLE'" ;;
 esac
 mount -o ro,noexec,nodev,nosuid /dev/vdb /secrets || halt "no seeds disk"
@@ -45,16 +47,16 @@ say "role=$ROLE port=$PORT network=none (vsock only); seeds read-only; data $(du
 
 # Pinholes: hostnames map to loopback addresses in /etc/hosts.vm; each is one vsock port on the host.
 python3 /opt/poweredge/scripts/vm/vsock-bridge.py \
-  --serve "$PORT=127.0.0.1:$PORT" \
-  --out 127.0.0.2:443=10001 \
-  --out 127.0.0.3:443=10002 \
-  "${PEER[@]}" &
+  --serve "$PORT=127.0.0.1:$PORT" "${OUTS[@]}" "${PEER[@]}" &
 
 set -a
 . /secrets/env
 set +a
-cd /opt/poweredge/services/wallet-owner
-python3 -m poweredge_wallet --port "$PORT" &
+if [[ "$ROLE" == wdk ]]; then
+  cd /opt/poweredge/services/wdk-btc && node server.mjs &
+else
+  cd /opt/poweredge/services/wallet-owner && python3 -m poweredge_wallet --port "$PORT" &
+fi
 SVC=$!
 trap 'say "shutdown requested"; kill -TERM "$SVC" 2>/dev/null; wait "$SVC"; halt "clean shutdown"' INT TERM
 wait "$SVC"

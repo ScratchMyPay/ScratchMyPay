@@ -11,4 +11,4 @@ RUN chmod 0755 /sbin/vm-init \
  && mkdir -p /secrets /data \
  && ln -s /data/datadirs /opt/poweredge/datadirs \
  && ln -s /secrets /opt/poweredge/secrets \
- && printf '127.0.0.1 localhost\n127.0.0.2 mutinynet.com\n127.0.0.3 proxy.kaleidoswap.com\n' > /etc/hosts.vm
+ && printf '127.0.0.1 localhost\n127.0.0.2 mutinynet.com\n127.0.0.3 proxy.kaleidoswap.com\n127.0.0.4 electrum.mutinynet.com\n' > /etc/hosts.vm

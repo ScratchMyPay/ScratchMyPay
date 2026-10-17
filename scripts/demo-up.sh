@@ -61,7 +61,7 @@ ready_wdk()       { curl -fsS --max-time 5 http://127.0.0.1:8713/health 2>/dev/n
 ready_n2link()    { curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:1888/poweredge-app/login 2>/dev/null; }
 
 # ------------------------------------------------------------------ start / wait
-in_vm() { [[ ( "$1" == payer || "$1" == recipient ) && -f "$ROOT/datadirs/$1.IN_VM" ]]; }   # keys in a box
+in_vm() { [[ ( "$1" == payer || "$1" == recipient || "$1" == wdk ) && -f "$ROOT/datadirs/$1.IN_VM" ]]; }   # keys in a box
 where() { if in_vm "$1"; then echo "micro-VM (no network card, vsock only)"; else echo "host process"; fi; }
 
 launch() {  # name — start detached in its own process group
@@ -140,7 +140,7 @@ report() {
     else printf '%-10s %-6s %s%-8s%s %s\n' "$name" "$port" "$R" "DOWN" "$N" "$(pid_on_port "$port")"; fi
   done
   echo
-  echo "Keys:            organizer wallet in a $(where payer); crew wallet in a $(where recipient)"
+  echo "Keys:            organizer wallet in a $(where payer); crew wallet in a $(where recipient); WDK treasury in a $(where wdk)"
   if ready_payer; then
     get http://127.0.0.1:8711/assets "$(token)" 30 | json "'\n'.join('Organizer funds: {:,.{p}f} {} spendable'.format(a['spendable'] / 10 ** a['precision'], a['ticker'], p=min(a['precision'], 2)) for a in d['assets']) or 'Organizer funds: no assets'" || warn "could not read organizer funds"
     get "http://127.0.0.1:8711/funds?fee_rate=2" "$(token)" 90 \

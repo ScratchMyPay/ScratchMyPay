@@ -13,16 +13,19 @@ log() { printf '[vm %s] %s\n' "${ROLE:-*}" "$*"; }
 die() { printf '[vm %s] ERROR: %s\n' "${ROLE:-*}" "$*" >&2; exit 1; }
 
 CMD="${1:-status}"; ROLE="${2:-}"
-port_of() { case "$1" in payer) echo 8711 ;; recipient) echo 8712 ;; *) die "role must be payer or recipient" ;; esac; }
+port_of() { case "$1" in payer) echo 8711 ;; recipient) echo 8712 ;; wdk) echo 8713 ;; *) die "role must be payer, recipient or wdk" ;; esac; }
+data_of() { case "$1" in wdk) echo door ;; *) echo "$1" ;; esac; }          # datadirs/<name> that moves into the VM
+seed_of() { case "$1" in wdk) echo wdk-treasury ;; *) echo "$1" ;; esac; }  # secrets/<name>.mnemonic
+kind_of() { case "$1" in wdk) echo treasury ;; *) echo wallet ;; esac; }    # rootfs image
 alive() { [[ -f "$PIDS/$1.pid" ]] && kill -0 "$(cat "$PIDS/$1.pid")" 2>/dev/null; }
 health() { curl -s --max-time 3 "http://127.0.0.1:$1/health" | grep -q '"ok"' ; }
 
 adopt() {   # first boot: move this wallet's live data from the host into a data-disk image
-  local role="$1" stage="$VM/build/data-$1"
+  local role="$1" stage="$VM/build/data-$1" data; data="$(data_of "$1")"
   alive "$role" && die "host $role service is running; stop it first (scripts/demo-up.sh stop)"
-  lsof +D "$ROOT/datadirs/$role" >/dev/null 2>&1 && die "something on the host has datadirs/$role open"
+  lsof +D "$ROOT/datadirs/$data" >/dev/null 2>&1 && die "something on the host has datadirs/$data open"
   rm -rf "$stage"; mkdir -p "$stage/datadirs/journal" "$stage/rgb-oob"
-  cp -a "$ROOT/datadirs/$role" "$stage/datadirs/"
+  cp -a "$ROOT/datadirs/$data" "$stage/datadirs/"
   cp -a "$ROOT/datadirs/journal/$role".sqlite3* "$stage/datadirs/journal/" 2>/dev/null || true
   [[ -d "$ROOT/.rgb-oob/$role" ]] && cp -a "$ROOT/.rgb-oob/$role" "$stage/rgb-oob/"
   echo "vm:$role" > "$stage/OWNER"
@@ -37,8 +40,14 @@ adopt() {   # first boot: move this wallet's live data from the host into a data
 seeds_disk() {   # read-only disk: mnemonic, API token, env with VM paths; built in a private tmp dir
   local role="$1" dir="$RUN/$1/seed" letter; letter=$([[ $role == payer ]] && echo A || echo B)
   rm -rf "$dir"; mkdir -p "$dir"; chmod 0700 "$RUN" "$RUN/$role" "$dir"
-  install -m 0400 "$ROOT/secrets/$role.mnemonic" "$dir/mnemonic"
+  install -m 0400 "$ROOT/secrets/$(seed_of "$role").mnemonic" "$dir/mnemonic"
   install -m 0400 "$ROOT/secrets/wallet-api.token" "$dir/wallet-api.token"
+  if [[ $role == wdk ]]; then   # the treasury reads repo-relative paths; only the seed file moves
+    printf 'WDK_SEED_FILE=/secrets/mnemonic\nWALLET_API_TOKEN_FILE=/secrets/wallet-api.token\n' > "$dir/env"
+    rm -f "$RUN/$role/seeds.ext4"
+    (umask 077; mkfs.ext4 -q -F -L "seeds-$role" -d "$dir" "$RUN/$role/seeds.ext4" 4M)
+    rm -rf "$dir"; return
+  fi
   sed -e "s#$ROOT/datadirs#/opt/poweredge/datadirs#g" \
       -e "s#$ROOT/secrets/$role.mnemonic#/secrets/mnemonic#g" \
       -e "s#$ROOT/.rgb-oob#/data/rgb-oob#g" "$ROOT/.env.$role" > "$dir/env"
@@ -58,37 +67,39 @@ seeds_disk() {   # read-only disk: mnemonic, API token, env with VM paths; built
 }
 
 bridge() {   # host side of a VM's vsock: API in, pinholes out, organizer -> crew delivery
-  local role="$1" port uds="$RUN/$1/v.sock" peer=(); port="$(port_of "$role")"
+  local role="$1" port uds="$RUN/$1/v.sock" peer=() holes; port="$(port_of "$role")"
+  if [[ $role == wdk ]]; then holes=(--pinhole "$uds:10001=mutinynet.com:443" --pinhole "$uds:10003=electrum.mutinynet.com:50002")
+  else holes=(--pinhole "$uds:10001=mutinynet.com:443" --pinhole "$uds:10002=proxy.kaleidoswap.com:443"); fi
   if alive "vm-$role-bridge"; then kill -TERM "$(cat "$PIDS/vm-$role-bridge.pid")" 2>/dev/null || true; sleep 0.3; fi
   if [[ $role == payer ]]; then
     if alive vm-recipient; then peer=(--relay "$uds:8712=$RUN/recipient/v.sock:8712")   # VM -> VM
     else peer=(--pinhole "$uds:8712=127.0.0.1:8712"); fi                                # crew on the host
   fi
-  setsid python3 "$ROOT/scripts/vm/vsock-bridge.py" --expose "127.0.0.1:$port=$uds:$port" \
-    --pinhole "$uds:10001=mutinynet.com:443" --pinhole "$uds:10002=proxy.kaleidoswap.com:443" "${peer[@]}" \
+  setsid python3 "$ROOT/scripts/vm/vsock-bridge.py" --expose "127.0.0.1:$port=$uds:$port" "${holes[@]}" "${peer[@]}" \
     >> "$LOGS/vm-$role-bridge.log" 2>&1 < /dev/null &
   echo $! > "$PIDS/vm-$role-bridge.pid"
-  log "bridge: API 127.0.0.1:$port; pinholes mutinynet.com, proxy.kaleidoswap.com${peer:+; delivery ${peer[0]#--}}"
+  log "bridge: API 127.0.0.1:$port; pinholes $(printf '%s ' "${holes[@]}" | grep -o '=[^ ]*' | tr -d = | tr '\n' ' ')${peer:+; delivery ${peer[0]#--}}"
 }
 
 up() {
   local role="$1" port; port="$(port_of "$role")"
   [[ -x "$VM/bin/firecracker" && -f "$VM/vmlinux" ]] || die "run scripts/vm/setup.sh first"
-  [[ -f "$VM/rootfs-wallet.ext4" ]] || die "run scripts/vm/build-rootfs.sh first"
+  local kind; kind="$(kind_of "$role")"
+  [[ -f "$VM/rootfs-$kind.ext4" ]] || die "run scripts/vm/build-rootfs.sh $kind first"
   alive "vm-$role" && { log "already running"; return; }
   alive "$role" && die "host $role service is running on :$port; stop it first"
   [[ -f "$VM/$role/data.ext4" ]] || adopt "$role"
   [[ -f "$ROOT/datadirs/$role.IN_VM" ]] || die "data disk exists but datadirs/$role.IN_VM is missing; refusing"
   mkdir -p "$RUN/$role" "$LOGS" "$PIDS"; chmod 0700 "$RUN"
   seeds_disk "$role"
-  local uds="$RUN/$role/v.sock" cid; cid=$([[ $role == payer ]] && echo 3 || echo 4)
+  local uds="$RUN/$role/v.sock" cid; case "$role" in payer) cid=3 ;; recipient) cid=4 ;; wdk) cid=5 ;; esac
   rm -f "$uds" "$uds"_*
   cat > "$RUN/$role/vm.json" <<JSON
 {
   "boot-source": { "kernel_image_path": "$VM/vmlinux",
     "boot_args": "console=ttyS0 reboot=k panic=1 pci=off ro init=/sbin/vm-init pe.role=$role" },
   "drives": [
-    { "drive_id": "rootfs", "path_on_host": "$VM/rootfs-wallet.ext4", "is_root_device": true, "is_read_only": true },
+    { "drive_id": "rootfs", "path_on_host": "$VM/rootfs-$kind.ext4", "is_root_device": true, "is_read_only": true },
     { "drive_id": "seeds", "path_on_host": "$RUN/$role/seeds.ext4", "is_root_device": false, "is_read_only": true },
     { "drive_id": "data", "path_on_host": "$VM/$role/data.ext4", "is_root_device": false, "is_read_only": false }
   ],
@@ -134,10 +145,11 @@ return_home() {   # copy the VM's wallet data back to the host and hand ownershi
   e2fsck -p "$img" >/dev/null || [[ $? -le 1 ]] || die "data disk check failed; not copying"
   rm -rf "$out"; mkdir -p "$out"
   debugfs -R "rdump / $out" "$img" >/dev/null 2>&1
-  [[ "$(cat "$out/OWNER")" == "vm:$role" && -d "$out/datadirs/$role" ]] || die "data disk content unexpected"
-  local keep; keep="$ROOT/datadirs/$role.before-vm-$(date +%Y%m%d-%H%M%S)"
-  mv "$ROOT/datadirs/$role" "$keep"
-  cp -a "$out/datadirs/$role" "$ROOT/datadirs/$role"
+  local data; data="$(data_of "$role")"
+  [[ "$(cat "$out/OWNER")" == "vm:$role" && -d "$out/datadirs/$data" ]] || die "data disk content unexpected"
+  local keep; keep="$ROOT/datadirs/$data.before-vm-$(date +%Y%m%d-%H%M%S)"
+  mv "$ROOT/datadirs/$data" "$keep"
+  cp -a "$out/datadirs/$data" "$ROOT/datadirs/$data"
   cp -a "$out/datadirs/journal/$role".sqlite3* "$ROOT/datadirs/journal/" 2>/dev/null || true
   [[ -d "$out/rgb-oob/$role" ]] && { rm -rf "$ROOT/.rgb-oob/$role"; cp -a "$out/rgb-oob/$role" "$ROOT/.rgb-oob/"; }
   mv "$img" "$img.returned-$(date +%Y%m%d-%H%M%S)"
@@ -151,9 +163,9 @@ case "$CMD" in
   return) return_home "$ROLE" ;;
   rebridge) alive "vm-$ROLE" || die "VM not running"; bridge "$ROLE" ;;
   status)
-    for r in payer recipient; do
+    for r in payer recipient wdk; do
       if alive "vm-$r"; then s="VM running (pid $(cat "$PIDS/vm-$r.pid"))"; elif [[ -f "$ROOT/datadirs/$r.IN_VM" ]]; then s="VM owns data, stopped"; else s="host"; fi
       printf '%-10s %s\n' "$r" "$s"
     done ;;
-  *) die "usage: boot.sh up|down|return <payer|recipient> | status" ;;
+  *) die "usage: boot.sh up|down|return|rebridge <payer|recipient|wdk> | status" ;;
 esac

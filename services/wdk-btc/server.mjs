@@ -34,6 +34,8 @@ const ELECTRUM = { host: env('WDK_ELECTRUM_HOST', 'electrum.mutinynet.com'), por
 const log = (level, msg, extra = {}) => console.log(JSON.stringify({ t: new Date().toISOString(), level, msg, ...extra }))
 
 if (!['127.0.0.1', '::1', 'localhost'].includes(HOST)) { log('error', 'refusing non-loopback bind', { HOST }); process.exit(2) }
+// Keys in a box: while the treasury's micro-VM owns the door data, never start a second treasury on the host.
+if (fs.existsSync(path.join(ROOT, 'datadirs', 'wdk.IN_VM'))) { log('error', 'refusing: the WDK treasury lives in its micro-VM (datadirs/wdk.IN_VM)'); process.exit(3) }
 if (env('POWEREDGE_NETWORK', 'mutinynet') !== 'mutinynet') { log('error', 'POWEREDGE_NETWORK must be mutinynet'); process.exit(2) }
 
 function readOrCreateSeed () {

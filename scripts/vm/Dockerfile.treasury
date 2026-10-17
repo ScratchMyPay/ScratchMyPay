@@ -1,0 +1,14 @@
+# Root filesystem for the WDK treasury VM. Built by scripts/vm/build-rootfs.sh treasury, exported to a
+# read-only ext4 image; never run as a container. Node 24 (node:sqlite for the door) + Python for the bridge.
+FROM node:24-bookworm-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 iproute2 \
+ && rm -rf /var/lib/apt/lists/*
+COPY opt /opt
+RUN cd /opt/poweredge/services/wdk-btc && npm ci --omit=dev --no-audit --no-fund
+COPY vm-init /sbin/vm-init
+RUN chmod 0755 /sbin/vm-init \
+ && mkdir -p /secrets /data \
+ && ln -s /data/datadirs /opt/poweredge/datadirs \
+ && ln -s /secrets /opt/poweredge/secrets \
+ && printf '127.0.0.1 localhost\n127.0.0.2 mutinynet.com\n127.0.0.3 proxy.kaleidoswap.com\n127.0.0.4 electrum.mutinynet.com\n' > /etc/hosts.vm
