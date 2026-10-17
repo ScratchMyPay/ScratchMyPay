@@ -23,6 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
+from . import proxy as proxy_mod
 from .journal import SENT_OR_MAYBE_SENT, Journal, JournalError, Plan, State
 
 LOG = logging.getLogger("poweredge.wallet")
@@ -75,6 +76,8 @@ class WalletOps(Protocol):
 
     def send_btc(self, address: str, amount_sat: int, fee_rate: int) -> str: ...
 
+    def proxy_invoice(self, asset_id: str | None, expiration_timestamp: int, endpoint: str) -> dict[str, Any]: ...
+
 
 @dataclass
 class ServiceConfig:
@@ -86,6 +89,12 @@ class ServiceConfig:
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.time
     extra: dict[str, Any] = field(default_factory=dict)
+    # RGB proxy delivery (when the crew's invoice names an allowed proxy)
+    indexer_url: str = ""
+    proxy_client: Any = None            # proxy.ProxyClient
+    tx_outputs: Callable[[str], list[tuple[int, str]]] | None = None
+    allowed_proxies: tuple[str, ...] = ()
+    default_transport: str = "direct"   # crew invoices: direct | proxy
 
 
 def display_matches(display: str, base_units: int, precision: int) -> bool:
@@ -221,11 +230,29 @@ class WalletService:
         return matches[0]
 
     # ---- recipient ---------------------------------------------------------------------
-    def create_invoice(self, *, asset_id: str | None, expires_seconds: int) -> dict[str, Any]:
-        """`asset_id=None` invoices for any asset (needed before the first receipt)."""
-        self._require("recipient")
+    def create_invoice(self, *, asset_id: str | None, expires_seconds: int, transport: str | None = None) -> dict[str, Any]:
+        """`asset_id=None` invoices for any asset (needed before the first receipt).
+
+        transport="direct": our organizer service hands the consignment over (crew only).
+        transport="proxy": the invoice names the RGB proxy, so any RGB wallet or faucet can pay it.
+        The organizer may create proxy invoices too: that is how it is funded (e.g. from a faucet).
+        """
+        transport = transport or (self._cfg.default_transport if self._cfg.role == "recipient" else "direct")
+        if transport not in ("direct", "proxy"):
+            raise ServiceError("invalid_request", "transport must be direct or proxy")
+        if transport == "direct":
+            self._require("recipient")
         if asset_id is not None and not asset_id.startswith("rgb:"):
             raise ServiceError("invalid_asset", "asset_id must be an RGB contract id (rgb:...)")
+        if transport == "proxy":
+            if not self._cfg.allowed_proxies:
+                raise ServiceError("proxy_disabled", "no RGB proxy is configured on this service", 409)
+            endpoint = self._cfg.allowed_proxies[0]
+            expiry = int(self._cfg.clock()) + expires_seconds
+            with self._lock:
+                data = self._call(lambda: with_backoff(lambda: self._ops.proxy_invoice(asset_id, expiry, endpoint),
+                                                       sleep=self._cfg.sleep))
+            return {**data, "asset_id": asset_id, "environment": ENVIRONMENT, "transport": "proxy", "proxy": endpoint}
         with self._lock:
             intent = self._call(lambda: self._adapter.create_receive_intent(
                 asset_id=asset_id, expires_in_seconds=expires_seconds))
@@ -236,6 +263,7 @@ class WalletService:
             "batch_transfer_idx": intent.batch_transfer_idx,
             "asset_id": asset_id,
             "environment": ENVIRONMENT,
+            "transport": "direct",
         }
 
     def import_consignment(self, payload: bytes) -> dict[str, Any]:
@@ -399,7 +427,7 @@ class WalletService:
     def status(self, plan_id: str, *, refresh: bool) -> dict[str, Any]:
         with self._lock:
             row = self._get(plan_id)
-            delivering = self._cfg.deliver is not None
+            delivering = self._delivers(row)
             if refresh and delivering and row.state_enum is State.BROADCAST:
                 # Delivery failed earlier (e.g. indexer race): retry. Never re-sends.
                 self._deliver(row)
@@ -408,10 +436,20 @@ class WalletService:
             settle_from = State.DELIVERED if delivering else State.BROADCAST
             if refresh and row.state_enum is settle_from:
                 self._call(lambda: with_backoff(self._adapter.refresh_transfers, sleep=self._cfg.sleep))
+                endpoint = self._proxy_endpoint(row)
                 for transfer in self._ops.transfers(row.asset_id):
                     if transfer.batch_transfer_idx == row.batch_transfer_idx and transfer.status == "SETTLED":
-                        row = self._journal.transition(plan_id, row.state_enum, State.SETTLED,
-                                                       detail="payer transfer SETTLED; recipient imported")
+                        if endpoint is None:
+                            row = self._journal.transition(plan_id, row.state_enum, State.SETTLED,
+                                                           detail="payer transfer SETTLED; recipient imported")
+                        else:
+                            ack = self._proxy_ack(row, endpoint)
+                            if ack is True:
+                                row = self._journal.transition(
+                                    plan_id, row.state_enum, State.SETTLED,
+                                    detail="payer transfer SETTLED; recipient ACKed via RGB proxy")
+                            elif ack is False:
+                                LOG.warning("plan %s: recipient NACKed the consignment on the proxy", plan_id)
                         break
         return {**self._view(row), "events": self._journal.events(plan_id)}
 
@@ -451,7 +489,14 @@ class WalletService:
         if parsed.invoice != invoice:
             raise errors.AdapterError("RGB invoice did not round-trip canonically")
         if parsed.transport_endpoints:
-            raise errors.AdapterError("invoice must use out-of-band delivery (no transport endpoints)")
+            try:
+                endpoint = proxy_mod.proxy_for(invoice, self._cfg.allowed_proxies)
+            except proxy_mod.ProxyError as exc:
+                raise errors.AdapterError(str(exc)) from exc
+            if endpoint is None:
+                raise errors.AdapterError("invoice transport endpoints do not match the allowed RGB proxy")
+            if "wvout:" not in parsed.recipient_id:
+                raise errors.AdapterError("proxy delivery is supported for witness invoices only")
         if parsed.unknown_query_params:
             raise errors.AdapterError("invoice contains unsupported query parameters")
         if parsed.asset_id is not None and parsed.asset_id != asset_id:
@@ -466,8 +511,45 @@ class WalletService:
                                            amount=amount, expires_in_seconds=lifetime)
         return parsed, plan
 
+    def _proxy_endpoint(self, row: Plan) -> str | None:
+        try:
+            return proxy_mod.proxy_for(row.invoice, self._cfg.allowed_proxies)
+        except proxy_mod.ProxyError:
+            return None
+
+    def _delivers(self, row: Plan) -> bool:
+        return self._proxy_endpoint(row) is not None or self._cfg.deliver is not None
+
+    def _proxy_ack(self, row: Plan, endpoint: str) -> bool | None:
+        try:
+            return self._cfg.proxy_client.get_ack(endpoint, recipient_id=row.recipient_id)
+        except Exception as exc:  # noqa: BLE001 - checked again on the next refresh
+            LOG.warning("ack check for %s failed: %s", row.plan_id, exc)
+            return None
+
+    def _deliver_via_proxy(self, row: Plan, endpoint: str) -> dict[str, Any]:
+        payload = self._read_consignment(row.consignment_path)
+        if not payload or hashlib.sha256(payload).hexdigest() != row.consignment_sha256:
+            raise ServiceError("consignment_missing", "consignment file is missing or changed", 500)
+        try:
+            outputs = self._cfg.tx_outputs(row.txid)
+            vout = proxy_mod.find_vout(outputs, proxy_mod.witness_script(row.recipient_id))
+            self._cfg.proxy_client.post_consignment(endpoint, recipient_id=row.recipient_id, txid=row.txid,
+                                                    vout=vout, payload=payload)
+        except Exception as exc:  # noqa: BLE001 - delivery can be retried safely; nothing is re-sent
+            LOG.warning("proxy delivery of %s failed: %s", row.plan_id, exc)
+            return {**self._view(row), "delivery_error": str(exc)[:300]}
+        row = self._journal.transition(row.plan_id, State.BROADCAST, State.DELIVERED,
+                                       detail=f"consignment posted to RGB proxy {endpoint} (vout {vout})")
+        return {**self._view(row), "delivered_via": endpoint}
+
     def _deliver(self, row: Plan) -> dict[str, Any]:
-        if self._cfg.deliver is None or row.state_enum is not State.BROADCAST:
+        if row.state_enum is not State.BROADCAST:
+            return self._view(row)
+        endpoint = self._proxy_endpoint(row)
+        if endpoint is not None:
+            return self._deliver_via_proxy(row, endpoint)
+        if self._cfg.deliver is None:
             return self._view(row)
         payload = self._read_consignment(row.consignment_path)
         if not payload or hashlib.sha256(payload).hexdigest() != row.consignment_sha256:

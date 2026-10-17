@@ -24,6 +24,8 @@ class InvoiceRequest(Strict):
     # Omit for a first-time recipient: rgb-lib cannot name an asset the wallet never held.
     asset_id: str | None = Field(default=None, min_length=4, max_length=128)
     expires_seconds: int = Field(default=900, ge=60, le=86_400)
+    # "proxy": the invoice names the RGB proxy (any RGB wallet or faucet can pay it)
+    transport: str | None = Field(default=None, pattern="^(direct|proxy)$")  # None: service default
 
 
 class ImportRequest(Strict):
@@ -100,7 +102,8 @@ def create_app(service: WalletService, token: str) -> FastAPI:
 
     @app.post("/invoices", dependencies=guarded)
     def invoice(body: InvoiceRequest) -> dict[str, Any]:
-        return service.create_invoice(asset_id=body.asset_id, expires_seconds=body.expires_seconds)
+        return service.create_invoice(asset_id=body.asset_id, expires_seconds=body.expires_seconds,
+                                      transport=body.transport)
 
     @app.post("/consignments/import", dependencies=guarded)
     def import_consignment(body: ImportRequest) -> dict[str, Any]:

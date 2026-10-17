@@ -27,6 +27,7 @@ import uvicorn
 from .api import create_app
 from .bill import REPO_ROOT, open_wallet
 from .journal import Journal
+from . import proxy
 from .service import ServiceConfig, WalletService, encode_consignment
 
 LOG = logging.getLogger("poweredge.wallet.main")
@@ -102,7 +103,12 @@ def main() -> int:
         role=role,
         deliver=_deliverer(peer, token) if (peer and role == "payer") else None,
         crash_at=os.environ.get("POWEREDGE_CRASH_AT") or None,
+        indexer_url=os.environ.get("ELECTRUM_URL", "https://mutinynet.com/api"),
+        proxy_client=proxy.ProxyClient(),
+        allowed_proxies=proxy.allowed_proxies(),
+        default_transport=os.environ.get("POWEREDGE_INVOICE_TRANSPORT", "direct"),
     )
+    config.tx_outputs = lambda txid: proxy.esplora_outputs(config.indexer_url, txid)
     journal = Journal(REPO_ROOT / "datadirs" / "journal" / f"{role}.sqlite3")
     service = WalletService(adapter, ops, journal, config, errors=errors)
     interval = float(os.environ.get("POWEREDGE_AUTO_REFRESH_SECONDS", "60" if role == "recipient" else "0"))

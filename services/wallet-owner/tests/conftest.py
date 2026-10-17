@@ -36,6 +36,7 @@ class FakeBackend:
     fail_send_after_broadcast: bool = False
     imported: list = field(default_factory=list)
     btc_sends: list = field(default_factory=list)
+    proxy_invoices: list = field(default_factory=list)
     invoice_asset: str | None = ASSET_ID
 
     def spendable_balance(self, asset_id: str) -> int:
@@ -81,6 +82,11 @@ class FakeOps:
 
     def transfers(self, asset_id):
         return list(self.backend.transfers)
+
+    def proxy_invoice(self, asset_id, expiration_timestamp, endpoint):
+        self.backend.proxy_invoices.append((asset_id, expiration_timestamp, endpoint))
+        return {"invoice": f"rgb:~/~/~/sbc:wvout:fake?expiry={expiration_timestamp}&endpoints={endpoint}",
+                "recipient_id": "sbc:wvout:fake", "expiration_timestamp": expiration_timestamp, "batch_transfer_idx": 9}
 
     def send_btc(self, address, amount_sat, fee_rate):
         self.backend.btc_sends.append((address, amount_sat, fee_rate))

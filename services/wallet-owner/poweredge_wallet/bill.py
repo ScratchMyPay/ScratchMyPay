@@ -91,6 +91,14 @@ class RgbLibOps:
         wallet, online = self._backend._wallet, self._backend._online
         return str(wallet.send_btc(online, address, int(amount_sat), int(fee_rate), False))
 
+    def proxy_invoice(self, asset_id: str | None, expiration_timestamp: int, endpoint: str) -> dict[str, Any]:
+        """Witness invoice that names an RGB proxy, so any RGB wallet or faucet can pay it."""
+        wallet, rgb = self._backend._wallet, self._backend._rgb
+        data = wallet.witness_receive(asset_id, rgb.Assignment.ANY(), int(expiration_timestamp), [endpoint], 1)
+        return {"invoice": data.invoice, "recipient_id": data.recipient_id,
+                "expiration_timestamp": int(data.expiration_timestamp),
+                "batch_transfer_idx": int(data.batch_transfer_idx)}
+
     def transfers(self, asset_id: str) -> list[TransferRow]:
         return [
             TransferRow(
