@@ -200,6 +200,22 @@ def test_status_refresh_reconciles_unknown_submission_by_itself(payer, recipient
     assert any("reconciled from wallet" in e["detail"] for e in polled["events"])
 
 
+def test_payer_background_tick_finishes_a_payout_nobody_is_polling(payer, recipient):
+    """The send request died with the VM, so no flow node polls: the payer's own tick must finish it."""
+    recipient_service = recipient.service()
+    payer.deliver = lambda payload: recipient_service.import_consignment(payload)
+    payer.crash_at = "after_broadcast"
+    service = payer.service()
+    plan = approved(service)
+    with pytest.raises(SimulatedCrash):
+        service.execute(plan["plan_id"], flow_revision=REVISION, idempotency_key="key-000001")
+    payer.crash_at = None
+    restarted = payer.service()
+    assert restarted.payer_tick()["payouts"][plan["plan_id"]] in (State.DELIVERED.value, State.SETTLED.value)
+    assert len(payer.backend.sends) == 1
+    assert restarted.status(plan["plan_id"], refresh=False)["state"] != State.UNKNOWN_SUBMISSION.value
+
+
 def test_status_refresh_with_no_send_evidence_marks_failed_not_resent(payer):
     payer.crash_at = "before_send"
     service = payer.service()

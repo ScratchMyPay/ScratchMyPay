@@ -55,13 +55,17 @@ def _deliverer(peer_url: str, token: str) -> Callable[[bytes], dict[str, Any]]:
 
 
 def _auto_refresh(service: WalletService, interval: float) -> None:
-    """Background loop: settle incoming transfers once they confirm (recipient)."""
+    """Background loop: settle incoming transfers (recipient); drive in-flight payouts (payer)."""
+    first = True
     while True:
-        time.sleep(interval)
+        time.sleep(1 if first else interval)   # first tick right after start: recover without waiting
+        first = False
         try:
             result = service.auto_refresh_tick()
             if result and result["updated_transfers"]:
                 LOG.info("auto-refresh updated transfers %s", result["updated_transfers"])
+            if result and result.get("payouts"):
+                LOG.info("auto-refresh payouts in flight %s", result["payouts"])
         except Exception as exc:  # noqa: BLE001 - keep the loop alive; next tick retries
             LOG.warning("auto-refresh failed: %s", exc)
 
@@ -111,7 +115,7 @@ def main() -> int:
     config.tx_outputs = lambda txid: proxy.esplora_outputs(config.indexer_url, txid)
     journal = Journal(REPO_ROOT / "datadirs" / "journal" / f"{role}.sqlite3")
     service = WalletService(adapter, ops, journal, config, errors=errors)
-    interval = float(os.environ.get("POWEREDGE_AUTO_REFRESH_SECONDS", "60" if role == "recipient" else "0"))
+    interval = float(os.environ.get("POWEREDGE_AUTO_REFRESH_SECONDS", "60" if role == "recipient" else "20"))
     if interval > 0:
         threading.Thread(target=_auto_refresh, args=(service, interval), name="auto-refresh", daemon=True).start()
         LOG.info("auto-refresh of pending incoming transfers every %.0fs", interval)

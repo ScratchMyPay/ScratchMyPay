@@ -476,14 +476,31 @@ class WalletService:
             )
 
     def auto_refresh_tick(self) -> dict[str, Any] | None:
-        """One background step: refresh only while something incoming is still pending.
+        """One background step.
 
-        rgb-lib marks a received transfer settled only when the wallet refreshes after the
-        witness tx confirms; without this the crew wallet stays "pending" indefinitely.
+        Recipient: refresh only while something incoming is still pending (rgb-lib marks a received
+        transfer settled only when the wallet refreshes after the witness tx confirms).
+        Payer: drive every in-flight payout forward (reconcile an unknown submission, retry delivery,
+        settle). Needed when nobody else polls with refresh, e.g. the send request died with the
+        organizer's VM. status() never sends.
         """
+        if self._cfg.role == "payer":
+            return self.payer_tick()
         if not self.has_pending_incoming():
             return None
         return self.refresh()
+
+    def payer_tick(self) -> dict[str, Any] | None:
+        plans = self._journal.in_flight()
+        if not plans:
+            return None
+        states: dict[str, str] = {}
+        for plan_id in plans:
+            try:
+                states[plan_id] = self.status(plan_id, refresh=True)["state"]
+            except ServiceError as exc:
+                states[plan_id] = f"error: {exc.code}"
+        return {"updated_transfers": {}, "payouts": states}
 
     def refresh(self) -> dict[str, Any]:
         with self._lock:

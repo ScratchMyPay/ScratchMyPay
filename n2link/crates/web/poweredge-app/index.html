@@ -556,7 +556,8 @@ $("go-approve").onclick = async () => {
 // ---------- 4 track ----------
 const ORDER = ["PLANNED", "APPROVED", "SUBMITTING", "BROADCAST", "DELIVERED", "SETTLED"];
 function renderTimeline(p) {
-  const at = ORDER.indexOf(p.state);
+  // Unknown submission: prepared and approved are still true; "sending" is what is being checked.
+  const at = p.state === "UNKNOWN_SUBMISSION" ? ORDER.indexOf("APPROVED") : ORDER.indexOf(p.state);
   const bad = ["FAILED", "EXPIRED", "UNKNOWN_SUBMISSION"].includes(p.state);
   const txLink = () => { if (!p.txid) return null; const a = document.createElement("a"); a.href = `https://mutinynet.com/tx/${p.txid}`; a.target = "_blank"; a.rel = "noopener"; a.textContent = `${short(p.txid, 8)} (${t("viewTx")})`; return a; };
   const items = [

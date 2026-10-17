@@ -151,6 +151,19 @@ class Journal:
             LOG.warning("recovered %d in-flight submission(s) as UNKNOWN_SUBMISSION", len(recovered))
         return recovered
 
+    def in_flight(self, max_age_seconds: float = 86_400) -> list[str]:
+        """Payouts that left (or may have left) the wallet and are not settled yet, newest first.
+
+        Bounded by age so an old payout that will never settle does not get refreshed forever.
+        """
+        states = (State.UNKNOWN_SUBMISSION.value, State.BROADCAST.value, State.DELIVERED.value)
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT plan_id FROM plans WHERE state IN (?, ?, ?) AND updated_at > ? ORDER BY updated_at DESC",
+                (*states, time.time() - max_age_seconds),
+            ).fetchall()
+        return [row["plan_id"] for row in rows]
+
     def insert_plan(self, fields: dict[str, Any]) -> Plan:
         now = time.time()
         row = {**fields, "created_at": now, "updated_at": now, "state": State.PLANNED.value}
