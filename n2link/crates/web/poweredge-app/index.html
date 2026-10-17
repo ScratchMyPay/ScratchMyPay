@@ -38,6 +38,19 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 label { display: block; font-weight: 600; margin: 12px 0 6px; }
 textarea, input[type=text] { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; }
 textarea { min-height: 84px; resize: vertical; }
+/* Keys in a box: live, read-only status of the micro-VMs that hold the keys */
+.keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 760px; margin: 12px auto 0; padding: 0 16px; }
+@media (max-width: 640px) { .keys { grid-template-columns: 1fr; } }
+.keys-title { grid-column: 1 / -1; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.keybox { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 13px; line-height: 1.25; min-width: 0; }
+.keybox .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.keybox.up .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.keybox.down { border-color: var(--bad); }
+.keybox.down .dot { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.keybox.host .dot { background: var(--warn); }
+.keybox b { font-weight: 600; display: block; }
+.keybox small { color: var(--muted); font-family: var(--mono); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.keybox > span:last-child { min-width: 0; }
 textarea.code { font-family: var(--mono); font-size: 13px; min-height: 64px; }
 .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .examples button { border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
@@ -148,6 +161,8 @@ a { color: var(--focus); }
     <button class="lang" id="lang" aria-label="Language">ES</button>
   </div>
 </header>
+
+<section class="keys" id="keys" aria-label="Keys in a box" aria-live="polite" hidden></section>
 
 <main>
   <div class="tabs" role="group" aria-label="Who are you?">
@@ -263,6 +278,9 @@ a { color: var(--focus); }
 const T = {
   en: {
     payouts: "Payouts", aiLocal: "Local AI", testnet: "Test network — no real money",
+    keysTitle: "Keys in a box", k_organizer: "Organizer wallet", k_crew: "Crew wallet", k_treasury: "Treasury",
+    kVm: "micro-VM", kNoNic: n => n === 0 ? "no network card" : `${n} network card(s)`, kUp: "up", kDown: "VM down — key stays on its disk",
+    kHost: "host process (not in a VM)", kOpenings: "can only reach", kTip: "Firecracker",
     organizer: "I'm the organizer", crew: "I'm crew / artist",
     crewTitle: "Ask to be paid", crewHint: "Create a payment request and send the code to the organizer. Your wallet stays on your device.",
     yourRole: "Your role or name", amountAsk: "Amount you expect (optional)", createRequest: "Create payment request",
@@ -295,6 +313,9 @@ const T = {
   },
   es: {
     payouts: "Pagos", aiLocal: "IA local", testnet: "Red de prueba — sin dinero real",
+    keysTitle: "Llaves en caja", k_organizer: "Billetera del organizador", k_crew: "Billetera del staff", k_treasury: "Tesorería",
+    kVm: "micro-VM", kNoNic: n => n === 0 ? "sin tarjeta de red" : `${n} tarjeta(s) de red`, kUp: "encendida", kDown: "VM apagada — la llave sigue en su disco",
+    kHost: "proceso en el host (sin VM)", kOpenings: "solo puede llegar a", kTip: "Firecracker",
     organizer: "Soy el organizador", crew: "Soy staff / artista",
     crewTitle: "Solicitar un pago", crewHint: "Crea una solicitud de pago y envía el código al organizador. Tu billetera se queda en tu dispositivo.",
     yourRole: "Tu rol o nombre", amountAsk: "Monto que esperas (opcional)", createRequest: "Crear solicitud de pago",
@@ -597,6 +618,30 @@ function track() {
 }
 $("new-payout").onclick = () => { clearInterval(state.poll); $("prompt").value = ""; $("invoice").value = ""; state.draft = state.payout = null; go(1); };
 
+// ---------- keys in a box (read-only, live) ----------
+function ago(sec) { if (sec == null) return "?"; if (sec < 90) return `${sec}s`; if (sec < 5400) return `${Math.floor(sec / 60)}m`; return `${Math.floor(sec / 3600)}h${String(Math.floor(sec % 3600 / 60)).padStart(2, "0")}m`; }
+async function keys() {
+  let r;
+  try { r = await api("/poweredge-app/api/keys"); } catch { return; }
+  if (!r || !Array.isArray(r.boxes)) return;
+  const el = $("keys");
+  el.hidden = false;
+  const title = Object.assign(document.createElement("span"), { className: "keys-title", textContent: t("keysTitle") });
+  el.replaceChildren(title, ...r.boxes.map(b => {
+    const kind = b.running ? "up" : b.inVm ? "down" : "host";
+    const box = Object.assign(document.createElement("div"), { className: `keybox ${kind}`, id: `kb-${b.box}` });
+    const dot = Object.assign(document.createElement("span"), { className: "dot" });
+    const text = document.createElement("span");
+    const name = Object.assign(document.createElement("b"), { textContent: t(`k_${b.box}`) });
+    const lines = kind === "up" ? [`${t("kVm")} · ${t("kNoNic", b.networkInterfaces)}`, `${t("kUp")} ${ago(b.uptimeSeconds)} · pid ${b.pid}`]
+      : [kind === "down" ? t("kDown") : t("kHost")];
+    text.append(name, ...lines.map(l => Object.assign(document.createElement("small"), { textContent: l })));
+    if (b.firecracker) box.title = `${t("kTip")} ${b.firecracker.version} · ${b.vcpus} vCPU · ${b.memoryMib} MiB · ${t("kOpenings")}: ${(b.openings || []).join(", ")}`;
+    box.append(dot, text);
+    return box;
+  }));
+}
+
 // ---------- boot ----------
 (async () => {
   applyLang();
@@ -604,6 +649,7 @@ $("new-payout").onclick = () => { clearInterval(state.poll); $("prompt").value =
   if (info.ok === false) { showError("e1", info.error?.code, info.error?.message); return; }
   state.info = info;
   applyLang();
+  keys(); setInterval(keys, 5000);
   if (location.hash === "#crew") tab(false);
 })();
 </script>

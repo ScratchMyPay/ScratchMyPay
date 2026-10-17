@@ -1,0 +1,51 @@
+<script type="text/html" data-template-name="vm-status">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-box"><i class="fa fa-cube"></i> Box</label>
+        <select id="node-input-box">
+            <option value="all">All three (organizer, crew, treasury)</option>
+            <option value="organizer">Organizer wallet</option>
+            <option value="crew">Crew wallet</option>
+            <option value="treasury">WDK treasury</option>
+        </select>
+    </div>
+    <div class="form-tips">Read-only. Live facts from Firecracker about the micro-VM that holds this key: running, network cards (none), read-only disks, openings, uptime. It cannot start, stop or change a VM.</div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("vm-status", {
+        "category": "Keys in a box",
+        "color": "#F3B567",
+        "defaults": {
+            "name": { "value": "" },
+            "box": { "value": "all", "required": true }
+        },
+        "inputs": 1,
+        "outputs": 1,
+        "icon": "font-awesome/fa-cube",
+        "paletteLabel": "key box status",
+        label: function () {
+            const names = { all: "key boxes", organizer: "organizer box", crew: "crew box", treasury: "treasury box" };
+            return this.name || names[this.box] || "key boxes";
+        }
+    });
+</script>
+
+<script type="text/html" data-help-name="vm-status">
+    <p>Shows the Firecracker micro-VMs that hold the keys (organizer wallet, crew wallet, WDK treasury). Read-only.</p>
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>One box: <code>running</code>, <code>firecracker</code> (state, version), <code>vcpus</code>, <code>memoryMib</code>,
+            <code>networkInterfaces</code> (0: no network card), <code>drives</code> (which are read-only),
+            <code>openings</code> (the only destinations its bridge allows), <code>walletApi</code>, <code>inVm</code>, <code>uptimeSeconds</code>.
+            "All three": <code>{ok, running, total, boxes: [...]}</code>.</dd>
+        <dt>vm.&lt;box&gt; <span class="property-type">object</span></dt>
+        <dd>The same facts per box, so several of these nodes can be chained.</dd>
+    </dl>
+    <h3>Details</h3>
+    <p>The facts come from Firecracker's own API socket for each VM, not from our scripts. There is no node that can start, stop or change a VM: the AI can see the boxes, not open them.</p>
+</script>

@@ -19,6 +19,7 @@ if [[ ! -f "$ROOT/n2link/target/ui_static/red/red.min.js" ]]; then
 fi
 
 export POWEREDGE_TEMPLATES_DIR="$ROOT/templates"
+export POWEREDGE_ROOT="$ROOT"   # keys-in-a-box status nodes read pid files and ownership markers here
 export POWEREDGE_LIBRARY_SEED_DIR="$ROOT/library/seed"   # Flow Library seeds (loaded once, by name)
 export POWEREDGE_WALLET_TOKEN_FILE="$ROOT/secrets/wallet-api.token"
 export POWEREDGE_QVAC_KEY_FILE="$ROOT/secrets/qvac.api-key"

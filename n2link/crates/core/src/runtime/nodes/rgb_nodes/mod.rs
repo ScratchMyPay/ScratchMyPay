@@ -9,6 +9,7 @@
 mod client;
 mod qr;
 mod wdk;
+pub mod vmbox;
 
 use std::sync::Arc;
 use std::time::Duration;

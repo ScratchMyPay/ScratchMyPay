@@ -109,7 +109,7 @@ up() {
 JSON
   : > "$LOGS/vm-$role.log"
   rm -f "$RUN/$role/api.sock"
-  setsid "$VM/bin/firecracker" --api-sock "$RUN/$role/api.sock" --config-file "$RUN/$role/vm.json" --level Warning \
+  setsid "$VM/bin/firecracker" --id "smp-$role" --api-sock "$RUN/$role/api.sock" --config-file "$RUN/$role/vm.json" --level Warning \
     >> "$LOGS/vm-$role.log" 2>&1 < /dev/null &
   echo $! > "$PIDS/vm-$role.pid"
   for _ in $(seq 1 50); do [[ -S "$uds" ]] && break; sleep 0.1; done

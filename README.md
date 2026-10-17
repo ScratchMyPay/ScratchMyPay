@@ -97,6 +97,11 @@ ScratchMyPay pays crew in the hackathon's shared **USDT** (`rgb:lX~ToKsO-…-E9P
 ### Keys in a box: every key in its own micro-VM (live, Oct 17)
 The organizer wallet, the crew wallet and the WDK treasury each run in their own **Firecracker micro-VM** (Firecracker is written in Rust). The VMs have **no network card**: the only way in or out is a vsock socket. The host exposes each wallet's API on `127.0.0.1:871x` and opens one pinhole per allowed destination (Mutinynet, the KaleidoSwap proxy, Electrum), with TLS end to end; organizer → crew delivery crosses a real VM boundary. The AI, the editor and the app stay on the host and can only ask a wallet to plan, approve and execute once; they never see a key. The payout logic did not change.
 
+**See it:** the guided app shows a live **Keys in a box** strip (organizer, crew, treasury: green = running in its micro-VM, red = VM down, the key stays on its disk). In the flow editor, the read-only **`vm-status`** node (palette category "Keys in a box") reports what Firecracker itself says about each box: running, **0 network interfaces**, read-only root and seed disks, vCPUs, memory, uptime, and the only destinations its bridge allows; the Flow Library template **"Keys in a box: health check"** watches all three every 30 s (also deployed as the editor tab "Keys in a box"). There is deliberately no node that starts or stops a VM: the AI can see the boxes, not open them.
+
+![Keys in a box in the app](artifacts/screenshots/keys-app-strip.png)
+![Keys in a box in the flow editor](artifacts/screenshots/keys-editor-tab.png)
+
 Live on Mutinynet, Oct 17 (evidence in `artifacts/payouts/`): payouts sent from inside the organizer VM through the KaleidoSwap proxy and directly VM → VM; the door paid VM → VM; and the **crash demo, VM edition**: the organizer VM dies right after broadcasting, a new VM boots on the same disk, and the crew is paid exactly once (`2026-10-17-vm-crash-recovery.json`).
 
 ```bash

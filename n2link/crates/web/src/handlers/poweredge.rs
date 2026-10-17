@@ -293,6 +293,13 @@ pub async fn get_app() -> Html<&'static str> {
     Html(APP_HTML)
 }
 
+/// Keys in a box: live, read-only status of the three micro-VMs (organizer, crew, treasury) for the app.
+pub async fn get_keys() -> Response {
+    let boxes = n2link_core::runtime::nodes::vm_all_boxes().await;
+    let running = boxes.iter().filter(|b| b["running"] == true).count();
+    Json(json!({"boxes": boxes, "running": running})).into_response()
+}
+
 pub async fn get_info(Extension(state): Extension<Arc<WebState>>) -> Response {
     let s = match settings() {
         Ok(s) => s,

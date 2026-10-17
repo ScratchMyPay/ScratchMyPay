@@ -10,6 +10,8 @@ Block times vary (~30 s); treat them as typical, not guaranteed.
 2. `scripts/vm/smoke.sh` → `SMOKE PASS` (~1.5 s).
 3. Open the app on the stage laptop (`/poweredge-app/login`), buy the door pass once, keep the tab open.
 4. Do **not** restart n2link while the stage browser is open (passes are tied to that session).
+5. The app's **Keys in a box** strip shows three green boxes; the editor tab **Keys in a box** shows three green dots and "3/3 boxes running · keys in VMs".
+6. Automation note: the door's demo button pays at most once per 30 s; wait 30 s between scripted runs.
 
 ## Segment timings (all keys in VMs)
 | Step | What the audience sees | Typical time |
@@ -27,9 +29,9 @@ Run **before** the payout you will crash: `POWEREDGE_CRASH_AT=after_broadcast sc
 (after `scripts/vm/boot.sh down payer`; ~40 s). `scripts/e2e/rehearse-crash.sh` does the whole moment unattended.
 | t (after approve) | Screen | Say |
 |---|---|---|
-| ~15 s | "Sending on Bitcoin…"; the organizer VM exits right after sending | "The box holding the organizer's key just died, after the money left, before it wrote that down." |
+| ~15 s | "Sending on Bitcoin…"; the organizer VM exits right after sending; **Keys strip: organizer box turns red** ("VM down — key stays on its disk") | "The box holding the organizer's key just died, after the money left, before it wrote that down." |
 | — | run `scripts/vm/boot.sh up payer` (~40 s: the wallet syncs) | "We boot a fresh box from the same disk." |
-| ~60 s | "We can't confirm yet whether it was sent. It will NOT be sent twice." (prepared ✓ approved ✓ kept) | "It refuses to guess. It never sends twice." |
+| ~60 s | organizer box green again (new pid); "We can't confirm yet whether it was sent. It will NOT be sent twice." (prepared ✓ approved ✓ kept) | "It refuses to guess. It never sends twice." |
 | ~75 s | sent ✓ delivered ✓: the wallet reconciled from its own record, by itself | |
 | ~125 s | settled ✓, receipt; crew balance +1 | "Paid exactly once." |
 

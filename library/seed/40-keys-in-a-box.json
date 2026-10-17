@@ -1,0 +1,124 @@
+{
+ "name": "Keys in a box: health check",
+ "description": "Every 30 seconds, look at the Firecracker micro-VMs that hold the organizer wallet, the crew wallet and the WDK treasury: each node shows its box live (running, no network card, uptime); one branch says all keys are in their boxes, the other warns when a box is down. Read-only: nothing here can start or stop a VM.",
+ "tags": [
+  "keys",
+  "vm",
+  "firecracker",
+  "security",
+  "health"
+ ],
+ "examples": [
+  "Show me the boxes that hold the keys",
+  "Warn me if a wallet VM goes down",
+  "Health check for the organizer, crew and treasury micro-VMs"
+ ],
+ "draft": {
+  "version": 1,
+  "summary": "Every 30 s: status of the three key boxes; all OK or warn",
+  "nodes": [
+   {
+    "ref": "tick",
+    "type": "inject",
+    "name": "every 30 s",
+    "x": 140,
+    "y": 100,
+    "config": {
+     "props": [{ "p": "payload" }],
+     "repeat": "30",
+     "crontab": "",
+     "once": true,
+     "onceDelay": 2,
+     "payload": "",
+     "payloadType": "date"
+    }
+   },
+   {
+    "ref": "organizer",
+    "type": "vm-status",
+    "name": "Organizer box",
+    "x": 360,
+    "y": 40,
+    "config": { "box": "organizer" }
+   },
+   {
+    "ref": "crew",
+    "type": "vm-status",
+    "name": "Crew box",
+    "x": 360,
+    "y": 100,
+    "config": { "box": "crew" }
+   },
+   {
+    "ref": "treasury",
+    "type": "vm-status",
+    "name": "Treasury box",
+    "x": 360,
+    "y": 160,
+    "config": { "box": "treasury" }
+   },
+   {
+    "ref": "all",
+    "type": "vm-status",
+    "name": "All key boxes",
+    "x": 360,
+    "y": 240,
+    "config": { "box": "all" }
+   },
+   {
+    "ref": "allup",
+    "type": "switch",
+    "name": "All running?",
+    "x": 560,
+    "y": 240,
+    "config": {
+     "property": "payload.ok",
+     "propertyType": "msg",
+     "rules": [{ "t": "true" }, { "t": "false" }],
+     "checkall": "true",
+     "repair": false,
+     "outputs": 2
+    }
+   },
+   {
+    "ref": "ok",
+    "type": "debug",
+    "name": "All keys in their boxes",
+    "x": 790,
+    "y": 220,
+    "config": {
+     "active": true,
+     "tosidebar": true,
+     "console": false,
+     "tostatus": false,
+     "complete": "payload",
+     "targetType": "msg"
+    }
+   },
+   {
+    "ref": "down",
+    "type": "debug",
+    "name": "A key box is down",
+    "x": 780,
+    "y": 270,
+    "config": {
+     "active": true,
+     "tosidebar": true,
+     "console": true,
+     "tostatus": false,
+     "complete": "payload",
+     "targetType": "msg"
+    }
+   }
+  ],
+  "wires": [
+   { "from": "tick", "output": 0, "to": "organizer" },
+   { "from": "tick", "output": 0, "to": "crew" },
+   { "from": "tick", "output": 0, "to": "treasury" },
+   { "from": "tick", "output": 0, "to": "all" },
+   { "from": "all", "output": 0, "to": "allup" },
+   { "from": "allup", "output": 0, "to": "ok" },
+   { "from": "allup", "output": 1, "to": "down" }
+  ]
+ }
+}
