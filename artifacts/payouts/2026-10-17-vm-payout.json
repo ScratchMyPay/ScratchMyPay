@@ -1,0 +1,78 @@
+{
+ "what": "First payout sent from inside the organizer's Firecracker micro-VM (keys in a box), driven from the guided app",
+ "network": "mutinynet (test money only)",
+ "vm": {
+  "firecracker": "v1.17.0",
+  "kernel": "6.1.155 (Firecracker CI)",
+  "rootfs": [
+   "scratchmypay d3dc758",
+   "bill 1986826"
+  ],
+  "network_card": "none (vsock only)",
+  "egress_pinholes": [
+   "mutinynet.com:443",
+   "proxy.kaleidoswap.com:443",
+   "crew 127.0.0.1:8712 (crew still on host this run)"
+  ],
+  "seeds": "read-only disk built in a private tmp dir and unlinked after boot",
+  "boot_log": [
+   "[vm-init] role=payer port=8711 network=none (vsock only); seeds read-only; data 1.6M"
+  ]
+ },
+ "baseline_vs_vm": "assets and /funds identical before (host service) and after (VM)",
+ "payout": {
+  "plan_id": "014bc0f7-957b-4565-b231-58e84b6b2062",
+  "state": "SETTLED",
+  "amount_display": "1",
+  "asset_ticker": "USDT",
+  "recipient_label": "sound engineer",
+  "memo": "VM rehearsal",
+  "txid": "b845523af3c761f45a860e83e42cb131a4d7317727e7ddd41a114cf1ed01a8b4",
+  "consignment_sha256": "eb03d4ad7587cd656faad9d0b19aac17fe31246122b1594378e6c24fc3073864",
+  "approved_by": "Gus (organizer)"
+ },
+ "journal": [
+  {
+   "at": "2026-10-17T13:20:15+00:00",
+   "from": null,
+   "to": "PLANNED",
+   "detail": "plan created"
+  },
+  {
+   "at": "2026-10-17T13:20:17+00:00",
+   "from": "PLANNED",
+   "to": "APPROVED",
+   "detail": "approved by Gus (organizer)"
+  },
+  {
+   "at": "2026-10-17T13:20:17+00:00",
+   "from": "APPROVED",
+   "to": "SUBMITTING",
+   "detail": "about to broadcast"
+  },
+  {
+   "at": "2026-10-17T13:20:18+00:00",
+   "from": "SUBMITTING",
+   "to": "BROADCAST",
+   "detail": "txid b845523af3c761f45a860e83e42cb131a4d7317727e7ddd41a114cf1ed01a8b4"
+  },
+  {
+   "at": "2026-10-17T13:20:18+00:00",
+   "from": "BROADCAST",
+   "to": "DELIVERED",
+   "detail": "consignment posted to RGB proxy rpcs://proxy.kaleidoswap.com/json-rpc (vout 1)"
+  },
+  {
+   "at": "2026-10-17T13:21:35+00:00",
+   "from": "DELIVERED",
+   "to": "SETTLED",
+   "detail": "payer transfer SETTLED; recipient ACKed via RGB proxy"
+  }
+ ],
+ "screenshots": [
+  "artifacts/screenshots/vm-app-review.png",
+  "artifacts/screenshots/vm-app-approve.png",
+  "artifacts/screenshots/vm-app-track-settled.png"
+ ],
+ "host_checks": "host run.sh payer refuses (exit 3, wallet lives in its VM); no host process args contain a mnemonic; lsof +D secrets empty"
+}
