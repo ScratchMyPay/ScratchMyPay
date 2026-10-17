@@ -12,6 +12,11 @@ case "$ROLE" in
   *) echo "role must be payer or recipient" >&2; exit 2 ;;
 esac
 
+if [[ -f "$ROOT/datadirs/$ROLE.IN_VM" ]]; then   # keys in a box: never two live copies of one wallet
+  echo "refusing: the $ROLE wallet lives in its micro-VM now ($(cat "$ROOT/datadirs/$ROLE.IN_VM"))" >&2
+  exit 3
+fi
+
 set -a
 # shellcheck disable=SC1090
 . "$ROOT/.env.$ROLE"

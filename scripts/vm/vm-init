@@ -1,0 +1,57 @@
+#!/bin/bash
+# PID 1 inside a wallet VM ("keys in a box"). Read-only rootfs (/dev/vda), seeds disk read-only
+# (/dev/vdb -> /secrets), persistent data disk (/dev/vdc -> /data). No network card: the only way
+# in or out is vsock (scripts/vm/vsock-bridge.py). Role comes from the kernel command line (pe.role=).
+set -u
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin HOME=/tmp PYTHONDONTWRITEBYTECODE=1
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+mount -t tmpfs -o size=64m,mode=1777 tmp /tmp
+mount --bind /etc/hosts.vm /etc/hosts
+ip link set lo up
+
+say() { echo "[vm-init] $*"; }
+halt() { say "$*"; sync; umount /data 2>/dev/null; echo b > /proc/sysrq-trigger; sleep 5; }
+
+ROLE="$(sed -n 's/.*pe\.role=\([a-z]*\).*/\1/p' /proc/cmdline)"
+if [[ "$ROLE" == smoke ]]; then   # no disks, no secrets: vsock in, pinhole out, real TLS
+  python3 /opt/poweredge/scripts/vm/vsock-bridge.py --serve 8711=127.0.0.1:8711 --out 127.0.0.2:443=10001 &
+  python3 - <<'PY'
+import http.server, json, urllib.request
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            tip = urllib.request.urlopen(urllib.request.Request("https://mutinynet.com/api/blocks/tip/height", headers={"User-Agent": "scratchmypay-vm-smoke/1"}), timeout=15).read().decode()
+            body = {"ok": True, "role": "smoke", "mutinynet_tip": int(tip), "network_cards": sorted(__import__("os").listdir("/sys/class/net"))}
+        except Exception as e:
+            body = {"ok": False, "error": str(e)[:200]}
+        data = json.dumps(body).encode(); self.send_response(200); self.end_headers(); self.wfile.write(data)
+    def log_message(self, *a): pass
+http.server.HTTPServer(("127.0.0.1", 8711), H).serve_forever()
+PY
+  halt "smoke server exited"
+fi
+case "$ROLE" in
+  payer) PORT=8711; PEER=(--out 127.0.0.1:8712=8712) ;;
+  recipient) PORT=8712; PEER=() ;;
+  *) halt "unknown role '$ROLE'" ;;
+esac
+mount -o ro,noexec,nodev,nosuid /dev/vdb /secrets || halt "no seeds disk"
+mount -o nodev,nosuid /dev/vdc /data || halt "no data disk"
+[[ -f /data/OWNER && "$(cat /data/OWNER)" == "vm:$ROLE" ]] || halt "data disk is not marked vm:$ROLE"
+say "role=$ROLE port=$PORT network=none (vsock only); seeds read-only; data $(du -sh /data | cut -f1)"
+
+# Pinholes: hostnames map to loopback addresses in /etc/hosts.vm; each is one vsock port on the host.
+python3 /opt/poweredge/scripts/vm/vsock-bridge.py \
+  --serve "$PORT=127.0.0.1:$PORT" \
+  --out 127.0.0.2:443=10001 \
+  --out 127.0.0.3:443=10002 \
+  "${PEER[@]}" &
+
+set -a
+. /secrets/env
+set +a
+cd /opt/poweredge/services/wallet-owner
+python3 -m poweredge_wallet --port "$PORT"
+halt "wallet service exited ($?)"

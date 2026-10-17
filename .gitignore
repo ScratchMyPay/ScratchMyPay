@@ -100,3 +100,4 @@ evidence/raw/
 artifacts/run/
 
 scripts/e2e/node_modules/
+.vm/

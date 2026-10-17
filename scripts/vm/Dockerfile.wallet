@@ -1,0 +1,14 @@
+# Root filesystem for the wallet VMs (organizer, crew). Built by scripts/vm/build-rootfs.sh, exported to
+# a read-only ext4 image; never run as a container. Same pins as services/wallet-owner/requirements.txt.
+FROM python:3.12-slim-bookworm
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends iproute2 \
+ && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir rgb-lib==0.3.0b7 fastapi==0.115.12 uvicorn==0.34.2 "pydantic>=2.9,<3" httpx==0.28.1
+COPY opt /opt
+COPY vm-init /sbin/vm-init
+RUN chmod 0755 /sbin/vm-init \
+ && mkdir -p /secrets /data \
+ && ln -s /data/datadirs /opt/poweredge/datadirs \
+ && ln -s /secrets /opt/poweredge/secrets \
+ && printf '127.0.0.1 localhost\n127.0.0.2 mutinynet.com\n127.0.0.3 proxy.kaleidoswap.com\n' > /etc/hosts.vm
