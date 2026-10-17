@@ -8,6 +8,8 @@
     .n2link-copilot-preview ul { margin:4px 0 10px 20px; }
     .n2link-copilot-empty { color:var(--red-ui-secondary-text-color); font-style:italic; }
     .n2link-copilot select { width:100%; }
+    .n2link-copilot-mode { display:flex; align-items:center; gap:6px; font-size:12px; margin:0; }
+    .n2link-copilot-mode input { margin:0; }
 </style>
 
 <script type="text/javascript">
@@ -20,6 +22,12 @@
             var content = $('<div class="n2link-copilot"></div>');
             var target = $('<div class="n2link-copilot-target"></div>').appendTo(content);
             var provider = $('<select aria-label="AI provider"></select>').appendTo(content);
+            var mode = $('<label class="n2link-copilot-mode" title="The AI picks a Flow Library template and fills its values instead of writing the whole flow. Fast with local models."><input type="checkbox"> Use library templates (fast)</label>').appendTo(content);
+            var templates = mode.find("input");
+            try { templates.prop("checked", localStorage.getItem("n2link.copilot.templates") === "1"); } catch (e) {}
+            templates.on("change", function() {
+                try { localStorage.setItem("n2link.copilot.templates", templates.prop("checked") ? "1" : "0"); } catch (e) {}
+            });
             var prompt = $('<textarea placeholder="Describe the flow to add to the active tab..."></textarea>').appendTo(content);
             var actions = $('<div class="n2link-copilot-actions"></div>').appendTo(content);
             var generate = $('<button type="button" class="red-ui-button red-ui-button-primary"><i class="fa fa-magic"></i> Draft</button>').appendTo(actions);
@@ -119,7 +127,8 @@
                         prompt: text,
                         workspaceId: workspace.id,
                         workspaceLabel: workspace.label,
-                        flows: flows
+                        flows: flows,
+                        mode: templates.prop("checked") ? "template" : "draft"
                     })
                 }).done(function(draft) {
                     pending = {draft: draft, snapshot: snapshot, workspaceId: workspace.id};

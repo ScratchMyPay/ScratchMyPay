@@ -42,6 +42,7 @@ use self::provider::AiProviderNode;
 /// The caller receives model text only. Provider settings and credentials never cross the crate
 /// boundary and must not be logged by callers.
 #[cfg(feature = "nodes_ai")]
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn complete_for_engine(
     engine: &Engine,
     provider_id: &str,
@@ -50,6 +51,7 @@ pub(crate) async fn complete_for_engine(
     prompt: &str,
     max_tokens: u32,
     timeout: Duration,
+    response_schema: Option<&serde_json::Value>,
 ) -> crate::Result<String> {
     let id: ElementId =
         provider_id.parse().map_err(|_| N2linkError::invalid_operation("AI provider id is not a node id"))?;
@@ -68,6 +70,7 @@ pub(crate) async fn complete_for_engine(
         temperature: None,
         max_tokens: Some(max_tokens),
         timeout,
+        response_schema: response_schema.cloned(),
     };
     let egress = provider.egress.snapshot();
     let response = complete_with_policy(&provider.client, &egress, &provider.settings, &request).await?;
@@ -133,10 +136,18 @@ mod tests {
         let registry = crate::runtime::registry::RegistryBuilder::default().build().unwrap();
         let engine = crate::runtime::engine::Engine::with_json(&registry, flows, Some(cfg)).unwrap();
 
-        let response =
-            complete_for_engine(&engine, "0000000000000001", None, "system", "prompt", 256, Duration::from_secs(2))
-                .await
-                .unwrap();
+        let response = complete_for_engine(
+            &engine,
+            "0000000000000001",
+            None,
+            "system",
+            "prompt",
+            256,
+            Duration::from_secs(2),
+            None,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(response, "draft");
         task.abort();
