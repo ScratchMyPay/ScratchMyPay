@@ -10,6 +10,8 @@ mod client;
 mod qr;
 mod wdk;
 pub mod vmbox;
+pub mod dash;
+mod stats;
 
 use std::sync::Arc;
 use std::time::Duration;

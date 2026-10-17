@@ -158,6 +158,7 @@ a { color: var(--focus); }
   <div class="badges">
     <span class="badge ai" id="ai-badge">Local AI</span>
     <span class="badge" data-t="testnet">Test network — no real money</span>
+    <a class="lang" href="/poweredge-app/dashboard" data-t="dash" style="text-decoration:none">Dashboard</a>
     <button class="lang" id="lang" aria-label="Language">ES</button>
   </div>
 </header>
@@ -278,7 +279,7 @@ a { color: var(--focus); }
 const T = {
   en: {
     payouts: "Payouts", aiLocal: "Local AI", testnet: "Test network — no real money",
-    keysTitle: "Keys in a box", k_organizer: "Organizer wallet", k_crew: "Crew wallet", k_treasury: "Treasury",
+    dash: "Dashboard", keysTitle: "Keys in a box", k_organizer: "Organizer wallet", k_crew: "Crew wallet", k_treasury: "Treasury",
     kVm: "micro-VM", kNoNic: n => n === 0 ? "no network card" : `${n} network card(s)`, kUp: "up", kDown: "VM down — key stays on its disk",
     kHost: "host process (not in a VM)", kOpenings: "can only reach", kTip: "Firecracker",
     organizer: "I'm the organizer", crew: "I'm crew / artist",
@@ -313,7 +314,7 @@ const T = {
   },
   es: {
     payouts: "Pagos", aiLocal: "IA local", testnet: "Red de prueba — sin dinero real",
-    keysTitle: "Llaves en caja", k_organizer: "Billetera del organizador", k_crew: "Billetera del staff", k_treasury: "Tesorería",
+    dash: "Panel", keysTitle: "Llaves en caja", k_organizer: "Billetera del organizador", k_crew: "Billetera del staff", k_treasury: "Tesorería",
     kVm: "micro-VM", kNoNic: n => n === 0 ? "sin tarjeta de red" : `${n} tarjeta(s) de red`, kUp: "encendida", kDown: "VM apagada — la llave sigue en su disco",
     kHost: "proceso en el host (sin VM)", kOpenings: "solo puede llegar a", kTip: "Firecracker",
     organizer: "Soy el organizador", crew: "Soy staff / artista",

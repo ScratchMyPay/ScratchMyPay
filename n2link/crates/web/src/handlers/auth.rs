@@ -556,6 +556,7 @@ fn is_public(path: &str) -> bool {
         // before a session exists; everything else under /poweredge-app needs one.
         || path == "/poweredge-app"
         || path == "/poweredge-app/login"
+        || path == "/poweredge-app/dashboard"   // page shell only; its data API needs the pass
         || path.starts_with("/poweredge-app/api/door/")
         || path == "/poweredge-app/api/qr"
         || path == "/comms"

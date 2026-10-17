@@ -1,0 +1,23 @@
+<script type="text/html" data-template-name="ui-stat">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-title"><i class="fa fa-header"></i> Title</label><input type="text" id="node-input-title" placeholder="Organizer sats"></div>
+    <div class="form-row"><label for="node-input-group"><i class="fa fa-th-large"></i> Group</label><input type="text" id="node-input-group" placeholder="Wallets"></div>
+    <div class="form-row"><label for="node-input-order"><i class="fa fa-sort"></i> Order</label><input type="text" id="node-input-order" placeholder="1" style="width:80px"></div>
+    <div class="form-row"><label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Value</label><input type="text" id="node-input-property" placeholder="payload.sats.total"></div>
+    <div class="form-row"><label for="node-input-unit"><i class="fa fa-balance-scale"></i> Unit</label><input type="text" id="node-input-unit" placeholder="sats"></div>
+    <div class="form-row"><label for="node-input-subProperty"><i class="fa fa-comment-o"></i> Small text</label><input type="text" id="node-input-subProperty" placeholder="(optional) msg property"></div>
+    <div class="form-tips">Shows one number or word on the ScratchMyPay dashboard (/poweredge-app/dashboard). Display only.</div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("ui-stat", {
+        category: "dashboard", color: "#F7931A",
+        defaults: { name: { value: "" }, title: { value: "" }, group: { value: "Dashboard" }, order: { value: 1 },
+                    property: { value: "payload" }, unit: { value: "" }, subProperty: { value: "" } },
+        inputs: 1, outputs: 0, icon: "font-awesome/fa-hashtag", paletteLabel: "stat",
+        label: function () { return this.name || this.title || "stat"; }
+    });
+</script>
+<script type="text/html" data-help-name="ui-stat">
+    <p>A big number (or short text) on the dashboard, e.g. sats in a wallet or payouts settled today.</p>
+    <p><b>Value</b> is a message property path such as <code>payload.sats.total</code>. Widgets are grouped by <b>Group</b> and sorted by <b>Order</b>.</p>
+</script>

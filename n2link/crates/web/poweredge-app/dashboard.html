@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScratchMyPay Dashboard</title>
+<style>
+:root {
+  --bg: #050505; --card: #0f0d0b; --ink: #F4EFE6; --muted: #a8a196; --line: #2a2622;
+  --brand: #F7931A; --brand-ink: #050505; --ok: #39FF88; --warn: #ffe600; --bad: #ff5a5a;
+  --chip: #1a1714; --focus: #3CF2FF; --mag: #FF1F8E;
+  --mono: "Space Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+h1 { font-size: 20px; margin: 0; }
+h1 span { color: var(--brand); }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.badge { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+.badge.live { color: var(--ok); }
+.badge.stale { color: var(--warn); }
+a.btn, button.btn { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; }
+main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+section h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.card.wide { grid-column: span 2; }
+.card.full { grid-column: 1 / -1; }
+@media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .card.wide, .card.full { grid-column: auto; } }
+.card h3 { font-size: 13px; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.value { font-family: var(--mono); font-size: 30px; line-height: 1.1; color: var(--ink); word-break: break-word; }
+.value .unit { font-size: 14px; color: var(--muted); margin-left: 6px; }
+.sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.updated { font-size: 11px; color: var(--muted); margin-top: 8px; font-family: var(--mono); }
+svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+td { border-bottom: 1px solid var(--line); padding: 6px 8px; font-family: var(--mono); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+td a { color: var(--focus); text-decoration: none; }
+.st-SETTLED { color: var(--ok); } .st-FAILED, .st-EXPIRED { color: var(--bad); } .st-UNKNOWN_SUBMISSION { color: var(--warn); }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+.empty code { color: var(--brand); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>⚡</span> ScratchMyPay <span data-t="title">Dashboard</span></h1>
+  <div class="badges">
+    <span class="badge" data-t="testnet">Test network — no real money</span>
+    <span class="badge" id="fresh">…</span>
+    <a class="btn" href="/poweredge-app" data-t="back">Payouts app</a>
+    <button class="btn" id="lang" aria-label="Language">ES</button>
+  </div>
+</header>
+<main id="main" aria-live="polite"></main>
+<script>
+"use strict";
+const T = {
+  en: { title: "Dashboard", testnet: "Test network — no real money", back: "Payouts app", live: "live", stale: "no update for",
+        updated: "updated", empty: "No dashboard widgets yet. In the flow editor, add the Flow Library template", emptyTail: "and press Deploy.",
+        noData: "waiting for data…", ago: "ago" },
+  es: { title: "Panel", testnet: "Red de prueba — sin dinero real", back: "App de pagos", live: "en vivo", stale: "sin actualizar hace",
+        updated: "actualizado", empty: "Todavía no hay widgets. En el editor de flujos, agrega la plantilla de la biblioteca", emptyTail: "y presiona Deploy.",
+        noData: "esperando datos…", ago: "" },
+};
+let lang = (() => { try { return localStorage.getItem("pe.lang") || "en"; } catch { return "en"; } })();
+const t = k => (T[lang] || T.en)[k] ?? T.en[k] ?? k;
+const $ = id => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter(k => k != null)); return e; };
+const PALETTE = ["#F7931A", "#3CF2FF", "#FF1F8E", "#ffe600", "#39FF88", "#ff5a5a"];
+const NAMED = { settled: "#39FF88", failed: "#ff5a5a", USDT: "#39FF88", TUSDT: "#F7931A", passes: "#F7931A" };
+const colour = (name, k) => NAMED[name] || PALETTE[k % PALETTE.length];
+const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+const fmt = v => (typeof v === "number" ? nf.format(v) : (v == null || v === "" ? "—" : String(v)));
+const hh = ms => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const ago = ms => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 90 ? `${s}s` : `${Math.round(s / 60)}m`; };
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(n => { n.textContent = t(n.dataset.t); });
+  $("lang").textContent = lang === "en" ? "ES" : "EN";
+}
+$("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; try { localStorage.setItem("pe.lang", lang); } catch {} applyLang(); tick(); };
+
+function passToken() {
+  try { return JSON.parse(localStorage.getItem("auth-tokens") || "null")?.access_token || null; } catch { return null; }
+}
+
+// ---------- charts (inline SVG: works without internet) ----------
+function bars(value, unit) {
+  const labels = value?.labels || [], series = value?.series || {};
+  const names = Object.keys(series);
+  if (!labels.length || !names.length) return el("div", { className: "sub", textContent: t("noData") });
+  const W = 520, H = 170, L = 34, B = 22, top = 8;
+  const totals = labels.map((_, i) => names.reduce((s, n) => s + (Number(series[n][i]) || 0), 0));
+  const max = Math.max(1, ...totals);
+  const step = (W - L) / labels.length, bw = Math.max(2, step * 0.7);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  for (const f of [0, 0.5, 1]) {
+    const y = top + (H - B - top) * (1 - f);
+    svg += `<line x1="${L}" x2="${W}" y1="${y}" y2="${y}" stroke="#2a2622"/><text x="${L - 4}" y="${y + 4}" fill="#a8a196" font-size="10" text-anchor="end">${nf.format(Math.round(max * f * 100) / 100)}</text>`;
+  }
+  labels.forEach((lab, i) => {
+    let y = H - B;
+    names.forEach((n, k) => {
+      const v = Number(series[n][i]) || 0; if (!v) return;
+      const h = (H - B - top) * v / max; y -= h;
+      svg += `<rect x="${L + i * step + (step - bw) / 2}" y="${y}" width="${bw}" height="${h}" rx="2" fill="${colour(n, k)}"><title>${n}: ${nf.format(v)}</title></rect>`;
+    });
+    const every = Math.ceil(labels.length / 8);
+    if (i % every === 0) {
+      const text = typeof lab === "number" && lab > 1e11 ? hh(lab) : String(lab);
+      svg += `<text x="${L + i * step + step / 2}" y="${H - 6}" fill="#a8a196" font-size="10" text-anchor="middle">${text}</text>`;
+    }
+  });
+  svg += "</svg>";
+  const wrap = el("div"); wrap.innerHTML = svg;
+  wrap.append(el("div", { className: "legend" }, ...names.map((n, k) => el("span", {}, el("i", { style: `background:${colour(n, k)}` }), `${n}${unit ? " (" + unit + ")" : ""}`))));
+  return wrap;
+}
+
+function line(history, unit) {
+  if (!history || history.length < 2) return el("div", { className: "sub", textContent: t("noData") });
+  const W = 520, H = 150, L = 50, B = 20, top = 8;
+  const xs = history.map(p => p[0]), ys = history.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(...ys), hi = Math.max(...ys);
+  const span = hi - lo || Math.max(1, Math.abs(hi) * 0.01);
+  const X = x => L + (W - L) * (x - x0) / Math.max(1, x1 - x0);
+  const Y = y => top + (H - B - top) * (1 - (y - lo + span * 0.1) / (span * 1.2));
+  const pts = history.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
+  const wrap = el("div");
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img">
+    <text x="${L - 4}" y="${Y(hi) + 4}" fill="#a8a196" font-size="10" text-anchor="end">${nf.format(hi)}</text>
+    <text x="${L - 4}" y="${Y(lo) + 4}" fill="#a8a196" font-size="10" text-anchor="end">${nf.format(lo)}</text>
+    <polygon points="${X(x0)},${H - B} ${pts} ${X(x1)},${H - B}" fill="#F7931A22"/>
+    <polyline points="${pts}" fill="none" stroke="#F7931A" stroke-width="2"/>
+    <text x="${L}" y="${H - 5}" fill="#a8a196" font-size="10">${hh(x0)}</text>
+    <text x="${W}" y="${H - 5}" fill="#a8a196" font-size="10" text-anchor="end">${hh(x1)}</text></svg>`;
+  wrap.append(el("div", { className: "legend" }, el("span", {}, el("i", { style: "background:#F7931A" }), `${fmt(ys[ys.length - 1])} ${unit || ""}`)));
+  return wrap;
+}
+
+function table(rows, columns) {
+  if (!Array.isArray(rows) || !rows.length) return el("div", { className: "sub", textContent: t("noData") });
+  const cols = columns?.length ? columns : Object.keys(rows[0]).map(k => ({ label: k, key: k }));
+  const cell = (row, key) => {
+    const v = row[key];
+    if (key === "time" && typeof v === "number") return el("td", { textContent: hh(v) });
+    if (key === "txid" && v) return el("td", {}, el("a", { href: `https://mutinynet.com/tx/${v}`, target: "_blank", rel: "noopener", textContent: `${String(v).slice(0, 10)}…` }));
+    if (key === "state") return el("td", { className: `st-${v}`, textContent: v ?? "" });
+    return el("td", { textContent: v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v)) });
+  };
+  return el("table", {}, el("thead", {}, el("tr", {}, ...cols.map(c => el("th", { textContent: c.label })))),
+    el("tbody", {}, ...rows.map(r => el("tr", {}, ...cols.map(c => cell(r, c.key))))));
+}
+
+function card(w) {
+  const c = el("div", { className: "card" }, el("h3", { textContent: w.title }));
+  if (w.kind === "stat") {
+    c.append(el("div", { className: "value" }, fmt(w.value), w.unit ? el("span", { className: "unit", textContent: w.unit }) : null));
+    if (w.sub != null && w.sub !== "") c.append(el("div", { className: "sub", textContent: fmt(w.sub) }));
+  } else if (w.kind === "chart") {
+    c.classList.add("wide");
+    c.append(w.mode === "append" ? line(w.history, w.unit) : bars(w.value, w.unit));
+  } else {
+    c.classList.add("full");
+    c.append(table(w.value, w.columns));
+  }
+  if (w.updatedAt) c.append(el("div", { className: "updated", textContent: `${t("updated")} ${ago(w.updatedAt)} ${t("ago")}`.trim() }));
+  return c;
+}
+
+async function tick() {
+  const token = passToken();
+  let res;
+  try { res = await fetch("/poweredge-app/api/dashboard", { headers: token ? { Authorization: "Bearer " + token } : {} }); }
+  catch { setFresh(null); return; }
+  if (res.status === 401) { location.href = "/poweredge-app/login"; return; }
+  if (!res.ok) { setFresh(null); return; }
+  const data = await res.json();
+  const widgets = data.widgets || [];
+  const main = $("main");
+  if (!widgets.length) {
+    main.replaceChildren(el("div", { className: "empty" }, `${t("empty")} `, el("code", { textContent: "Show-night dashboard" }), ` ${t("emptyTail")}`));
+    setFresh(null); return;
+  }
+  const groups = new Map();
+  for (const w of widgets) { if (!groups.has(w.group)) groups.set(w.group, []); groups.get(w.group).push(w); }
+  const ordered = [...groups].sort((a, b) => Math.min(...a[1].map(w => w.order)) - Math.min(...b[1].map(w => w.order)));   // sections in widget order
+  main.replaceChildren(...ordered.map(([g, ws]) => el("section", {}, el("h2", { textContent: g }), el("div", { className: "grid" }, ...ws.map(card)))));
+  setFresh(Math.max(...widgets.map(w => w.updatedAt || 0)));
+}
+
+function setFresh(lastMs) {
+  const b = $("fresh");
+  if (!lastMs) { b.className = "badge"; b.textContent = "…"; return; }
+  const stale = Date.now() - lastMs > 120000;
+  b.className = `badge ${stale ? "stale" : "live"}`;
+  b.textContent = stale ? `${t("stale")} ${ago(lastMs)}` : `● ${t("live")}`;
+}
+
+applyLang();
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

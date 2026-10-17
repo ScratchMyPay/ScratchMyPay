@@ -313,6 +313,18 @@ mod door_pass_permission_tests {
     }
 }
 
+/// Show-night dashboard: what the ui-* widget nodes currently show (door session required).
+pub async fn get_dashboard() -> Response {
+    Json(n2link_core::runtime::nodes::dashboard_snapshot()).into_response()
+}
+
+const DASHBOARD_HTML: &str = include_str!("../../poweredge-app/dashboard.html");
+
+/// The dashboard page shell; its data comes from /poweredge-app/api/dashboard with the door pass.
+pub async fn get_dashboard_page() -> Response {
+    Html(DASHBOARD_HTML).into_response()
+}
+
 /// Keys in a box: live, read-only status of the three micro-VMs (organizer, crew, treasury) for the app.
 pub async fn get_keys() -> Response {
     let boxes = n2link_core::runtime::nodes::vm_all_boxes().await;

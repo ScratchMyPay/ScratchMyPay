@@ -12,6 +12,7 @@ Block times vary (~30 s); treat them as typical, not guaranteed.
 4. Do **not** restart n2link while the stage browser is open (passes are tied to that session).
 5. The app's **Keys in a box** strip shows three green boxes; the editor tab **Keys in a box** shows three green dots and "3/3 boxes running · keys in VMs".
 6. Automation note: the door's demo button pays at most once per 30 s; wait 30 s between scripted runs.
+7. Optional second screen: **`/poweredge-app/dashboard`** ("Dashboard" in the app header). During the ~90 s of Track it shows the day so far: payouts per hour, p50/p90 approve → settled, door revenue, treasury, key boxes; it updates every 30 s.
 
 ## Segment timings (all keys in VMs)
 | Step | What the audience sees | Typical time |

@@ -342,3 +342,67 @@ impl WdkTransfersNode {
     }
 }
 wdk_run!(WdkTransfersNode);
+
+// ---------------------------------------------------------------- door-stats
+crate::node_hints!("door-stats", refs = ["wallet" => "wdk-wallet-ref"], caps = ["wallet", "network"], input = "any", outs = ["door" => "object"]);
+
+#[derive(Debug, Deserialize)]
+struct DoorStatsConfig {
+    #[serde(default)]
+    wallet: String,
+    #[serde(default = "a_day", deserialize_with = "u64_or_str")]
+    hours: u64,
+}
+
+fn a_day() -> u64 {
+    24
+}
+
+/// Door and treasury for the dashboard: passes sold, revenue, active passes, treasury total, passes per hour.
+#[flow_node("door-stats", red_name = "door-stats", inputs = 1, outputs = 1)]
+struct DoorStatsNode {
+    base: BaseFlowNodeState,
+    wallet: String,
+    hours: u64,
+}
+
+impl DoorStatsNode {
+    fn build(
+        _f: &Flow,
+        base: BaseFlowNodeState,
+        config: &RedFlowNodeConfig,
+        _o: Option<&config::Config>,
+    ) -> crate::Result<Box<dyn FlowNodeBehavior>> {
+        let raw = DoorStatsConfig::deserialize(&config.rest)?;
+        Ok(Box::new(DoorStatsNode { base, wallet: require_wallet(&raw.wallet, "door-stats")?, hours: raw.hours.clamp(1, 168) }))
+    }
+
+    async fn handle(&self, msg: MsgHandle, cancel: CancellationToken) -> crate::Result<()> {
+        let wdk = wdk_from_flow(&flow_of(self)?, &self.wallet)?;
+        let list = match wdk.call(Method::GET, "/door/passes?limit=500", None).await {
+            Ok(v) => v,
+            Err(err) => return wdk_fail(self, msg, "door-stats", err, cancel).await,
+        };
+        let balance = wdk.call(Method::GET, "/balance", None).await.ok();
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+        let passes = list["passes"].as_array().cloned().unwrap_or_default();
+        let sold = balance.as_ref().map(|b| b["door"]["passes"].clone()).unwrap_or_else(|| json!(passes.len()));
+        let payload = json!({
+            "passes": sold,
+            "activePasses": list["activePasses"],
+            "revenueSat": list["revenueSat"],
+            "priceSat": list["priceSat"],
+            "treasury": balance.as_ref().map(|b| b["treasury"].clone()),
+            "perHour": super::stats::passes_per_hour(&passes, self.hours as i64, now),
+        });
+        let text = format!(
+            "{} passes · {} sats",
+            sold,
+            super::stats::thousands(list["revenueSat"].as_f64().unwrap_or(0.0))
+        );
+        put_wdk(&msg, "door", payload.clone(), payload).await;
+        self.report_status(status(StatusFill::Green, StatusShape::Dot, text), cancel.clone()).await;
+        self.fan_out_one(Envelope { port: 0, msg }, cancel).await
+    }
+}
+wdk_run!(DoorStatsNode);

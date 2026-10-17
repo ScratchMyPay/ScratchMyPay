@@ -1,0 +1,24 @@
+<script type="text/html" data-template-name="payout-stats">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-hours"><i class="fa fa-clock-o"></i> Hours</label><input type="text" id="node-input-hours" placeholder="24" style="width:80px"></div>
+    <div class="form-row"><label for="node-input-limit"><i class="fa fa-list"></i> Recent</label><input type="text" id="node-input-limit" placeholder="10" style="width:80px"></div>
+    <div class="form-tips">Read-only, from the organizer wallet's journal: payouts per hour, volume, time to settle (p50/p90), last payouts.</div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("payout-stats", {
+        category: "RGB", color: "#F7931A",
+        defaults: { name: { value: "" }, hours: { value: 24 }, limit: { value: 10 } },
+        inputs: 1, outputs: 1, icon: "font-awesome/fa-area-chart", paletteLabel: "payout stats",
+        label: function () { return this.name || "payout stats"; }
+    });
+</script>
+<script type="text/html" data-help-name="payout-stats">
+    <p>Payout statistics from the organizer wallet's journal (read-only).</p>
+    <dl class="message-properties">
+        <dt>payload.chart</dt><dd>Payouts per hour (settled, failed) as <code>{labels, series}</code> for a bar chart.</dd>
+        <dt>payload.volumeChart</dt><dd>Settled volume per hour per asset.</dd>
+        <dt>payload.settleP50 / settleP90</dt><dd>Seconds from approval to settled.</dd>
+        <dt>payload.settled / failed / inFlight</dt><dd>Counts for the period.</dd>
+        <dt>payload.recent</dt><dd>Last payouts: time, amount, to, state, txid.</dd>
+    </dl>
+</script>

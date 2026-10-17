@@ -1,0 +1,21 @@
+<script type="text/html" data-template-name="ui-table">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-title"><i class="fa fa-header"></i> Title</label><input type="text" id="node-input-title" placeholder="Last payouts"></div>
+    <div class="form-row"><label for="node-input-group"><i class="fa fa-th-large"></i> Group</label><input type="text" id="node-input-group" placeholder="Payouts"></div>
+    <div class="form-row"><label for="node-input-order"><i class="fa fa-sort"></i> Order</label><input type="text" id="node-input-order" placeholder="9" style="width:80px"></div>
+    <div class="form-row"><label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Rows</label><input type="text" id="node-input-property" placeholder="payload.recent"></div>
+    <div class="form-row"><label for="node-input-columns"><i class="fa fa-columns"></i> Columns</label><input type="text" id="node-input-columns" placeholder="Time:time,Amount:amount,To:to,State:state,Tx:txid"></div>
+    <div class="form-tips">Rows: an array of objects. Columns: <code>Label:key</code>, comma separated. A key named time (epoch ms) shows as a clock time; txid links to the explorer. Display only.</div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("ui-table", {
+        category: "dashboard", color: "#F7931A",
+        defaults: { name: { value: "" }, title: { value: "" }, group: { value: "Dashboard" }, order: { value: 9 },
+                    property: { value: "payload" }, columns: { value: "" } },
+        inputs: 1, outputs: 0, icon: "font-awesome/fa-table", paletteLabel: "table",
+        label: function () { return this.name || this.title || "table"; }
+    });
+</script>
+<script type="text/html" data-help-name="ui-table">
+    <p>A table on the dashboard, e.g. the last payouts from <i>payout stats</i> (<code>payload.recent</code>).</p>
+</script>

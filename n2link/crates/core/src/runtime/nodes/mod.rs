@@ -47,6 +47,9 @@ mod rgb_nodes;
 /// Keys in a box: read-only status of the micro-VMs that hold the keys (used by the guided app too).
 #[cfg(feature = "nodes_rgb")]
 pub use rgb_nodes::vmbox::{all_boxes as vm_all_boxes, box_status as vm_box_status};
+/// Dashboard widgets (ui-stat, ui-chart, ui-table): what the dashboard page shows.
+#[cfg(feature = "nodes_rgb")]
+pub use rgb_nodes::dash::dashboard_snapshot;
 
 #[cfg(all(feature = "nodes_modbus", not(feature = "nodes_network")))]
 #[path = "network_nodes/modbus.rs"]

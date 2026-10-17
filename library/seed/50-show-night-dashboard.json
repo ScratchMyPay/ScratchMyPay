@@ -1,0 +1,540 @@
+{
+ "name": "Show-night dashboard",
+ "description": "Live dashboard of the show: wallet balances (USDT, TUSDT, sats), payouts per hour and volume, time from approval to settled (p50/p90), last payouts, door revenue and passes per hour, treasury, network cost per payout, key boxes. Every 30 s; read-only. Open it at /poweredge-app/dashboard.",
+ "tags": [
+  "dashboard",
+  "wallets",
+  "payouts",
+  "door",
+  "treasury",
+  "stats"
+ ],
+ "examples": [
+  "Show me a dashboard with the sats in the wallets and payouts per hour",
+  "Build a show-night dashboard",
+  "Chart the door revenue and the treasury"
+ ],
+ "draft": {
+  "version": 1,
+  "summary": "Every 30 s: wallets, payouts, door, treasury and key boxes on the dashboard",
+  "nodes": [
+   {
+    "ref": "tick",
+    "type": "inject",
+    "name": "every 30 s",
+    "x": 120,
+    "y": 640,
+    "config": {
+     "props": [
+      {
+       "p": "payload"
+      }
+     ],
+     "repeat": "30",
+     "crontab": "",
+     "once": true,
+     "onceDelay": 2,
+     "payload": "",
+     "payloadType": "date"
+    }
+   },
+   {
+    "ref": "orgfunds",
+    "type": "rgb-funds",
+    "name": "Organizer funds",
+    "x": 360,
+    "y": 130,
+    "config": {
+     "wallet": "organizer"
+    }
+   },
+   {
+    "ref": "crewfunds",
+    "type": "rgb-funds",
+    "name": "Crew funds",
+    "x": 360,
+    "y": 280,
+    "config": {
+     "wallet": "crew"
+    }
+   },
+   {
+    "ref": "payouts",
+    "type": "payout-stats",
+    "name": "Payout stats",
+    "x": 360,
+    "y": 520,
+    "config": {
+     "hours": 24,
+     "limit": 10
+    }
+   },
+   {
+    "ref": "door",
+    "type": "door-stats",
+    "name": "Door stats",
+    "x": 360,
+    "y": 910,
+    "config": {
+     "hours": 24
+    }
+   },
+   {
+    "ref": "fees",
+    "type": "wdk-fee-quote",
+    "name": "Network cost",
+    "x": 360,
+    "y": 1120,
+    "config": {
+     "payoutsTonight": 1,
+     "speed": "normal"
+    }
+   },
+   {
+    "ref": "keys",
+    "type": "vm-status",
+    "name": "Key boxes",
+    "x": 360,
+    "y": 1180,
+    "config": {
+     "box": "all"
+    }
+   },
+   {
+    "ref": "s_usdt",
+    "type": "ui-stat",
+    "name": "Organizer USDT",
+    "x": 640,
+    "y": 40,
+    "config": {
+     "title": "Organizer USDT",
+     "group": "Wallets",
+     "order": 11,
+     "property": "payload.assets.USDT",
+     "unit": "USDT",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_tusdt",
+    "type": "ui-stat",
+    "name": "Organizer TUSDT",
+    "x": 640,
+    "y": 100,
+    "config": {
+     "title": "Organizer TUSDT",
+     "group": "Wallets",
+     "order": 12,
+     "property": "payload.assets.TUSDT",
+     "unit": "TUSDT",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_sats",
+    "type": "ui-stat",
+    "name": "Organizer sats",
+    "x": 640,
+    "y": 160,
+    "config": {
+     "title": "Organizer sats",
+     "group": "Wallets",
+     "order": 13,
+     "property": "payload.sats.total",
+     "unit": "sats",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_afford",
+    "type": "ui-stat",
+    "name": "Payouts it can still pay for",
+    "x": 640,
+    "y": 220,
+    "config": {
+     "title": "Payouts it can still pay for",
+     "group": "Wallets",
+     "order": 14,
+     "property": "payload.payoutsPossible",
+     "unit": "",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_crew",
+    "type": "ui-stat",
+    "name": "Crew USDT received",
+    "x": 640,
+    "y": 280,
+    "config": {
+     "title": "Crew USDT received",
+     "group": "Wallets",
+     "order": 15,
+     "property": "payload.assets.USDT",
+     "unit": "USDT",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_settled",
+    "type": "ui-stat",
+    "name": "Settled (24 h)",
+    "x": 640,
+    "y": 340,
+    "config": {
+     "title": "Settled (24 h)",
+     "group": "Payouts",
+     "order": 21,
+     "property": "payload.settled",
+     "unit": "",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_p50",
+    "type": "ui-stat",
+    "name": "Approve → settled, p50",
+    "x": 640,
+    "y": 400,
+    "config": {
+     "title": "Approve → settled, p50",
+     "group": "Payouts",
+     "order": 22,
+     "property": "payload.settleP50",
+     "unit": "s",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_p90",
+    "type": "ui-stat",
+    "name": "Approve → settled, p90",
+    "x": 640,
+    "y": 460,
+    "config": {
+     "title": "Approve → settled, p90",
+     "group": "Payouts",
+     "order": 23,
+     "property": "payload.settleP90",
+     "unit": "s",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_flight",
+    "type": "ui-stat",
+    "name": "In flight",
+    "x": 640,
+    "y": 520,
+    "config": {
+     "title": "In flight",
+     "group": "Payouts",
+     "order": 24,
+     "property": "payload.inFlight",
+     "unit": "",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "c_hour",
+    "type": "ui-chart",
+    "name": "Payouts per hour",
+    "x": 640,
+    "y": 580,
+    "config": {
+     "title": "Payouts per hour",
+     "group": "Payouts",
+     "order": 25,
+     "property": "payload.chart",
+     "mode": "replace",
+     "unit": "",
+     "points": 288
+    }
+   },
+   {
+    "ref": "c_vol",
+    "type": "ui-chart",
+    "name": "Volume per hour",
+    "x": 640,
+    "y": 640,
+    "config": {
+     "title": "Volume per hour",
+     "group": "Payouts",
+     "order": 26,
+     "property": "payload.volumeChart",
+     "mode": "replace",
+     "unit": "",
+     "points": 288
+    }
+   },
+   {
+    "ref": "t_last",
+    "type": "ui-table",
+    "name": "Last payouts",
+    "x": 640,
+    "y": 700,
+    "config": {
+     "title": "Last payouts",
+     "group": "Payouts",
+     "order": 29,
+     "property": "payload.recent",
+     "columns": "Time:time,Amount:amount,To:to,For:memo,State:state,Tx:txid"
+    }
+   },
+   {
+    "ref": "s_treasury",
+    "type": "ui-stat",
+    "name": "Treasury (WDK)",
+    "x": 640,
+    "y": 760,
+    "config": {
+     "title": "Treasury (WDK)",
+     "group": "Door & treasury",
+     "order": 31,
+     "property": "payload.treasury.totalSat",
+     "unit": "sats",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_revenue",
+    "type": "ui-stat",
+    "name": "Door revenue",
+    "x": 640,
+    "y": 820,
+    "config": {
+     "title": "Door revenue",
+     "group": "Door & treasury",
+     "order": 32,
+     "property": "payload.revenueSat",
+     "unit": "sats",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_passes",
+    "type": "ui-stat",
+    "name": "Passes sold",
+    "x": 640,
+    "y": 880,
+    "config": {
+     "title": "Passes sold",
+     "group": "Door & treasury",
+     "order": 33,
+     "property": "payload.passes",
+     "unit": "",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_active",
+    "type": "ui-stat",
+    "name": "Active passes",
+    "x": 640,
+    "y": 940,
+    "config": {
+     "title": "Active passes",
+     "group": "Door & treasury",
+     "order": 34,
+     "property": "payload.activePasses",
+     "unit": "",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "c_passes",
+    "type": "ui-chart",
+    "name": "Passes per hour",
+    "x": 640,
+    "y": 1000,
+    "config": {
+     "title": "Passes per hour",
+     "group": "Door & treasury",
+     "order": 35,
+     "property": "payload.perHour",
+     "mode": "replace",
+     "unit": "",
+     "points": 288
+    }
+   },
+   {
+    "ref": "c_treasury",
+    "type": "ui-chart",
+    "name": "Treasury over time",
+    "x": 640,
+    "y": 1060,
+    "config": {
+     "title": "Treasury over time",
+     "group": "Door & treasury",
+     "order": 36,
+     "property": "payload.treasury.totalSat",
+     "mode": "append",
+     "unit": "sats",
+     "points": 288
+    }
+   },
+   {
+    "ref": "s_fee",
+    "type": "ui-stat",
+    "name": "Network cost per payout",
+    "x": 640,
+    "y": 1120,
+    "config": {
+     "title": "Network cost per payout",
+     "group": "Door & treasury",
+     "order": 37,
+     "property": "payload.cost.bySpeed.normal.perPayoutSat",
+     "unit": "sats",
+     "subProperty": ""
+    }
+   },
+   {
+    "ref": "s_keys",
+    "type": "ui-stat",
+    "name": "Key boxes running",
+    "x": 640,
+    "y": 1180,
+    "config": {
+     "title": "Key boxes running",
+     "group": "Keys in a box",
+     "order": 41,
+     "property": "payload.running",
+     "unit": "of 3",
+     "subProperty": ""
+    }
+   }
+  ],
+  "wires": [
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "orgfunds"
+   },
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "crewfunds"
+   },
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "payouts"
+   },
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "door"
+   },
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "fees"
+   },
+   {
+    "from": "tick",
+    "output": 0,
+    "to": "keys"
+   },
+   {
+    "from": "orgfunds",
+    "output": 0,
+    "to": "s_usdt"
+   },
+   {
+    "from": "orgfunds",
+    "output": 0,
+    "to": "s_tusdt"
+   },
+   {
+    "from": "orgfunds",
+    "output": 0,
+    "to": "s_sats"
+   },
+   {
+    "from": "orgfunds",
+    "output": 0,
+    "to": "s_afford"
+   },
+   {
+    "from": "crewfunds",
+    "output": 0,
+    "to": "s_crew"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "s_settled"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "s_p50"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "s_p90"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "s_flight"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "c_hour"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "c_vol"
+   },
+   {
+    "from": "payouts",
+    "output": 0,
+    "to": "t_last"
+   },
+   {
+    "from": "door",
+    "output": 0,
+    "to": "s_treasury"
+   },
+   {
+    "from": "door",
+    "output": 0,
+    "to": "s_revenue"
+   },
+   {
+    "from": "door",
+    "output": 0,
+    "to": "s_passes"
+   },
+   {
+    "from": "door",
+    "output": 0,
+    "to": "s_active"
+   },
+   {
+    "from": "door",
+    "output": 0,
+    "to": "c_passes"
+   },
+   {
+    "from": "door",
+    "output": 0,
+    "to": "c_treasury"
+   },
+   {
+    "from": "fees",
+    "output": 0,
+    "to": "s_fee"
+   },
+   {
+    "from": "keys",
+    "output": 0,
+    "to": "s_keys"
+   }
+  ]
+ }
+}

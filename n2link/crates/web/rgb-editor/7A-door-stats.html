@@ -1,0 +1,22 @@
+<script type="text/html" data-template-name="door-stats">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-wallet"><i class="fa fa-university"></i> Treasury</label><input type="text" id="node-input-wallet"></div>
+    <div class="form-row"><label for="node-input-hours"><i class="fa fa-clock-o"></i> Hours</label><input type="text" id="node-input-hours" placeholder="24" style="width:80px"></div>
+    <div class="form-tips">Read-only: door passes sold, revenue, active passes, treasury total, passes per hour (Tether WDK).</div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("door-stats", {
+        category: "WDK", color: "#50AF95",
+        defaults: { name: { value: "" }, wallet: { value: "", type: "wdk-wallet-ref", required: true }, hours: { value: 24 } },
+        inputs: 1, outputs: 1, icon: "font-awesome/fa-ticket", paletteLabel: "door stats",
+        label: function () { return this.name || "door stats"; }
+    });
+</script>
+<script type="text/html" data-help-name="door-stats">
+    <p>The pay-to-enter door and the treasury (read-only).</p>
+    <dl class="message-properties">
+        <dt>payload.passes / activePasses / revenueSat</dt><dd>Passes sold, passes still valid, door revenue in sats.</dd>
+        <dt>payload.treasury</dt><dd><code>mainSat</code>, <code>doorSat</code>, <code>totalSat</code>.</dd>
+        <dt>payload.perHour</dt><dd>Passes per hour as <code>{labels, series}</code> for a bar chart.</dd>
+    </dl>
+</script>

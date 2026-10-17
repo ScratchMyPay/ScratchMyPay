@@ -1,0 +1,28 @@
+<script type="text/html" data-template-name="ui-chart">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-title"><i class="fa fa-header"></i> Title</label><input type="text" id="node-input-title" placeholder="Payouts per hour"></div>
+    <div class="form-row"><label for="node-input-group"><i class="fa fa-th-large"></i> Group</label><input type="text" id="node-input-group" placeholder="Payouts"></div>
+    <div class="form-row"><label for="node-input-order"><i class="fa fa-sort"></i> Order</label><input type="text" id="node-input-order" placeholder="1" style="width:80px"></div>
+    <div class="form-row"><label for="node-input-mode"><i class="fa fa-line-chart"></i> Mode</label>
+        <select id="node-input-mode">
+            <option value="replace">Bars: message carries {labels, series}</option>
+            <option value="append">Line: add one value per message</option>
+        </select></div>
+    <div class="form-row"><label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Value</label><input type="text" id="node-input-property" placeholder="payload.chart"></div>
+    <div class="form-row"><label for="node-input-unit"><i class="fa fa-balance-scale"></i> Unit</label><input type="text" id="node-input-unit"></div>
+    <div class="form-row"><label for="node-input-points"><i class="fa fa-clock-o"></i> Points kept</label><input type="text" id="node-input-points" placeholder="288" style="width:80px"></div>
+    <div class="form-tips">Bars: <code>{labels: [...], series: {name: [...]}}</code> (labels in epoch ms show as hours). Line: one number per message, last N kept. Display only.</div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("ui-chart", {
+        category: "dashboard", color: "#F7931A",
+        defaults: { name: { value: "" }, title: { value: "" }, group: { value: "Dashboard" }, order: { value: 1 },
+                    mode: { value: "replace" }, property: { value: "payload" }, unit: { value: "" }, points: { value: 288 } },
+        inputs: 1, outputs: 0, icon: "font-awesome/fa-bar-chart", paletteLabel: "chart",
+        label: function () { return this.name || this.title || "chart"; }
+    });
+</script>
+<script type="text/html" data-help-name="ui-chart">
+    <p>A chart on the dashboard. <b>Bars</b> draws a ready series such as <code>payload.chart</code> from <i>payout stats</i>
+    (payouts per hour). <b>Line</b> adds one value per message (e.g. treasury sats every minute) and keeps the last N.</p>
+</script>

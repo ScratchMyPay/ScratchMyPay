@@ -117,6 +117,12 @@ scripts/demo-up.sh up               # boots VMs for wallets that live in VMs, ho
 scripts/vm/boot.sh down payer && scripts/vm/boot.sh return payer   # back to a host process
 ```
 
+### Show-night dashboard (built as a flow, live)
+The dashboard at **`/poweredge-app/dashboard`** (behind the door; "Dashboard" in the app header) is itself an n2link flow: the editor tab **Show-night dashboard** (also a Flow Library template, so Copilot can build or adapt it) feeds three new widget nodes, `ui-stat`, `ui-chart` and `ui-table`, from three new read-only data nodes: `rgb-funds` (organizer or crew balances: USDT, TUSDT, sats, payouts it can still pay for), `payout-stats` (from the organizer wallet's journal: payouts per hour, volume per asset, last payouts, and **time from approval to settled, p50/p90**) and `door-stats` (passes and revenue per hour, treasury total). Charts are inline SVG served by n2link, so the page works without internet at the venue. Node-RED's own dashboard could not be used: it is JavaScript, n2link is a Rust runtime (options evaluated in `docs/DASHBOARD_PLAN.md`). Read-only throughout: no dashboard node can plan, approve or send.
+
+![Show-night dashboard](artifacts/screenshots/dash-page.png)
+![The dashboard is a flow](artifacts/screenshots/dash-editor-tab.png)
+
 ### Pay to enter (the business model, live)
 There are no accounts and no passwords. An organizer opens **`/poweredge-app/login`**, pays **1,000 test sats** to a fresh address of the Tether WDK treasury and gets a **24-hour pass**; the pass is the same session token a password login would give, so the guided app and the flow editor open unchanged. The fee lands in the same treasury that pays the network fees of every payout: revenue in, fees out, one balance (`scripts/demo-up.sh status` shows "Door revenue"). The demo button pays the door from the organizer wallet (capped at 5,000 test sats, one payment per 30 s, journaled). `scripts/enable-door.sh` turns the door on with a single break-glass user whose random password lives only in `secrets/`; there is no `admin:admin`. Paying proves payment, not identity: binding a pass to the paying key (a signature) is future work.
 

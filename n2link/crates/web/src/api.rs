@@ -83,6 +83,8 @@ fn create_node_red_api_routes() -> Router {
         .route("/poweredge-app", get(crate::handlers::poweredge::get_app))
         .route("/poweredge-app/api/info", get(crate::handlers::poweredge::get_info))
         .route("/poweredge-app/api/keys", get(crate::handlers::poweredge::get_keys))
+        .route("/poweredge-app/api/dashboard", get(crate::handlers::poweredge::get_dashboard))
+        .route("/poweredge-app/dashboard", get(crate::handlers::poweredge::get_dashboard_page))
         .route("/poweredge-app/api/qr", get(crate::handlers::poweredge::get_qr))
         .route("/poweredge-app/login", get(crate::handlers::poweredge::get_login))
         .route("/poweredge-app/api/door/start", post(crate::handlers::poweredge::door_start))

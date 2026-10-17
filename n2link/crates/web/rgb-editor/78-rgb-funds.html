@@ -1,0 +1,22 @@
+<script type="text/html" data-template-name="rgb-funds">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-wallet"><i class="fa fa-briefcase"></i> Wallet</label>
+        <select id="node-input-wallet"><option value="organizer">Organizer wallet</option><option value="crew">Crew wallet</option></select></div>
+    <div class="form-tips">Read-only balances: RGB assets (USDT, TUSDT…) and sats. Cannot send.</div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("rgb-funds", {
+        category: "RGB", color: "#F7931A",
+        defaults: { name: { value: "" }, wallet: { value: "organizer", required: true } },
+        inputs: 1, outputs: 1, icon: "font-awesome/fa-briefcase", paletteLabel: "wallet funds",
+        label: function () { return this.name || (this.wallet === "crew" ? "crew funds" : "organizer funds"); }
+    });
+</script>
+<script type="text/html" data-help-name="rgb-funds">
+    <p>Read-only funds of the organizer or crew wallet.</p>
+    <dl class="message-properties">
+        <dt>payload.assets <span class="property-type">object</span></dt><dd>Spendable per ticker, e.g. <code>{USDT: 93, TUSDT: 999892}</code>.</dd>
+        <dt>payload.sats <span class="property-type">object</span></dt><dd><code>plain</code>, <code>colored</code> (on RGB outputs) and <code>total</code>.</dd>
+        <dt>payload.payoutsPossible <span class="property-type">number</span></dt><dd>How many more payouts the sats can pay for (organizer).</dd>
+    </dl>
+</script>
