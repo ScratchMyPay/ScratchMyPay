@@ -1,0 +1,86 @@
+{
+ "capturedAt": "2026-10-17T17:56:09.016Z",
+ "tab": "Flow 1",
+ "prompt": "Make a web page at /pay-bassist that creates an RGB payment request and shows it as a QR code.",
+ "status": 200,
+ "body": {
+  "skill": "n2link-flow-developer",
+  "summary": "Template: Pay-me QR page — Add a bassist pay-me page that creates an RGB payment request and displays it as a QR code",
+  "assumptions": [
+   "Use the Crew wallet (recipient) for the bassist's payment request.",
+   "Request the TUSDT asset because no RGB asset ticker was specified.",
+   "Bind to 127.0.0.1 on port 1896 because port 1895 is already used in the active workspace."
+  ],
+  "warnings": [],
+  "workspaceId": "9b51c6c1a3d90b90",
+  "nodes": [
+   {
+    "url": "/pay-bassist",
+    "method": "get",
+    "host": "127.0.0.1",
+    "port": 1896,
+    "upload": false,
+    "id": "4ac98fff808362ea",
+    "type": "http in",
+    "z": "9b51c6c1a3d90b90",
+    "name": "Pay bassist",
+    "x": 230,
+    "y": 460,
+    "wires": [
+     [
+      "bfbe9cb45f1de181"
+     ]
+    ]
+   },
+   {
+    "wallet": "dcca7c89e7d1e9eb",
+    "assetTicker": "TUSDT",
+    "id": "bfbe9cb45f1de181",
+    "type": "rgb-invoice",
+    "z": "9b51c6c1a3d90b90",
+    "name": "Bassist request",
+    "x": 490,
+    "y": 460,
+    "wires": [
+     [
+      "c0812e000f9ea906"
+     ]
+    ]
+   },
+   {
+    "format": "html",
+    "caption": "Scan to pay bassist",
+    "id": "c0812e000f9ea906",
+    "type": "qr-code",
+    "z": "9b51c6c1a3d90b90",
+    "name": "Bassist QR",
+    "x": 730,
+    "y": 460,
+    "wires": [
+     [
+      "4f1248d98f60ec11"
+     ]
+    ]
+   },
+   {
+    "statusCode": "",
+    "headers": {},
+    "id": "4f1248d98f60ec11",
+    "type": "http response",
+    "z": "9b51c6c1a3d90b90",
+    "name": "Show bassist page",
+    "x": 970,
+    "y": 460,
+    "wires": []
+   }
+  ],
+  "endpoints": [
+   {
+    "name": "Pay bassist",
+    "method": "GET",
+    "url": "http://127.0.0.1:1896/pay-bassist",
+    "request": "http://127.0.0.1:1896/pay-bassist"
+   }
+  ]
+ }
+}

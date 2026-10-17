@@ -73,6 +73,23 @@
                 preview.empty();
                 $('<h4>Draft</h4>').appendTo(preview);
                 $('<p></p>').text(draft.summary).appendTo(preview);
+                if (draft.endpoints && draft.endpoints.length) {
+                    // Set by n2link (not the model): where each http in node listens after Deploy.
+                    var block = $('<div class="n2link-copilot-endpoints"></div>').appendTo(preview);
+                    $('<h4></h4>').text("Endpoints (after Deploy)").appendTo(block);
+                    var items = $('<ul></ul>').appendTo(block);
+                    draft.endpoints.forEach(function(e) {
+                        var item = $('<li></li>').appendTo(items);
+                        if (e.method === "GET") {
+                            $('<a target="_blank" rel="noopener"></a>').attr("href", e.url).text("GET " + e.url).appendTo(item);
+                        } else {
+                            $('<code></code>').css({"white-space": "normal", "word-break": "break-all"}).text(e.request).appendTo(item);
+                        }
+                        if (e.note) {
+                            $('<div></div>').css({"opacity": 0.75, "font-size": "0.9em"}).text(e.note).appendTo(item);
+                        }
+                    });
+                }
                 preview.append(list("Assumptions", draft.assumptions));
                 preview.append(list("Warnings", draft.warnings));
                 var nodes = (draft.nodes || []).map(function(node) {

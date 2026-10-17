@@ -94,7 +94,30 @@ struct DraftResponse {
     warnings: Vec<String>,
     workspace_id: String,
     nodes: Vec<Value>,
+    /// HTTP endpoints the draft adds, exactly as n2link will serve them (set by n2link, not the model).
+    endpoints: Vec<DraftEndpoint>,
 }
+
+/// One `http in` endpoint of a draft: where it will listen after Deploy and how to call it.
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct DraftEndpoint {
+    name: String,
+    method: String,
+    url: String,
+    /// What to open or send: the URL for GET, a curl line otherwise.
+    request: String,
+    /// Set when n2link changed what the draft asked for (port taken, host not 127.0.0.1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    note: Option<String>,
+}
+
+/// Ports Copilot hands out to new `http in` nodes when the drafted one is missing or taken.
+const HTTP_PORT_FIRST: u16 = 1895;
+const HTTP_PORT_LAST: u16 = 1999;
+/// What the runtime uses for an `http in` node without a port.
+const HTTP_RUNTIME_DEFAULT_PORT: u16 = 1880;
+const HTTP_DRAFT_HOST: &str = "127.0.0.1";
 
 /// Versioned live-registry metadata for Copilot. Does not change `/nodes` JSON.
 pub async fn get_assistant_catalog(Extension(state): Extension<Arc<WebState>>) -> Response {
@@ -212,7 +235,7 @@ pub async fn post_assistant_draft(
         );
         return api_error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_ai_draft", &message);
     }
-    let nodes = match materialize_draft(
+    let mut nodes = match materialize_draft(
         &draft,
         &request.workspace_id,
         &request.flows,
@@ -225,6 +248,20 @@ pub async fn post_assistant_draft(
             return api_error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_ai_draft", &message);
         }
     };
+
+    // n2link opens one server per `http in` node: give each drafted endpoint 127.0.0.1 and a port
+    // nothing else uses, and say so, so the user knows the exact request after Deploy.
+    let endpoints = match assign_http_endpoints(&mut nodes, &request.flows, &port_is_free) {
+        Ok(endpoints) => endpoints,
+        Err(message) => {
+            state.history.record_copilot_rejected(&actor.username, "invalid_ai_draft");
+            return api_error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_ai_draft", &message);
+        }
+    };
+    let mut summary = draft.summary;
+    for endpoint in &endpoints {
+        summary = correct_summary(&summary, endpoint);
+    }
 
     let mut candidate = request.flows.clone();
     candidate.extend(nodes.iter().cloned());
@@ -253,13 +290,125 @@ pub async fn post_assistant_draft(
     let _ = state.audit.record(&actor.username, "assistant.draft", Some(&detail)).await;
     Json(DraftResponse {
         skill: "n2link-flow-developer",
-        summary: draft.summary,
+        summary,
         assumptions: draft.assumptions,
         warnings: draft.warnings,
         workspace_id: request.workspace_id,
         nodes,
+        endpoints,
     })
     .into_response()
+}
+
+/// True when nothing on this machine listens on 127.0.0.1:`port` right now.
+fn port_is_free(port: u16) -> bool {
+    std::net::TcpListener::bind((HTTP_DRAFT_HOST, port)).is_ok()
+}
+
+fn http_port_of(node: &Value) -> Option<u16> {
+    match node.get("port") {
+        None | Some(Value::Null) => Some(HTTP_RUNTIME_DEFAULT_PORT),
+        Some(Value::Number(n)) => n.as_u64().and_then(|p| u16::try_from(p).ok()),
+        Some(Value::String(s)) if s.trim().is_empty() => Some(HTTP_RUNTIME_DEFAULT_PORT),
+        Some(Value::String(s)) => s.trim().parse().ok(),
+        _ => None,
+    }
+}
+
+fn is_http_in(node: &Value) -> bool {
+    node.get("type").and_then(Value::as_str) == Some("http in")
+}
+
+/// "'Pay me' on tab 'QVAC chat test'" for messages about who holds a port.
+fn describe_http_node(node: &Value, flows: &[Value]) -> String {
+    let name = node
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|n| !n.is_empty())
+        .or_else(|| node.get("url").and_then(Value::as_str))
+        .unwrap_or("an http in node");
+    let tab = node.get("z").and_then(Value::as_str).and_then(|z| {
+        flows.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(z)).and_then(|t| t.get("label")).and_then(Value::as_str)
+    });
+    match tab {
+        Some(tab) => format!("'{name}' on tab '{tab}'"),
+        None => format!("'{name}'"),
+    }
+}
+
+/// Give every drafted `http in` node host 127.0.0.1 and a port no other `http in` node (in the editor
+/// or earlier in the draft) and no other process uses; keep the drafted port when it is free.
+fn assign_http_endpoints(
+    nodes: &mut [Value],
+    flows: &[Value],
+    port_free: &dyn Fn(u16) -> bool,
+) -> Result<Vec<DraftEndpoint>, String> {
+    let mut used: HashMap<u16, String> = HashMap::new();
+    for node in flows.iter().filter(|n| is_http_in(n)) {
+        if let Some(port) = http_port_of(node) {
+            used.entry(port).or_insert_with(|| describe_http_node(node, flows));
+        }
+    }
+    let mut endpoints = Vec::new();
+    for node in nodes.iter_mut().filter(|n| is_http_in(n)) {
+        let name = node.get("name").and_then(Value::as_str).unwrap_or("").to_owned();
+        let wanted = node.get("port").filter(|p| !p.is_null()).and_then(|_| http_port_of(node));
+        let Some(object) = node.as_object_mut() else { continue };
+        let mut notes = Vec::new();
+        if let Some(host) = object.get("host").and_then(Value::as_str).filter(|h| *h != HTTP_DRAFT_HOST) {
+            notes.push(format!("listens on {HTTP_DRAFT_HOST} only (the draft asked for {host})"));
+        }
+        let available = |p: u16, used: &HashMap<u16, String>| p >= 1024 && !used.contains_key(&p) && port_free(p);
+        let port = match wanted {
+            Some(p) if available(p, &used) => p,
+            _ => {
+                let p = (HTTP_PORT_FIRST..=HTTP_PORT_LAST)
+                    .find(|p| available(*p, &used))
+                    .ok_or_else(|| format!("no free port between {HTTP_PORT_FIRST} and {HTTP_PORT_LAST} for an http in node"))?;
+                if let Some(w) = wanted {
+                    notes.push(match used.get(&w) {
+                        Some(owner) => format!("port {w} is already used by {owner}; using {p}"),
+                        None => format!("port {w} is not available on this machine; using {p}"),
+                    });
+                }
+                p
+            }
+        };
+        object.insert("host".to_owned(), json!(HTTP_DRAFT_HOST));
+        object.insert("port".to_owned(), json!(port));
+        used.insert(port, format!("'{}' in this draft", if name.is_empty() { "http in" } else { &name }));
+
+        let method = object.get("method").and_then(Value::as_str).unwrap_or("get").to_uppercase();
+        let path = object.get("url").and_then(Value::as_str).unwrap_or("/");
+        let path = if path.starts_with('/') { path.to_owned() } else { format!("/{path}") };
+        let url = format!("http://{HTTP_DRAFT_HOST}:{port}{path}");
+        let request = if method == "GET" {
+            url.clone()
+        } else {
+            format!("curl -X {method} {url} -H 'Content-Type: application/json' -d '{{}}'")
+        };
+        endpoints.push(DraftEndpoint {
+            name,
+            method,
+            url,
+            request,
+            note: (!notes.is_empty()).then(|| notes.join("; ")),
+        });
+    }
+    Ok(endpoints)
+}
+
+/// If the model's summary names a port n2link changed, say the port the endpoint really uses.
+fn correct_summary(summary: &str, endpoint: &DraftEndpoint) -> String {
+    let Some(note) = &endpoint.note else { return summary.to_owned() };
+    let Some(old) = note.strip_prefix("port ").and_then(|r| r.split_whitespace().next()) else {
+        return summary.to_owned();
+    };
+    let new = endpoint.url.rsplit_once(':').and_then(|(_, rest)| rest.split('/').next()).unwrap_or("");
+    if old == new || new.is_empty() {
+        return summary.to_owned();
+    }
+    summary.replace(&format!(":{old}"), &format!(":{new}")).replace(&format!("port {old}"), &format!("port {new}"))
 }
 
 fn workspace_exists(flows: &[Value], workspace_id: &str) -> bool {
@@ -574,6 +723,72 @@ fn sensitive_key(key: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn existing_pay_me() -> Vec<Value> {
+        vec![
+            json!({"id": "t1", "type": "tab", "label": "QVAC chat test"}),
+            json!({"id": "h1", "type": "http in", "z": "t1", "name": "Pay me", "url": "/pay-me", "method": "get", "host": "127.0.0.1", "port": 1895}),
+        ]
+    }
+
+    #[test]
+    fn drafted_http_in_gets_a_free_port_localhost_and_says_so() {
+        let flows = existing_pay_me();
+        let mut nodes = vec![json!({"id": "n1", "type": "http in", "name": "Pay drummer", "url": "/pay-drummer", "method": "get", "host": "0.0.0.0", "port": 1895})];
+        let endpoints = assign_http_endpoints(&mut nodes, &flows, &|_| true).unwrap();
+        assert_eq!(nodes[0]["port"], json!(1896));
+        assert_eq!(nodes[0]["host"], json!("127.0.0.1"));
+        assert_eq!(endpoints[0].url, "http://127.0.0.1:1896/pay-drummer");
+        assert_eq!(endpoints[0].request, "http://127.0.0.1:1896/pay-drummer");
+        let note = endpoints[0].note.as_deref().unwrap();
+        assert!(note.contains("listens on 127.0.0.1 only (the draft asked for 0.0.0.0)"), "{note}");
+        assert!(note.contains("port 1895 is already used by 'Pay me' on tab 'QVAC chat test'; using 1896"), "{note}");
+    }
+
+    #[test]
+    fn free_drafted_port_is_kept_and_post_gets_a_curl_line() {
+        let mut nodes = vec![json!({"id": "n1", "type": "http in", "name": "Tips", "url": "tips", "method": "post", "port": "1950"})];
+        let endpoints = assign_http_endpoints(&mut nodes, &existing_pay_me(), &|_| true).unwrap();
+        assert_eq!(nodes[0]["port"], json!(1950));
+        assert_eq!(endpoints[0].note, None);
+        assert_eq!(endpoints[0].request, "curl -X POST http://127.0.0.1:1950/tips -H 'Content-Type: application/json' -d '{}'");
+    }
+
+    #[test]
+    fn ports_held_by_other_processes_and_earlier_draft_nodes_are_skipped() {
+        let mut nodes = vec![
+            json!({"id": "a", "type": "http in", "url": "/a", "method": "get"}),
+            json!({"id": "b", "type": "http in", "url": "/b", "method": "get"}),
+            json!({"id": "c", "type": "debug"}),
+        ];
+        // 1896 is held by some other process; 1895 by the existing flow
+        let endpoints = assign_http_endpoints(&mut nodes, &existing_pay_me(), &|p| p != 1896).unwrap();
+        assert_eq!((nodes[0]["port"].clone(), nodes[1]["port"].clone()), (json!(1897), json!(1898)));
+        assert_eq!(endpoints.len(), 2);
+        assert!(nodes[2].get("port").is_none());
+    }
+
+    #[test]
+    fn a_node_without_port_in_the_editor_holds_the_runtime_default() {
+        let flows = vec![json!({"id": "h", "type": "http in", "url": "/x"})];
+        let mut nodes = vec![json!({"id": "n", "type": "http in", "url": "/y", "port": 1880})];
+        let endpoints = assign_http_endpoints(&mut nodes, &flows, &|_| true).unwrap();
+        assert_eq!(nodes[0]["port"], json!(1895));
+        assert!(endpoints[0].note.as_deref().unwrap().contains("port 1880 is already used by '/x'"));
+    }
+
+    #[test]
+    fn summary_follows_the_port_n2link_chose() {
+        let endpoint = DraftEndpoint {
+            name: "Pay drummer".into(), method: "GET".into(), url: "http://127.0.0.1:1896/pay-drummer".into(),
+            request: "http://127.0.0.1:1896/pay-drummer".into(),
+            note: Some("port 1895 is already used by 'Pay me'; using 1896".into()),
+        };
+        assert_eq!(
+            correct_summary("Serves a QR page at http://127.0.0.1:1895/pay-drummer (port 1895).", &endpoint),
+            "Serves a QR page at http://127.0.0.1:1896/pay-drummer (port 1896)."
+        );
+    }
     use n2link_core::runtime::registry::RegistryBuilder;
 
     #[test]
