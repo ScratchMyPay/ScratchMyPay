@@ -13,13 +13,18 @@ Phase 2  `recover` : show the restart marked the payout UNKNOWN_SUBMISSION, show
 Usage:
   scripts/crash_recovery_demo.py crash   [--amount 1]
   scripts/crash_recovery_demo.py recover [--timeout 1800]
+  --vm: keys-in-a-box edition. crash reboots the organizer micro-VM with the crash setting, and the
+        VM exits after broadcast; recover boots a NEW organizer VM on the same data disk. The journal
+        is read through the wallet API (it lives on the VM's disk).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import os
 import sqlite3
+import subprocess
 import sys
 import time
 import urllib.error
@@ -36,6 +41,30 @@ JOURNAL = ROOT / "datadirs" / "journal" / "payer.sqlite3"
 TEMPLATE_DIGEST = "2a68da911b458db3ea616024ae2e88c1e597480e1792e9086860e12ea4d68270"
 TICKER = "TUSDT"
 LOG = logging.getLogger("crash-demo")
+VM_MODE = False
+BOOT = ROOT / "scripts" / "vm" / "boot.sh"
+VM_PID = ROOT / "artifacts" / "run" / "pids" / "vm-payer.pid"
+
+
+def vm_pid() -> int | None:
+    try:
+        pid = int(VM_PID.read_text())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def boot_organizer_vm(crash_at: str | None) -> int:
+    env = dict(os.environ)
+    env.pop("POWEREDGE_CRASH_AT", None)
+    if crash_at:
+        env["POWEREDGE_CRASH_AT"] = crash_at
+    subprocess.run([str(BOOT), "down", "payer"], check=True, env=env)
+    subprocess.run([str(BOOT), "up", "payer"], check=True, env=env)
+    pid = vm_pid()
+    LOG.info("organizer micro-VM booted (pid %s, crash setting %s)", pid, crash_at or "off")
+    return pid
 
 
 def call(base: str, method: str, path: str, body: dict | None = None, timeout: float = 180) -> tuple[int, Any]:
@@ -58,6 +87,13 @@ def must(result: tuple[int, Any], what: str) -> Any:
 
 def journal(plan_id: str) -> dict[str, Any]:
     """Read-only view of the plan row and its event history."""
+    if VM_MODE:   # the journal lives on the VM's disk; read it through the wallet API
+        body = must(call(PAYER, "GET", f"/plans/{plan_id}"), "plan")
+        events = [{"at": datetime.fromtimestamp(e["at"], timezone.utc).isoformat(timespec="seconds"),
+                   "from_state": e["from_state"], "to_state": e["to_state"], "detail": e["detail"]}
+                  for e in body.get("events", [])]
+        plan = {k: body.get(k) for k in ("state", "txid", "idempotency_key", "consignment_sha256")}
+        return {"plan": plan, "events": events}
     db = sqlite3.connect(f"file:{JOURNAL}?mode=ro", uri=True)
     db.row_factory = sqlite3.Row
     row = db.execute("SELECT state, txid, idempotency_key, consignment_sha256 FROM plans WHERE plan_id=?",
@@ -80,6 +116,7 @@ def phase_crash(amount: str) -> None:
     asset = next(a for a in must(call(PAYER, "GET", "/assets"), "payer assets")["assets"] if a["ticker"] == TICKER)
     base_units = int(Decimal(amount) * 10 ** asset["precision"])
     crew_before = crew_balance()
+    crashed_vm = boot_organizer_vm("after_broadcast") if VM_MODE else None
     invoice = must(call(CREW, "POST", "/invoices", {"asset_id": asset["asset_id"], "expires_seconds": 3600}), "invoice")
     LOG.info("crew invoice created (recipient %s…)", invoice["recipient_id"][:16])
     revision = f"crash-demo-{int(time.time())}"
@@ -93,7 +130,7 @@ def phase_crash(amount: str) -> None:
     LOG.info("approved; executing with the organizer service set to crash after broadcast…")
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"plan_id": plan["plan_id"], "flow_revision": revision, "amount": amount,
-                                      "base_units": base_units, "crew_before": crew_before,
+                                      "base_units": base_units, "crew_before": crew_before, "crashed_vm_pid": crashed_vm,
                                       "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}))
     try:
         status, body = call(PAYER, "POST", f"/plans/{plan['plan_id']}/execute",
@@ -102,6 +139,13 @@ def phase_crash(amount: str) -> None:
         sys.exit(1)
     except (urllib.error.URLError, ConnectionError, OSError) as exc:
         LOG.info("organizer service died mid-request as intended (%s)", type(exc).__name__)
+    if VM_MODE:
+        for _ in range(60):
+            if vm_pid() is None:
+                break
+            time.sleep(0.5)
+        LOG.info("organizer micro-VM pid %s %s", crashed_vm, "is gone" if vm_pid() is None else "IS STILL RUNNING")
+        return
     snap = journal(plan["plan_id"])
     LOG.info("journal after crash: state=%s, txid=%s", snap["plan"]["state"], snap["plan"]["txid"])
     print(json.dumps(snap, indent=1))
@@ -110,6 +154,7 @@ def phase_crash(amount: str) -> None:
 def phase_recover(timeout: int) -> None:
     st = json.loads(STATE_FILE.read_text())
     plan_id, revision = st["plan_id"], st["flow_revision"]
+    new_vm = boot_organizer_vm(None) if VM_MODE else None
     caps = must(call(PAYER, "GET", "/capabilities"), "capabilities")
     LOG.info("after restart the service reports recovered submissions: %s", caps["recovered_unknown_submissions"])
     after_restart = journal(plan_id)["plan"]["state"]
@@ -145,6 +190,9 @@ def phase_recover(timeout: int) -> None:
         "what": "Live crash-recovery run: organizer service killed after broadcast, before journaling",
         "network": "mutinynet (test money only)",
         "crash_point": "after_broadcast (POWEREDGE_CRASH_AT)",
+        "micro_vm": ({"crashed_vm_pid": st.get("crashed_vm_pid"), "recovered_on_new_vm_pid": new_vm,
+                      "note": "organizer wallet in a Firecracker micro-VM; the VM exited after broadcast and a new VM booted on the same data disk"}
+                     if VM_MODE else None),
         "plan_id": plan_id, "amount": f"{st['amount']} {TICKER}",
         "started_at": st["started_at"],
         "state_after_restart": after_restart,
@@ -157,7 +205,7 @@ def phase_recover(timeout: int) -> None:
         "crew_balance_base_units": {"before": st["crew_before"], "after": crew_after},
         "journal": snap,
     }
-    out = ROOT / "artifacts" / "payouts" / f"{datetime.now().date().isoformat()}-crash-recovery.json"
+    out = ROOT / "artifacts" / "payouts" / f"{datetime.now().date().isoformat()}-{'vm-' if VM_MODE else ''}crash-recovery.json"
     out.write_text(json.dumps(evidence, indent=1) + "\n")
     LOG.info("evidence written to %s", out.relative_to(ROOT))
     ok = (after_restart == "UNKNOWN_SUBMISSION" and again.get("already_executed")
@@ -173,7 +221,10 @@ def main() -> None:
     parser.add_argument("phase", choices=["crash", "recover"])
     parser.add_argument("--amount", default="1")
     parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--vm", action="store_true", help="organizer wallet runs in its micro-VM")
     args = parser.parse_args()
+    global VM_MODE
+    VM_MODE = args.vm
     phase_crash(args.amount) if args.phase == "crash" else phase_recover(args.timeout)
 
 

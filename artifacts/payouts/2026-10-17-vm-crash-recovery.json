@@ -1,0 +1,81 @@
+{
+ "what": "Live crash-recovery run: organizer service killed after broadcast, before journaling",
+ "network": "mutinynet (test money only)",
+ "crash_point": "after_broadcast (POWEREDGE_CRASH_AT)",
+ "micro_vm": {
+  "crashed_vm_pid": 230641,
+  "recovered_on_new_vm_pid": 231421,
+  "note": "organizer wallet in a Firecracker micro-VM; the VM exited after broadcast and a new VM booted on the same data disk"
+ },
+ "plan_id": "adb0fd6a-205d-4b9a-b7d9-5f3e4e247369",
+ "amount": "1 TUSDT",
+ "started_at": "2026-10-17T13:39:44+00:00",
+ "state_after_restart": "UNKNOWN_SUBMISSION",
+ "recovered_by_service": [
+  "adb0fd6a-205d-4b9a-b7d9-5f3e4e247369"
+ ],
+ "second_execute": {
+  "http_status": 200,
+  "state": "UNKNOWN_SUBMISSION",
+  "already_executed": true
+ },
+ "reconciled_txid": "a5202013fede3cf99fd62c397b9fe6f0dc56a9b6bc877eeb3f654f62b61263a2",
+ "final_state": "SETTLED",
+ "submissions_in_journal": 1,
+ "crew_balance_base_units": {
+  "before": 107000000,
+  "after": 108000000
+ },
+ "journal": {
+  "plan": {
+   "state": "SETTLED",
+   "txid": "a5202013fede3cf99fd62c397b9fe6f0dc56a9b6bc877eeb3f654f62b61263a2",
+   "idempotency_key": "adb0fd6a-205d-4b9a-b7d9-5f3e4e247369-first",
+   "consignment_sha256": "e7ef50599e2ac58190b243a3f2d5e977fc80f3c247e8a40c84917276b4166e56"
+  },
+  "events": [
+   {
+    "at": "2026-10-17T13:39:44+00:00",
+    "from_state": null,
+    "to_state": "PLANNED",
+    "detail": "plan created"
+   },
+   {
+    "at": "2026-10-17T13:39:44+00:00",
+    "from_state": "PLANNED",
+    "to_state": "APPROVED",
+    "detail": "approved by Gus (crash demo)"
+   },
+   {
+    "at": "2026-10-17T13:39:44+00:00",
+    "from_state": "APPROVED",
+    "to_state": "SUBMITTING",
+    "detail": "about to broadcast"
+   },
+   {
+    "at": "2026-10-17T13:40:53+00:00",
+    "from_state": "SUBMITTING",
+    "to_state": "UNKNOWN_SUBMISSION",
+    "detail": "process restarted during submission; reconcile before any action"
+   },
+   {
+    "at": "2026-10-17T13:40:54+00:00",
+    "from_state": "UNKNOWN_SUBMISSION",
+    "to_state": "BROADCAST",
+    "detail": "reconciled from wallet: txid a5202013fede3cf99fd62c397b9fe6f0dc56a9b6bc877eeb3f654f62b61263a2"
+   },
+   {
+    "at": "2026-10-17T13:40:55+00:00",
+    "from_state": "BROADCAST",
+    "to_state": "DELIVERED",
+    "detail": "consignment posted to RGB proxy rpcs://proxy.kaleidoswap.com/json-rpc (vout 1)"
+   },
+   {
+    "at": "2026-10-17T13:41:25+00:00",
+    "from_state": "DELIVERED",
+    "to_state": "SETTLED",
+    "detail": "payer transfer SETTLED; recipient ACKed via RGB proxy"
+   }
+  ]
+ }
+}
