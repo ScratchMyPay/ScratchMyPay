@@ -98,3 +98,5 @@ evidence/raw/
 
 # demo-up runtime logs and PIDs
 artifacts/run/
+
+scripts/e2e/node_modules/

@@ -1,0 +1,77 @@
+{
+ "what": "ScratchMyPay payout in KaleidoSwap's Mutinynet USDT, delivered through the KaleidoSwap RGB proxy, driven from the guided app",
+ "network": "mutinynet (test money only)",
+ "asset": {
+  "ticker": "USDT",
+  "name": "Tether USD",
+  "contract": "rgb:lX~ToKsO-Iup7dJ5-UM794sA-9WD21ge-VHYzBGb-E9PA_h0",
+  "source": "KaleidoSwap RGB faucet"
+ },
+ "proxy": "rpcs://proxy.kaleidoswap.com/json-rpc",
+ "organizer_funding": {
+  "from": "KaleidoSwap RGB faucet",
+  "amount": "100 USDT",
+  "txid_prefix": "4084dc95d14d",
+  "settled": "2026-10-17T14:09:14+02:00"
+ },
+ "payout": {
+  "plan_id": "a530d9c0-a0c5-4f50-8ab3-424f7496f4c8",
+  "state": "SETTLED",
+  "amount_display": "1",
+  "asset_ticker": "USDT",
+  "recipient_label": "sound engineer",
+  "memo": "Saturday load-in",
+  "txid": "748c589170543e3cb24593a780cf156d9bbc4a68fc2cfb8dacb31d7bd85622e5",
+  "consignment_sha256": "3c7cc40d231100fb9f3087cde4a3c76887be7ac65d337db994be98becf1233fc",
+  "invoice": "rgb:~/~/~/sbc:wvout:BdktFYzg-ovDGGxv-2RFLrcx-70_X3fT-KSKh1lD-37arwmg-6Y3Z23g?expiry=1792242645&endpoints=rpcs://proxy.kaleidoswap.com/json-rpc",
+  "approved_by": "Gus (organizer)"
+ },
+ "journal": [
+  {
+   "at": "2026-10-17T14:10:49",
+   "from": null,
+   "to": "PLANNED",
+   "detail": "plan created"
+  },
+  {
+   "at": "2026-10-17T14:10:51",
+   "from": "PLANNED",
+   "to": "APPROVED",
+   "detail": "approved by Gus (organizer)"
+  },
+  {
+   "at": "2026-10-17T14:10:51",
+   "from": "APPROVED",
+   "to": "SUBMITTING",
+   "detail": "about to broadcast"
+  },
+  {
+   "at": "2026-10-17T14:10:52",
+   "from": "SUBMITTING",
+   "to": "BROADCAST",
+   "detail": "txid 748c589170543e3cb24593a780cf156d9bbc4a68fc2cfb8dacb31d7bd85622e5"
+  },
+  {
+   "at": "2026-10-17T14:10:53",
+   "from": "BROADCAST",
+   "to": "DELIVERED",
+   "detail": "consignment posted to RGB proxy rpcs://proxy.kaleidoswap.com/json-rpc (vout 1)"
+  },
+  {
+   "at": "2026-10-17T14:12:40",
+   "from": "DELIVERED",
+   "to": "SETTLED",
+   "detail": "payer transfer SETTLED; recipient ACKed via RGB proxy"
+  }
+ ],
+ "notes": [
+  "crew wallet fetched the consignment from the proxy and ACKed; the payer settled only after that ACK",
+  "auto-refresh did not fire for this first-time any-asset receive (fixed after this run: transfers not yet tied to an asset are now checked); the crew refresh was triggered by hand at 14:12:23"
+ ],
+ "screenshots": [
+  "artifacts/screenshots/usdt-app-crew-request.png",
+  "artifacts/screenshots/usdt-app-review.png",
+  "artifacts/screenshots/usdt-app-approve.png",
+  "artifacts/screenshots/usdt-app-track-settled.png"
+ ]
+}

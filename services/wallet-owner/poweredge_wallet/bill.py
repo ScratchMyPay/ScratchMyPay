@@ -99,7 +99,7 @@ class RgbLibOps:
                 "expiration_timestamp": int(data.expiration_timestamp),
                 "batch_transfer_idx": int(data.batch_transfer_idx)}
 
-    def transfers(self, asset_id: str) -> list[TransferRow]:
+    def transfers(self, asset_id: str | None) -> list[TransferRow]:
         return [
             TransferRow(
                 batch_transfer_idx=int(t.batch_transfer_idx),

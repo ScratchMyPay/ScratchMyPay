@@ -17,5 +17,7 @@ set -a
 . "$ROOT/.env.$ROLE"
 set +a
 export BILL_ROOT="${BILL_ROOT:-$ROOT/../bill}"
+export POWEREDGE_RGB_PROXY="${POWEREDGE_RGB_PROXY:-rpcs://proxy.kaleidoswap.com/json-rpc}"   # allowed RGB proxy (KaleidoSwap, Mutinynet)
+export POWEREDGE_INVOICE_TRANSPORT="${POWEREDGE_INVOICE_TRANSPORT:-proxy}"   # crew invoices name the proxy: any RGB wallet can pay or receive
 cd "$HERE"
 exec "$HERE/.venv/bin/python" -m poweredge_wallet --port "$PORT"

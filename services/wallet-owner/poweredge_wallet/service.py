@@ -454,12 +454,17 @@ class WalletService:
         return {**self._view(row), "events": self._journal.events(plan_id)}
 
     def has_pending_incoming(self) -> bool:
-        """True while any incoming transfer waits for the counterparty or for confirmations."""
+        """True while any incoming transfer waits for the counterparty or for confirmations.
+
+        Includes receives not yet tied to an asset: a first-time "any asset" invoice (e.g. the
+        crew's first USDT payout through the RGB proxy) belongs to no asset until it is fetched.
+        """
         with self._lock:
+            asset_ids: list[str | None] = [a.asset_id for a in self._ops.assets()] + [None]
             return any(
                 "RECEIVE" in t.kind.upper() and t.status.upper().startswith("WAITING")
-                for asset in self._ops.assets()
-                for t in self._ops.transfers(asset.asset_id)
+                for asset_id in asset_ids
+                for t in self._ops.transfers(asset_id)
             )
 
     def auto_refresh_tick(self) -> dict[str, Any] | None:
