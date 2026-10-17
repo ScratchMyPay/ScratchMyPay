@@ -122,7 +122,21 @@ impl AiChatNode {
         tokio::select! {
             _ = cancel.cancelled() => Err(N2linkError::TaskCancelled),
             reply = complete_with_policy(&client, &egress, &settings, &request) => {
-                let reply = reply?;
+                let reply = match reply {
+                    Ok(reply) => reply,
+                    Err(err) => {
+                        // Make the failure visible: log it and show it on the node.
+                        let text = err.to_string();
+                        log::warn!("ai-chat {}: {}", self.base.id, text);
+                        let short: String = text.chars().take(60).collect();
+                        self.report_status(
+                            StatusObject { fill: Some(StatusFill::Red), shape: Some(StatusShape::Ring), text: Some(short) },
+                            cancel.clone(),
+                        )
+                        .await;
+                        return Err(err);
+                    }
+                };
                 let mut guard = msg.write().await;
                 guard.set(self.config.output.clone(), Variant::String(reply.text));
                 guard.set("ai".to_owned(), ai_meta(&reply.provider, &reply.model));

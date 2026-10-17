@@ -122,10 +122,54 @@ async fn complete_inner(
     settings: &ProviderSettings,
     request: &ChatRequest,
 ) -> crate::Result<ChatResponse> {
+    match complete_once(client, policy, settings, request).await {
+        // Reasoning models (OpenAI gpt-5 / o-series and others) reject sampling parameters.
+        // Retry once without temperature instead of failing the whole flow.
+        Err(err) if request.temperature.is_some() && rejects_temperature(&err.to_string()) => {
+            log::warn!(
+                "ai: model '{}' does not accept a temperature; retrying without it (clear the node's Temperature field to skip this)",
+                request.model
+            );
+            let mut retry = request.clone();
+            retry.temperature = None;
+            complete_once(client, policy, settings, &retry).await
+        }
+        other => other,
+    }
+}
+
+/// The provider refused the request because of the `temperature` parameter.
+fn rejects_temperature(error: &str) -> bool {
+    let e = error.to_ascii_lowercase();
+    e.contains("temperature")
+        && (e.contains("unsupported") || e.contains("not supported") || e.contains("does not support"))
+}
+
+async fn complete_once(
+    client: &Client,
+    policy: Option<&EgressPolicy>,
+    settings: &ProviderSettings,
+    request: &ChatRequest,
+) -> crate::Result<ChatResponse> {
     match settings.kind {
         ProviderKind::Openai | ProviderKind::Xai => responses_complete(client, policy, settings, request).await,
         ProviderKind::Anthropic => anthropic_complete(client, policy, settings, request).await,
         ProviderKind::Cortex => chat_completions_complete(client, policy, settings, request).await,
+    }
+}
+
+#[cfg(test)]
+mod temperature_tests {
+    use super::rejects_temperature;
+
+    #[test]
+    fn recognises_provider_refusals() {
+        assert!(rejects_temperature(
+            "ai provider returned 400 Bad Request: Unsupported parameter: 'temperature' is not supported with this model."
+        ));
+        assert!(rejects_temperature("this model does not support temperature"));
+        assert!(!rejects_temperature("ai provider returned 401 Unauthorized: invalid api key"));
+        assert!(!rejects_temperature("Unsupported parameter: 'top_p'"));
     }
 }
 
