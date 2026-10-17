@@ -86,13 +86,25 @@ pub async fn get_nodes(
     }
 }
 
-const HTTP_IN_BINDING_DEFAULTS: &str = r#"
+const HTTP_IN_BINDING_EDITOR: &str = r#"
 <script type="text/javascript">
 (function () {
     var def = RED.nodes.getType("http in");
     if (def && def.defaults) {
         if (!def.defaults.host) { def.defaults.host = { value: "0.0.0.0" }; }
         if (!def.defaults.port) { def.defaults.port = { value: 1880 }; }
+    }
+    if (def) {
+        // Name, then where the node listens: "[post] :1901/invoices". A loopback host is left
+        // out, so any other (0.0.0.0) stands out. "\n " is the editor's label line break.
+        def.label = function () {
+            if (!this.url) { return this.name || "http"; }
+            var host = this.host || "0.0.0.0";
+            var loopback = host === "127.0.0.1" || host === "localhost" || host === "::1";
+            var path = this.url.charAt(0) === "/" ? this.url : "/" + this.url;
+            var address = "[" + this.method + "] " + (loopback ? "" : host) + ":" + (this.port || 1880) + path;
+            return this.name ? this.name + "\\n " + address : address;
+        };
     }
 })();
 </script>
@@ -147,8 +159,8 @@ async fn generate_nodes_html(static_dir: &std::path::Path, allowed: &HashSet<Str
         // n2link's http in honours per-node `host` and `port`; the stock Node-RED editor
         // definition does not declare them, so an editor deploy would silently drop them
         // (and move a loopback-only endpoint back to 0.0.0.0:1880). Declare them with
-        // n2link's own defaults so existing flows are unchanged.
-        html_content.push_str(HTTP_IN_BINDING_DEFAULTS);
+        // n2link's own defaults so existing flows are unchanged, and show the binding in the label.
+        html_content.push_str(HTTP_IN_BINDING_EDITOR);
     }
     append_bundled_editor("rgb-invoice", "rgb-editor/61-rgb-invoice.html", allowed, &mut html_content);
     append_bundled_editor("rgb-plan", "rgb-editor/62-rgb-plan.html", allowed, &mut html_content);
