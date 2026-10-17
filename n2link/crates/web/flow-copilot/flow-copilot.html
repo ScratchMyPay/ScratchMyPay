@@ -1,13 +1,16 @@
 <style>
-    .n2link-copilot { display:flex; flex-direction:column; height:100%; padding:10px; gap:8px; box-sizing:border-box; }
+    .n2link-copilot { display:flex; flex-direction:column; height:100%; padding:10px; gap:8px; box-sizing:border-box; overflow-y:auto; }
     .n2link-copilot-target { color:var(--red-ui-secondary-text-color); font-size:12px; }
     .n2link-copilot textarea { width:100%; min-height:105px; resize:vertical; box-sizing:border-box; }
     .n2link-copilot-actions { display:flex; gap:6px; flex-wrap:wrap; }
-    .n2link-copilot-preview { flex:1; overflow:auto; border-top:1px solid var(--red-ui-secondary-border-color); padding-top:8px; }
+    /* Never shrink below its content: in a split sidebar the panel scrolls instead. */
+    .n2link-copilot-preview { flex:1 0 auto; min-height:120px; border-top:1px solid var(--red-ui-secondary-border-color); padding-top:8px; }
     .n2link-copilot-preview h4 { margin:6px 0; }
     .n2link-copilot-preview ul { margin:4px 0 10px 20px; }
     .n2link-copilot-empty { color:var(--red-ui-secondary-text-color); font-style:italic; }
     .n2link-copilot select { width:100%; }
+    .n2link-copilot-mode { display:flex; align-items:center; gap:6px; font-size:12px; margin:0; }
+    .n2link-copilot-mode input { margin:0; }
 </style>
 
 <script type="text/javascript">
@@ -20,6 +23,12 @@
             var content = $('<div class="n2link-copilot"></div>');
             var target = $('<div class="n2link-copilot-target"></div>').appendTo(content);
             var provider = $('<select aria-label="AI provider"></select>').appendTo(content);
+            var mode = $('<label class="n2link-copilot-mode" title="The AI picks a Flow Library template and fills its values instead of writing the whole flow. Fast with local models."><input type="checkbox"> Use library templates (fast)</label>').appendTo(content);
+            var templates = mode.find("input");
+            try { templates.prop("checked", localStorage.getItem("n2link.copilot.templates") === "1"); } catch (e) {}
+            templates.on("change", function() {
+                try { localStorage.setItem("n2link.copilot.templates", templates.prop("checked") ? "1" : "0"); } catch (e) {}
+            });
             var prompt = $('<textarea placeholder="Describe the flow to add to the active tab..."></textarea>').appendTo(content);
             var actions = $('<div class="n2link-copilot-actions"></div>').appendTo(content);
             var generate = $('<button type="button" class="red-ui-button red-ui-button-primary"><i class="fa fa-magic"></i> Draft</button>').appendTo(actions);
@@ -80,6 +89,8 @@
                 });
                 preview.append(list("Nodes to add", nodes));
                 apply.prop("disabled", !draft.nodes || draft.nodes.length === 0);
+                preview[0].scrollIntoView({block: "nearest"});
+                RED.notify("Draft ready: " + nodes.length + " nodes. Review it in the Copilot panel, then use Apply to flow.", "success");
             }
 
             function resetDraft() {
@@ -119,7 +130,8 @@
                         prompt: text,
                         workspaceId: workspace.id,
                         workspaceLabel: workspace.label,
-                        flows: flows
+                        flows: flows,
+                        mode: templates.prop("checked") ? "template" : "draft"
                     })
                 }).done(function(draft) {
                     pending = {draft: draft, snapshot: snapshot, workspaceId: workspace.id};
@@ -144,7 +156,7 @@
                     resetDraft();
                     return;
                 }
-                RED.view.importNodes(pending.draft.nodes, {
+                RED.view.importNodes(belowExisting(pending.draft.nodes, pending.workspaceId), {
                     addFlow: false,
                     touchImport: true,
                     generateIds: false,
@@ -153,9 +165,24 @@
                     applyNodeDefaults: true,
                     eventContext: {source: "n2link-flow-copilot"}
                 });
+                // A touch import skips the drag that normally marks the flow changed; without this
+                // the Deploy button stays disabled.
+                RED.nodes.dirty(true);
                 RED.notify("Flow Copilot draft added. Review it, then use Deploy when ready.", "success");
                 resetDraft();
             });
+
+            // Move a draft below the nodes already on the tab so it never lands on top of them.
+            function belowExisting(nodes, workspaceId) {
+                var bottom = null;
+                RED.nodes.eachNode(function(node) {
+                    if (node.z === workspaceId) { bottom = Math.max(bottom === null ? node.y : bottom, node.y); }
+                });
+                if (bottom === null || nodes.length === 0) { return nodes; }
+                var top = Math.min.apply(null, nodes.map(function(node) { return node.y || 0; }));
+                var shift = Math.max(0, bottom + 80 - top);
+                return nodes.map(function(node) { return $.extend({}, node, {y: (node.y || 0) + shift}); });
+            }
 
             clear.on("click", function() {
                 prompt.val("");

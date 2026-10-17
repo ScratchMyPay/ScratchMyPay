@@ -13,6 +13,8 @@ pub mod flows;
 #[cfg(feature = "history_sqlite")]
 pub mod history;
 pub mod library;
+#[cfg(feature = "nodes_rgb")]
+pub mod library_params;
 pub mod locales;
 pub mod nodes;
 #[cfg(feature = "nodes_rgb")]

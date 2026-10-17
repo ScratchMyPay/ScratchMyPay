@@ -61,6 +61,9 @@ pub(crate) struct ChatRequest {
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
     pub timeout: Duration,
+    /// JSON schema the reply must match. Sent only to OpenAI-compatible chat completions (QVAC);
+    /// other providers ignore it, so callers validate the reply either way.
+    pub response_schema: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -405,6 +408,10 @@ async fn chat_completions_complete(
     }
     if let Some(max_tokens) = request.max_tokens {
         body["max_tokens"] = json!(max_tokens);
+    }
+    if let Some(schema) = &request.response_schema {
+        body["response_format"] =
+            json!({"type": "json_schema", "json_schema": {"name": "reply", "strict": true, "schema": schema}});
     }
     let headers = vec![("authorization", format!("Bearer {}", settings.api_key))];
     let value = send_json(client, policy, settings, &url, &headers, body, request.timeout).await?;
@@ -853,6 +860,7 @@ mod tests {
             temperature: Some(0.2),
             max_tokens: Some(32),
             timeout: Duration::from_secs(2),
+            response_schema: None,
         }
     }
 
@@ -966,6 +974,7 @@ mod tests {
             "/chat/completions",
             post(|Json(body): Json<Value>| async move {
                 assert_eq!(body["messages"][0]["role"], "user");
+                assert_eq!(body.get("response_format"), None);
                 Json(json!({
                     "model": "llama3",
                     "choices": [{ "message": { "content": "hello-cortex" } }]
@@ -978,6 +987,27 @@ mod tests {
         let reply = complete(&client(), &settings, &request()).await.unwrap();
         assert_eq!(reply.text, "hello-cortex");
         assert_eq!(reply.provider, "cortex");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn chat_completions_send_the_reply_schema() {
+        let app = Router::new().route(
+            "/chat/completions",
+            post(|Json(body): Json<Value>| async move {
+                assert_eq!(body["response_format"]["type"], "json_schema");
+                assert_eq!(body["response_format"]["json_schema"]["strict"], true);
+                assert_eq!(body["response_format"]["json_schema"]["schema"]["required"], json!(["template"]));
+                Json(json!({ "choices": [{ "message": { "content": "{\"template\":\"none\"}" } }] }))
+            }),
+        );
+        let (base, task) = serve(app).await;
+        let settings =
+            ProviderSettings { kind: ProviderKind::Cortex, base_url: base, api_key: "k".into(), organization: None };
+        let mut request = request();
+        request.response_schema = Some(json!({"type": "object", "required": ["template"]}));
+        let reply = complete(&client(), &settings, &request).await.unwrap();
+        assert_eq!(reply.text, "{\"template\":\"none\"}");
         task.abort();
     }
 

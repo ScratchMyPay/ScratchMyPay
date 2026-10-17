@@ -117,6 +117,7 @@ impl AiChatNode {
             temperature: self.config.temperature,
             max_tokens: self.config.max_tokens,
             timeout: self.config.timeout,
+            response_schema: None,
         };
         let egress = egress.snapshot();
         tokio::select! {

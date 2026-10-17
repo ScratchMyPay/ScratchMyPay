@@ -13,7 +13,13 @@
 //! Guardrails: payout-path node types (`poweredge::RESERVED_TYPES`) are refused, secret fields
 //! are refused, references to configuration nodes are stripped (they are re-bound at deploy),
 //! and a template is data: the Copilot reads it as a pattern, never as instructions.
-//! Seeds from `POWEREDGE_LIBRARY_SEED_DIR` are loaded once, by name, on first open.
+//!
+//! A template may declare typed `params` and use `{{param:<name>}}` placeholders in its draft
+//! (`library_params`). The Copilot's template mode then only asks the model to pick a template
+//! and fill those values; validation runs on the draft with the defaults filled in.
+//!
+//! Seeds from `POWEREDGE_LIBRARY_SEED_DIR` are loaded on first open, by name. A seed whose file
+//! changed (SHA-256) replaces its earlier copy; a template saved by a person is never replaced.
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -28,8 +34,10 @@ use axum::{
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 
 use super::assistant::{DraftCheck, check_draft_for_library};
+use super::library_params::{self, ParamSpecs};
 use super::reply::api_error;
 use super::web_state::WebState;
 
@@ -39,6 +47,7 @@ const MAX_TAGS: usize = 8;
 const MAX_EXAMPLES: usize = 4;
 const MAX_TEMPLATES_IN_PROMPT: usize = 12;
 const MAX_PROMPT_SECTION_CHARS: usize = 24_000;
+const MAX_TEMPLATES_IN_MENU: usize = 32;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +61,7 @@ pub struct TemplateSummary {
     pub created_by: String,
     pub created_at: i64,
     pub node_count: usize,
+    pub params: Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +75,8 @@ pub struct SaveRequest {
     #[serde(default)]
     examples: Vec<String>,
     draft: Value,
+    #[serde(default)]
+    params: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,8 +105,40 @@ pub struct NewTemplate<'a> {
     pub tags: &'a [String],
     pub examples: &'a [String],
     pub draft: &'a Value,
+    /// Checked param specs (`library_params::specs_json`), `{}` when the template has none.
+    pub params: &'a Value,
     pub source: &'a str,
     pub created_by: &'a str,
+    /// SHA-256 of the seed file, for seeds only.
+    pub seed_sha256: Option<&'a str>,
+}
+
+/// One entry of the template-mode menu.
+pub struct MenuTemplate {
+    pub name: String,
+    pub description: String,
+    pub examples: Vec<String>,
+    pub specs: ParamSpecs,
+    pub draft: Value,
+}
+
+/// What to do with a seed file, given the row that already carries its name.
+#[derive(Debug, PartialEq, Eq)]
+enum SeedAction {
+    Insert,
+    Replace,
+    Unchanged,
+    /// A template saved by a person has that name; it is never replaced by a seed.
+    NameTaken,
+}
+
+fn seed_action(existing: Option<(&str, Option<&str>)>, digest: &str) -> SeedAction {
+    match existing {
+        None => SeedAction::Insert,
+        Some((source, _)) if source != "seed" => SeedAction::NameTaken,
+        Some((_, Some(stored))) if stored == digest => SeedAction::Unchanged,
+        Some(_) => SeedAction::Replace,
+    }
 }
 
 static LIBRARY: OnceLock<Mutex<Option<Arc<FlowLibrary>>>> = OnceLock::new();
@@ -119,12 +163,23 @@ impl FlowLibrary {
                created_at INTEGER NOT NULL
              );",
         )?;
+        // Columns added for template mode; older libraries gain them in place.
+        let columns: Vec<String> = db
+            .prepare("PRAGMA table_info(templates)")?
+            .query_map([], |r| r.get::<_, String>(1))?
+            .collect::<rusqlite::Result<_>>()?;
+        if !columns.iter().any(|c| c == "params") {
+            db.execute_batch("ALTER TABLE templates ADD COLUMN params TEXT NOT NULL DEFAULT '{}';")?;
+        }
+        if !columns.iter().any(|c| c == "seed_sha256") {
+            db.execute_batch("ALTER TABLE templates ADD COLUMN seed_sha256 TEXT;")?;
+        }
         Ok(FlowLibrary { db: Mutex::new(db) })
     }
 
     pub fn list(&self) -> rusqlite::Result<Vec<TemplateSummary>> {
         let db = self.db.lock().expect("flow library");
-        let mut stmt = db.prepare("SELECT id, name, description, tags, examples, draft, source, created_by, created_at FROM templates ORDER BY id DESC")?;
+        let mut stmt = db.prepare("SELECT id, name, description, tags, examples, draft, source, created_by, created_at, params FROM templates ORDER BY id DESC")?;
         let rows = stmt.query_map([], |r| {
             let draft: String = r.get(5)?;
             let node_count = serde_json::from_str::<Value>(&draft)
@@ -141,6 +196,7 @@ impl FlowLibrary {
                 created_by: r.get(7)?,
                 created_at: r.get(8)?,
                 node_count,
+                params: serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_else(|_| json!({})),
             })
         })?;
         rows.collect()
@@ -158,7 +214,7 @@ impl FlowLibrary {
     pub fn insert(&self, t: &NewTemplate<'_>) -> rusqlite::Result<i64> {
         let db = self.db.lock().expect("flow library");
         db.execute(
-            "INSERT INTO templates (name, description, tags, examples, draft, source, created_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO templates (name, description, tags, examples, draft, source, created_by, created_at, params, seed_sha256) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 t.name,
                 t.description,
@@ -167,10 +223,61 @@ impl FlowLibrary {
                 t.draft.to_string(),
                 t.source,
                 t.created_by,
-                now()
+                now(),
+                t.params.to_string(),
+                t.seed_sha256
             ],
         )?;
         Ok(db.last_insert_rowid())
+    }
+
+    /// Replace the seed row with this name (seeds only; saved templates are never touched).
+    fn replace_seed(&self, t: &NewTemplate<'_>) -> rusqlite::Result<bool> {
+        let db = self.db.lock().expect("flow library");
+        let changed = db.execute(
+            "UPDATE templates SET description = ?2, tags = ?3, examples = ?4, draft = ?5, params = ?6, seed_sha256 = ?7, created_at = ?8 WHERE name = ?1 AND source = 'seed'",
+            params![
+                t.name,
+                t.description,
+                serde_json::to_string(t.tags).unwrap_or_default(),
+                serde_json::to_string(t.examples).unwrap_or_default(),
+                t.draft.to_string(),
+                t.params.to_string(),
+                t.seed_sha256,
+                now()
+            ],
+        )?;
+        Ok(changed == 1)
+    }
+
+    /// `(source, seed_sha256)` of the template with this name, if any.
+    fn origin(&self, name: &str) -> rusqlite::Result<Option<(String, Option<String>)>> {
+        let db = self.db.lock().expect("flow library");
+        db.query_row("SELECT source, seed_sha256 FROM templates WHERE name = ?1", params![name], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .optional()
+    }
+
+    /// Templates for the Copilot's template mode, by name (a stable prompt prefix), capped.
+    pub fn menu(&self) -> Vec<MenuTemplate> {
+        let Ok(mut list) = self.list() else { return Vec::new() };
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut menu = Vec::new();
+        for t in list.into_iter().take(MAX_TEMPLATES_IN_MENU) {
+            let Ok(Some((_, draft))) = self.get(t.id) else { continue };
+            match library_params::parse_specs(Some(&t.params)) {
+                Ok(specs) => menu.push(MenuTemplate {
+                    name: t.name,
+                    description: t.description,
+                    examples: t.examples,
+                    specs,
+                    draft,
+                }),
+                Err(e) => log::warn!("flow library: template '{}' left out of the menu: {e}", t.name),
+            }
+        }
+        menu
     }
 
     pub fn delete(&self, id: i64) -> rusqlite::Result<bool> {
@@ -198,6 +305,10 @@ impl FlowLibrary {
         );
         for t in list.into_iter().take(MAX_TEMPLATES_IN_PROMPT) {
             let Ok(Some((_, draft))) = self.get(t.id) else { continue };
+            // Show a parameterized template with its defaults, never with placeholders.
+            let draft = library_params::parse_specs(Some(&t.params))
+                .and_then(|specs| library_params::substitute(&draft, &library_params::defaults(&specs)))
+                .unwrap_or(draft);
             let block = format!(
                 "## {}\n{}\nExample requests: {}\nTags: {}\n```json\n{}\n```\n\n",
                 t.name,
@@ -269,33 +380,78 @@ async fn seed(lib: &FlowLibrary, state: &WebState) {
     files.sort();
     for path in files {
         let Ok(text) = std::fs::read_to_string(&path) else { continue };
-        let Ok(req) = serde_json::from_str::<SaveRequest>(&text) else {
-            log::warn!("flow library seed {} is not a template file", path.display());
-            continue;
+        let req = match serde_json::from_str::<SaveRequest>(&text) {
+            Ok(req) => req,
+            Err(e) => {
+                log::warn!("flow library seed {} is not a template file: {e}", path.display());
+                continue;
+            }
         };
-        if lib.has_name(req.name.trim()).unwrap_or(true) {
-            continue;
+        let name = req.name.trim();
+        let digest = hex::encode(Sha256::digest(text.as_bytes()));
+        let existing = match lib.origin(name) {
+            Ok(existing) => existing,
+            Err(e) => {
+                log::warn!("flow library: cannot look up seed '{name}': {e}");
+                continue;
+            }
+        };
+        let action = seed_action(existing.as_ref().map(|(s, d)| (s.as_str(), d.as_deref())), &digest);
+        match action {
+            SeedAction::Unchanged => continue,
+            SeedAction::NameTaken => {
+                log::warn!("flow library: seed {} skipped: a saved template is named '{name}'", path.display());
+                continue;
+            }
+            SeedAction::Insert | SeedAction::Replace => {}
         }
-        let check = match registry.as_ref() {
-            Some(r) => check_draft_for_library(&req.draft, r.as_ref(), &flows),
+        let checked = match registry.as_ref() {
+            Some(r) => prepare_template(&req.draft, req.params.as_ref(), r.as_ref(), &flows),
             None => Err("registry not ready".to_owned()),
         };
-        match check {
-            Ok(DraftCheck { node_count }) => match lib.insert(&NewTemplate {
-                name: req.name.trim(),
-                description: req.description.trim(),
-                tags: &req.tags,
-                examples: &req.examples,
-                draft: &req.draft,
-                source: "seed",
-                created_by: "repo",
-            }) {
-                Ok(id) => log::info!("flow library: seeded '{}' (#{id}, {node_count} nodes)", req.name.trim()),
-                Err(e) => log::warn!("flow library: seed '{}' failed: {e}", req.name),
-            },
-            Err(e) => log::warn!("flow library: seed {} rejected: {e}", path.display()),
+        let (DraftCheck { node_count }, params) = match checked {
+            Ok(checked) => checked,
+            Err(e) => {
+                log::warn!("flow library: seed {} rejected: {e}", path.display());
+                continue;
+            }
+        };
+        let template = NewTemplate {
+            name,
+            description: req.description.trim(),
+            tags: &req.tags,
+            examples: &req.examples,
+            draft: &req.draft,
+            params: &params,
+            source: "seed",
+            created_by: "repo",
+            seed_sha256: Some(&digest),
+        };
+        let stored = if action == SeedAction::Insert {
+            lib.insert(&template).map(|id| format!("seeded '{name}' (#{id}, {node_count} nodes)"))
+        } else {
+            lib.replace_seed(&template).map(|_| format!("refreshed seed '{name}' ({node_count} nodes, file changed)"))
+        };
+        match stored {
+            Ok(message) => log::info!("flow library: {message}"),
+            Err(e) => log::warn!("flow library: seed '{name}' failed: {e}"),
         }
     }
+}
+
+/// Check a template: its params, its placeholders, and the draft with the defaults filled in
+/// exactly like a Copilot draft. Returns the check and the params to store.
+fn prepare_template(
+    draft: &Value,
+    params: Option<&Value>,
+    registry: &dyn n2link_core::runtime::registry::Registry,
+    flows: &[Value],
+) -> Result<(DraftCheck, Value), String> {
+    let specs = library_params::parse_specs(params)?;
+    library_params::check_template(&specs, draft)?;
+    let concrete = library_params::substitute(draft, &library_params::defaults(&specs))?;
+    let check = check_draft_for_library(&concrete, registry, flows)?;
+    Ok((check, library_params::specs_json(&specs)))
 }
 
 fn clean_text(value: &str, max: usize) -> String {
@@ -315,10 +471,11 @@ async fn save(state: &WebState, req: SaveRequest, source: &str, by: &str) -> Res
         return api_error(StatusCode::SERVICE_UNAVAILABLE, "runtime_unavailable", "node registry is not available");
     };
     let flows = live_flows(state).await;
-    let DraftCheck { node_count } = match check_draft_for_library(&req.draft, registry.as_ref(), &flows) {
-        Ok(c) => c,
-        Err(message) => return api_error(StatusCode::BAD_REQUEST, "invalid_template", &message),
-    };
+    let (DraftCheck { node_count }, params) =
+        match prepare_template(&req.draft, req.params.as_ref(), registry.as_ref(), &flows) {
+            Ok(checked) => checked,
+            Err(message) => return api_error(StatusCode::BAD_REQUEST, "invalid_template", &message),
+        };
     let lib = match library(state).await {
         Ok(l) => l,
         Err(e) => return api_error(StatusCode::SERVICE_UNAVAILABLE, "library_unavailable", &e),
@@ -332,8 +489,10 @@ async fn save(state: &WebState, req: SaveRequest, source: &str, by: &str) -> Res
         tags: &clean_list(&req.tags, MAX_TAGS, 24),
         examples: &clean_list(&req.examples, MAX_EXAMPLES, 160),
         draft: &req.draft,
+        params: &params,
         source,
         created_by: by,
+        seed_sha256: None,
     }) {
         Ok(id) => (StatusCode::CREATED, Json(json!({"id": id, "name": name, "nodeCount": node_count}))).into_response(),
         Err(e) => api_error(StatusCode::INTERNAL_SERVER_ERROR, "library_error", &e.to_string()),
@@ -400,7 +559,14 @@ pub async fn post_from_tab(
     };
     save(
         &state,
-        SaveRequest { name: req.name, description: req.description, tags: req.tags, examples: req.examples, draft },
+        SaveRequest {
+            name: req.name,
+            description: req.description,
+            tags: req.tags,
+            examples: req.examples,
+            draft,
+            params: None,
+        },
         "editor",
         &actor.username,
     )
@@ -489,8 +655,10 @@ mod tests {
                 tags: &["crew".into()],
                 examples: &["show me a QR to get paid".into()],
                 draft: &draft,
+                params: &json!({}),
                 source: "seed",
                 created_by: "repo",
+                seed_sha256: None,
             })
             .unwrap();
         assert!(lib.has_name("Pay me page").unwrap());
@@ -505,6 +673,105 @@ mod tests {
         );
         assert!(lib.delete(id).unwrap() && !lib.delete(id).unwrap());
         assert!(lib.prompt_section().is_empty());
+        drop(lib);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    fn temp_library(tag: &str) -> (FlowLibrary, PathBuf) {
+        let path = std::env::temp_dir().join(format!("flow-library-{tag}-{}.sqlite3", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        (FlowLibrary::open(&path).unwrap(), path)
+    }
+
+    fn shop_template<'a>(
+        draft: &'a Value,
+        params: &'a Value,
+        source: &'a str,
+        sha: Option<&'a str>,
+    ) -> NewTemplate<'a> {
+        NewTemplate {
+            name: "Shop",
+            description: "Sell a file",
+            tags: &[],
+            examples: &[],
+            draft,
+            params,
+            source,
+            created_by: "repo",
+            seed_sha256: sha,
+        }
+    }
+
+    #[test]
+    fn an_old_library_gains_the_template_mode_columns() {
+        let path = std::env::temp_dir().join(format!("flow-library-old-{}.sqlite3", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let old = Connection::open(&path).unwrap();
+        old.execute_batch(
+            "CREATE TABLE templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,
+               description TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]', examples TEXT NOT NULL DEFAULT '[]',
+               draft TEXT NOT NULL, source TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+             INSERT INTO templates (name, draft, source, created_by, created_at) VALUES ('Old', '{\"nodes\":[]}', 'seed', 'repo', 1);",
+        )
+        .unwrap();
+        drop(old);
+        let lib = FlowLibrary::open(&path).unwrap();
+        let list = lib.list().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].params, json!({}));
+        assert_eq!(lib.origin("Old").unwrap(), Some(("seed".to_owned(), None)));
+        drop(lib);
+        FlowLibrary::open(&path).unwrap(); // opening again is a no-op
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn seeds_insert_refresh_and_never_replace_saved_templates() {
+        assert_eq!(seed_action(None, "a"), SeedAction::Insert);
+        assert_eq!(seed_action(Some(("seed", Some("a"))), "a"), SeedAction::Unchanged);
+        assert_eq!(seed_action(Some(("seed", Some("a"))), "b"), SeedAction::Replace);
+        assert_eq!(seed_action(Some(("seed", None)), "b"), SeedAction::Replace);
+        assert_eq!(seed_action(Some(("human", None)), "b"), SeedAction::NameTaken);
+        assert_eq!(seed_action(Some(("editor", Some("b"))), "b"), SeedAction::NameTaken);
+
+        let (lib, path) = temp_library("refresh");
+        let (v1, v2) = (json!({"version": 1, "nodes": [], "n": 1}), json!({"version": 1, "nodes": [], "n": 2}));
+        let params = json!({});
+        lib.insert(&shop_template(&v1, &params, "seed", Some("d1"))).unwrap();
+        assert!(lib.replace_seed(&shop_template(&v2, &params, "seed", Some("d2"))).unwrap());
+        let id = lib.list().unwrap()[0].id;
+        assert_eq!(lib.get(id).unwrap().unwrap().1["n"], 2);
+        assert_eq!(lib.origin("Shop").unwrap(), Some(("seed".to_owned(), Some("d2".to_owned()))));
+        lib.delete(id).unwrap();
+        lib.insert(&shop_template(&v1, &params, "human", None)).unwrap();
+        assert!(!lib.replace_seed(&shop_template(&v2, &params, "seed", Some("d3"))).unwrap());
+        let id = lib.list().unwrap()[0].id;
+        assert_eq!(lib.get(id).unwrap().unwrap().1["n"], 1, "a saved template must stay as saved");
+        drop(lib);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_menu_is_sorted_and_the_prompt_shows_defaults() {
+        let (lib, path) = temp_library("menu");
+        let draft = json!({"version": 1, "summary": "s", "wires": [],
+            "nodes": [{"ref": "n1", "type": "change", "config": {"rules": [{"t": "set", "to": "{{param:price}}"}]}}]});
+        let specs = library_params::parse_specs(Some(&json!({
+            "price": {"kind": "decimal", "min": "0.01", "max": "100", "default": "5"}
+        })))
+        .unwrap();
+        let params = library_params::specs_json(&specs);
+        lib.insert(&shop_template(&draft, &params, "seed", Some("d"))).unwrap();
+        let plain = json!({"version": 1, "summary": "s", "wires": [], "nodes": []});
+        lib.insert(&NewTemplate { name: "Alerts", ..shop_template(&plain, &json!({}), "human", None) }).unwrap();
+
+        let menu = lib.menu();
+        let names: Vec<&str> = menu.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(names, vec!["Alerts", "Shop"]);
+        assert_eq!(menu[1].specs, specs);
+        assert!(menu[0].specs.is_empty());
+        let section = lib.prompt_section();
+        assert!(section.contains("\"to\":\"5\"") && !section.contains("{{param:"), "{section}");
         drop(lib);
         let _ = std::fs::remove_file(&path);
     }

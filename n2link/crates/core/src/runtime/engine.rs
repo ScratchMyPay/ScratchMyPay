@@ -161,7 +161,9 @@ impl Engine {
     pub const AI_REPLY_REFUSED: &'static str = "ai provider declined the request";
 
     /// Complete one prompt with a deployed AI provider without exposing its credentials.
+    /// `response_schema` constrains the reply where the provider supports it (chat completions).
     #[cfg(feature = "nodes_ai")]
+    #[allow(clippy::too_many_arguments)]
     pub async fn complete_ai(
         &self,
         provider_id: &str,
@@ -170,8 +172,19 @@ impl Engine {
         prompt: &str,
         max_tokens: u32,
         timeout: std::time::Duration,
+        response_schema: Option<&serde_json::Value>,
     ) -> crate::Result<String> {
-        super::nodes::ai_nodes::complete_for_engine(self, provider_id, model, system, prompt, max_tokens, timeout).await
+        super::nodes::ai_nodes::complete_for_engine(
+            self,
+            provider_id,
+            model,
+            system,
+            prompt,
+            max_tokens,
+            timeout,
+            response_schema,
+        )
+        .await
     }
 
     pub fn downgrade(&self) -> WeakEngine {
