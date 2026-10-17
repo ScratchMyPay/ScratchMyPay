@@ -203,6 +203,7 @@ case "${1:-up}" in
     wait_ready recipient
     launch payer                                       # delivers consignments to the crew wallet
     wait_ready payer; wait_ready wdk; wait_ready qvac
+    if in_vm payer; then "$ROOT/scripts/vm/boot.sh" rebridge payer >/dev/null; fi   # delivery follows the crew (VM or host)
     launch n2link; wait_ready n2link
     warm_up_qvac
     report ;;
