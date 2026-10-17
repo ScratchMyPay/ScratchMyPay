@@ -148,7 +148,7 @@ const routes = {
     const t = await treasury()
     return { network: 'mutinynet', engine: 'Tether WDK', address, cost, treasury: t, coverage: coverage({ haveSat: t.totalSat, cost, speed }) }
   },
-  '/door/passes': async () => ({ ...door.revenue(), passes: door.passes(20) }),
+  '/door/passes': async (url) => ({ ...door.revenue(), passes: door.passes(intParam(url, 'limit', 20, 500)) }),
   // Test hook (only with WDK_DEBUG=1): drop the Electrum socket as a flaky server would.
   ...(process.env.WDK_DEBUG === '1' ? { '/debug/drop-link': async () => { await electrum.close(); log('warn', 'debug: electrum link dropped on purpose'); return { dropped: true } } } : {}),
   '/transfers': async (url) => {
