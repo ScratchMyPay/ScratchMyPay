@@ -174,7 +174,8 @@ impl Default for IngressProtectionConfig {
                 requests_per_minute: 30,
                 max_concurrency: 2,
                 queue_timeout_ms: 1_000,
-                request_timeout_ms: 70_000,
+                // Above the Copilot's 180 s provider timeout (handlers/assistant.rs), or local models are cut off.
+                request_timeout_ms: 190_000,
                 max_response_bytes: 2_097_152,
                 ..EndpointLimits::default()
             },

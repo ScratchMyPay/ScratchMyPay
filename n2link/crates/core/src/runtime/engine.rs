@@ -155,6 +155,11 @@ impl Engine {
         hex::encode(&*hash)
     }
 
+    /// Start of the error [`Self::complete_ai`] returns when the reply stopped at `max_tokens`.
+    pub const AI_REPLY_TRUNCATED: &'static str = "ai response was cut off at the max_tokens limit";
+    /// Error [`Self::complete_ai`] returns when the provider declined to answer.
+    pub const AI_REPLY_REFUSED: &'static str = "ai provider declined the request";
+
     /// Complete one prompt with a deployed AI provider without exposing its credentials.
     #[cfg(feature = "nodes_ai")]
     pub async fn complete_ai(

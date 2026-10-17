@@ -33,6 +33,9 @@ const MAX_DRAFT_NODES: usize = 64;
 const MAX_DRAFT_WIRES: usize = 128;
 const MAX_OUTPUT_PORT: usize = 15;
 const MAX_PROVIDER_RESPONSE_BYTES: usize = 512 * 1024;
+// Thinking models spend part of the token budget before the draft; 4,096 cut drafts short.
+const COPILOT_MAX_TOKENS: u32 = 16_000;
+const COPILOT_TIMEOUT: Duration = Duration::from_secs(180);
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -179,14 +182,15 @@ pub async fn post_assistant_draft(
 
     let model = (!request.model.trim().is_empty()).then_some(request.model.trim());
     let reply = match engine
-        .complete_ai(request.provider_id.trim(), model, &system, &prompt, 4_096, Duration::from_secs(60))
+        .complete_ai(request.provider_id.trim(), model, &system, &prompt, COPILOT_MAX_TOKENS, COPILOT_TIMEOUT)
         .await
     {
         Ok(reply) => reply,
         Err(err) => {
             log::warn!("Flow Copilot provider request failed: {err}");
-            state.history.record_copilot_rejected(&actor.username, "provider_error");
-            return api_error(StatusCode::BAD_GATEWAY, "provider_error", "AI provider request failed");
+            let (code, message) = provider_failure(&err.to_string());
+            state.history.record_copilot_rejected(&actor.username, code);
+            return api_error(StatusCode::BAD_GATEWAY, code, message);
         }
     };
     if reply.len() > MAX_PROVIDER_RESPONSE_BYTES {
@@ -289,6 +293,18 @@ pub fn check_draft_for_library(draft: &Value, registry: &dyn Registry, flows: &[
     // (wallet references resolve, output ports exist).
     materialize_draft(&parsed, "0000000000000000", flows, registry, true)?;
     Ok(DraftCheck { node_count: parsed.nodes.len() })
+}
+
+/// Error code and user-facing message for a failed provider call. Only failures n2link itself
+/// detected are named; provider messages stay in the log.
+fn provider_failure(error: &str) -> (&'static str, &'static str) {
+    if error.starts_with(Engine::AI_REPLY_TRUNCATED) {
+        ("provider_response_truncated", "AI response was cut off at the token limit; ask for a smaller flow")
+    } else if error == Engine::AI_REPLY_REFUSED {
+        ("provider_refused", "AI provider declined this request")
+    } else {
+        ("provider_error", "AI provider request failed")
+    }
 }
 
 fn parse_model_draft(text: &str) -> Result<ModelDraft, String> {
@@ -588,6 +604,15 @@ mod tests {
     fn an_oversized_provider_response_is_rejected_before_json_parsing() {
         let text = "x".repeat(MAX_PROVIDER_RESPONSE_BYTES + 1);
         assert!(parse_model_draft(&text).unwrap_err().contains("provider-response limit"));
+    }
+
+    #[test]
+    fn provider_failures_name_truncation_and_refusal_only() {
+        let truncated = format!("{} (16000 tokens)", Engine::AI_REPLY_TRUNCATED);
+        assert_eq!(provider_failure(&truncated).0, "provider_response_truncated");
+        assert_eq!(provider_failure(Engine::AI_REPLY_REFUSED).0, "provider_refused");
+        let other = provider_failure("ai provider returned 401 Unauthorized: invalid x-api-key");
+        assert_eq!(other, ("provider_error", "AI provider request failed"));
     }
 
     #[test]
