@@ -30,3 +30,12 @@ test('link-down matcher', () => {
   for (const m of ['Connection to server lost, please retry', 'socket hang up', 'read ECONNRESET', 'Request timed out']) assert.ok(LINK_DOWN.test(m), m)
   assert.ok(!LINK_DOWN.test('insufficient funds'))
 })
+
+test("in-flight requests rejected with 'close connect' when the socket closes are link errors", async () => {
+  assert.ok(LINK_DOWN.test('close connect'))
+  let reconnects = 0
+  const link = withLink({ reconnect: async () => { reconnects++ }, log: () => {} })
+  let calls = 0
+  const out = await link(async () => { calls++; if (calls === 1) throw new Error('close connect'); return 'ok' })
+  assert.equal(out, 'ok'); assert.equal(calls, 2); assert.equal(reconnects, 1)
+})
