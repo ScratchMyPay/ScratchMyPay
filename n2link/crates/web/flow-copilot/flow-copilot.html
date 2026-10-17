@@ -1,9 +1,10 @@
 <style>
-    .n2link-copilot { display:flex; flex-direction:column; height:100%; padding:10px; gap:8px; box-sizing:border-box; }
+    .n2link-copilot { display:flex; flex-direction:column; height:100%; padding:10px; gap:8px; box-sizing:border-box; overflow-y:auto; }
     .n2link-copilot-target { color:var(--red-ui-secondary-text-color); font-size:12px; }
     .n2link-copilot textarea { width:100%; min-height:105px; resize:vertical; box-sizing:border-box; }
     .n2link-copilot-actions { display:flex; gap:6px; flex-wrap:wrap; }
-    .n2link-copilot-preview { flex:1; overflow:auto; border-top:1px solid var(--red-ui-secondary-border-color); padding-top:8px; }
+    /* Never shrink below its content: in a split sidebar the panel scrolls instead. */
+    .n2link-copilot-preview { flex:1 0 auto; min-height:120px; border-top:1px solid var(--red-ui-secondary-border-color); padding-top:8px; }
     .n2link-copilot-preview h4 { margin:6px 0; }
     .n2link-copilot-preview ul { margin:4px 0 10px 20px; }
     .n2link-copilot-empty { color:var(--red-ui-secondary-text-color); font-style:italic; }
@@ -88,6 +89,8 @@
                 });
                 preview.append(list("Nodes to add", nodes));
                 apply.prop("disabled", !draft.nodes || draft.nodes.length === 0);
+                preview[0].scrollIntoView({block: "nearest"});
+                RED.notify("Draft ready: " + nodes.length + " nodes. Review it in the Copilot panel, then use Apply to flow.", "success");
             }
 
             function resetDraft() {
