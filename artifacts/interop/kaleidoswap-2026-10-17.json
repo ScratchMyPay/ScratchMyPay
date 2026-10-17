@@ -1,0 +1,65 @@
+{
+ "what": "ScratchMyPay x KaleidoSwap RGB interop test",
+ "proxy": "rpcs://proxy.kaleidoswap.com/json-rpc",
+ "indexer": "https://mutinynet.com/api",
+ "steps": [
+  {
+   "at": "2026-10-17T09:47:20+00:00",
+   "step": "init",
+   "master_fingerprint": "292483bb",
+   "btc_address": "tb1pq6e9f4ea5av493gckjlj4kr308nmp3kecjqdrcpf9azejetpsadst0ttey"
+  },
+  {
+   "at": "2026-10-17T09:47:20+00:00",
+   "step": "invoice",
+   "invoice": "rgb:~/~/~/sbc:wvout:BZ~JLPsb-yIvzUED-XHTsORu-bq24Dwc-hBkO4S2-JQ3od_l-h58HBgw?expiry=1792316840&endpoints=rpcs://proxy.kaleidoswap.com/json-rpc",
+   "asset_id": null,
+   "transport_endpoints": [
+    "rpcs://proxy.kaleidoswap.com/json-rpc"
+   ],
+   "network": "BitcoinNetwork.SIGNET_CUSTOM"
+  },
+  {
+   "at": "2026-10-17T11:15:45+00:00",
+   "step": "status",
+   "assets": [
+    {
+     "asset_id": "rgb:lX~ToKsO-Iup7dJ5-UM794sA-9WD21ge-VHYzBGb-E9PA_h0",
+     "ticker": "USDT",
+     "name": "Tether USD",
+     "precision": 6,
+     "settled": 0,
+     "future": 100000000,
+     "spendable": 0
+    }
+   ],
+   "transfers": []
+  },
+  {
+   "at": "2026-10-17T11:17:16+00:00",
+   "step": "status",
+   "assets": [
+    {
+     "asset_id": "rgb:lX~ToKsO-Iup7dJ5-UM794sA-9WD21ge-VHYzBGb-E9PA_h0",
+     "ticker": "USDT",
+     "name": "Tether USD",
+     "precision": 6,
+     "settled": 100000000,
+     "future": 100000000,
+     "spendable": 100000000
+    }
+   ],
+   "transfers": [
+    {
+     "idx": 1,
+     "status": "SETTLED",
+     "kind": "RECEIVE_WITNESS",
+     "txid": "9753e744d77e2713649f17c03a6d1b07fdc4e259be3568a7093a4c92a290e5ce",
+     "endpoints": [
+      "https://proxy.kaleidoswap.com/json-rpc"
+     ]
+    }
+   ]
+  }
+ ]
+}
