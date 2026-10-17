@@ -94,6 +94,21 @@ ScratchMyPay pays crew in the hackathon's shared **USDT** (`rgb:lX~ToKsO-…-E9P
 
 ![USDT payout settled through the KaleidoSwap proxy](artifacts/screenshots/usdt-app-track-settled.png)
 
+### Keys in a box: every key in its own micro-VM (live, Oct 17)
+The organizer wallet, the crew wallet and the WDK treasury each run in their own **Firecracker micro-VM** (Firecracker is written in Rust). The VMs have **no network card**: the only way in or out is a vsock socket. The host exposes each wallet's API on `127.0.0.1:871x` and opens one pinhole per allowed destination (Mutinynet, the KaleidoSwap proxy, Electrum), with TLS end to end; organizer → crew delivery crosses a real VM boundary. The AI, the editor and the app stay on the host and can only ask a wallet to plan, approve and execute once; they never see a key. The payout logic did not change.
+
+Live on Mutinynet, Oct 17 (evidence in `artifacts/payouts/`): payouts sent from inside the organizer VM through the KaleidoSwap proxy and directly VM → VM; the door paid VM → VM; and the **crash demo, VM edition**: the organizer VM dies right after broadcasting, a new VM boots on the same disk, and the crew is paid exactly once (`2026-10-17-vm-crash-recovery.json`).
+
+```bash
+scripts/vm/setup.sh                 # pinned Firecracker + guest kernel (needs /dev/kvm)
+scripts/vm/build-rootfs.sh wallet   # read-only images from git, ~1 min each
+scripts/vm/build-rootfs.sh treasury
+scripts/vm/smoke.sh                 # boots a VM, fetches the Mutinynet tip through a pinhole, ~1.5 s
+scripts/vm/boot.sh up payer         # first boot moves that wallet into its VM (single owner)
+scripts/demo-up.sh up               # boots VMs for wallets that live in VMs, host services otherwise
+scripts/vm/boot.sh down payer && scripts/vm/boot.sh return payer   # back to a host process
+```
+
 ### Pay to enter (the business model, live)
 There are no accounts and no passwords. An organizer opens **`/poweredge-app/login`**, pays **1,000 test sats** to a fresh address of the Tether WDK treasury and gets a **24-hour pass**; the pass is the same session token a password login would give, so the guided app and the flow editor open unchanged. The fee lands in the same treasury that pays the network fees of every payout: revenue in, fees out, one balance (`scripts/demo-up.sh status` shows "Door revenue"). The demo button pays the door from the organizer wallet (capped at 5,000 test sats, one payment per 30 s, journaled). `scripts/enable-door.sh` turns the door on with a single break-glass user whose random password lives only in `secrets/`; there is no `admin:admin`. Paying proves payment, not identity: binding a pass to the paying key (a signature) is future work.
 
@@ -122,7 +137,7 @@ The flow editor and the guided app share one look taken from our [Satoshi of Liv
 ### Mocked, simulated or hard-coded (honest list)
 - **Test money only**: TUSDT is a test asset we issued on Mutinynet (a Bitcoin test network). Nothing runs on mainnet; the wallet service refuses to start for any other network.
 - **One template** (`rgb-payment-v1`: pay one person). Multi-recipient payouts are not built yet.
-- **Both wallets run on one laptop** for the demo (organizer and crew are separate processes with separate keys and datadirs, talking over loopback). Consignment delivery is a direct local hand-off, not a remote transport.
+- **All three micro-VMs run on one laptop** for the demo (organizer, crew and treasury each in their own Firecracker VM with separate keys and disks; delivery crosses a VM boundary over vsock). Seeds still live as files in `secrets/` on that laptop: the host builds each VM's read-only seed disk from them at boot. The VMs protect the keys from the AI-facing processes and the network, not from root on the same machine; a real deployment would put each VM on its own machine or the seed in a hardware signer.
 - **Endpoint ports are fixed** in the template (127.0.0.1:1891–1894); one active payout flow at a time.
 - **Approval is a typed name + checkbox** on the organizer's own machine; there is no multi-user login or signature on the approval.
 - **The door checks payment, not identity.** Anyone who pays 1,000 test sats gets a 24-hour pass bound to that browser; passes are not bound to a key yet. The "pay from the organizer wallet" button exists so the whole loop runs on one machine; a real organizer would pay from their own wallet.
